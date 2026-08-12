@@ -1,0 +1,57 @@
+{
+  "name": "moshen",
+  "version": "0.1.0",
+  "description": "墨参 MoShen · 小说写作助手 — 辅助而非代笔，让 AI 当编辑，不当枪手",
+  "author": "M1r0er",
+  "license": "MIT",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "electron . --dev",
+    "build:python": "pyinstaller moshen.spec --noconfirm",
+    "build:electron": "electron-builder --win",
+    "build": "npm run build:python && npm run build:electron",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.m1r0er.moshen",
+    "productName": "墨参 MoShen",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/**/*",
+      "backend/prompts/**/*",
+      "!backend/__pycache__/**",
+      "!backend/**/__pycache__/**"
+    ],
+    "extraResources": [
+      {
+        "from": "dist/moshen-server",
+        "to": "moshen-server",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "墨参 MoShen"
+    }
+  }
+}

@@ -4,17 +4,25 @@
 
 ## 快速开始
 
-### 1. 启动桌面应用
-双击 `start.bat`，程序会自动安装依赖并以桌面窗口形式打开（无需浏览器）。
-
-也可手动启动：
+### 开发模式
+双击 `start.bat`，或手动执行：
 ```bash
-cd backend
-python desktop.py
+npm run dev
 ```
+Electron 窗口会自动打开，后端 Python 服务在后台启动。
 
-### 2. 配置模型
+### 配置模型
 应用打开后，点击左侧"设置"按钮，填写至少一组模型的 API Key（推荐 DeepSeek 或 Claude）。
+
+### 构建安装包
+```bash
+# 1. 打包 Python 后端为独立可执行文件
+npm run build:python
+
+# 2. 打包 Electron 安装包
+npm run build:electron
+```
+构建产物在 `release/` 目录下。
 
 ## 核心功能
 
@@ -39,17 +47,20 @@ python desktop.py
 流程：导入 .txt → 章节拆分 → 单章事实卡 → 故事情节单元 → 叙事模式抽象
 
 ## 技术栈
-- 后端：Python 3.10+ / FastAPI / httpx
+- 桌面：Electron + electron-builder
+- 后端：Python 3.10+ / FastAPI / PyInstaller
 - 前端：Vue 3（CDN，单文件 HTML）
-- 桌面：PyWebView（原生窗口，无需浏览器）
 - LLM：OpenAI 兼容接口（DeepSeek/Claude/GPT/Qwen 等）
 
 ## 项目结构
 ```
 moshen/
+├── electron/
+│   └── main.js              # Electron 主进程（窗口管理 + Python 子进程）
 ├── backend/
-│   ├── desktop.py           # 桌面应用入口（PyWebView）
-│   ├── main.py              # FastAPI 入口
+│   ├── server.py            # 后端服务启动器（Electron 模式入口）
+│   ├── desktop.py           # 桌面入口（PyWebView 备选方案）
+│   ├── main.py              # FastAPI 应用
 │   ├── core/                # 核心层
 │   │   ├── config.py        # 多模型配置
 │   │   ├── llm_provider.py  # LLM 调用
@@ -72,8 +83,10 @@ moshen/
 │       └── system_persona/  # 助手人格
 ├── frontend/
 │   └── index.html           # Vue 3 前端
-├── workspace/               # 项目工作区
-└── start.bat                # 启动脚本
+├── moshen.spec              # PyInstaller 打包配置
+├── package.json             # Electron + electron-builder 配置
+├── start.bat                # Windows 启动脚本
+└── README.md
 ```
 
 ## 四角色模型配置
