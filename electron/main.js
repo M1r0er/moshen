@@ -2,7 +2,7 @@
  * 墨参 MoShen · Electron 主进程
  * 负责启动 Python 后端服务、创建桌面窗口、管理应用生命周期
  */
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, globalShortcut } = require('electron');
 const path = require('path');
 const net = require('net');
 const { spawn } = require('child_process');
@@ -197,14 +197,29 @@ async function createWindow() {
     },
   });
 
-  // 加载后端服务地址
-  await mainWindow.loadURL(`http://127.0.0.1:${backendPort}`);
+  // 加载后端服务地址（失败不阻塞窗口显示）
+  try {
+    await mainWindow.loadURL(`http://127.0.0.1:${backendPort}`);
+  } catch (err) {
+    console.error('页面加载失败:', err.message);
+  }
 
-  // 窗口准备好后显示
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-    if (isDev) {
-      mainWindow.webContents.openDevTools();
+  // 立即显示窗口（不依赖 ready-to-show，避免窗口永不显示）
+  mainWindow.show();
+  mainWindow.focus();
+
+  // 兜底：若页面渲染较慢，1 秒后强制显示
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  }, 1000);
+
+  // F12 打开/关闭开发者工具（生产模式也可用）
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'F12') {
+      mainWindow.webContents.toggleDevTools();
+      event.preventDefault();
     }
   });
 
