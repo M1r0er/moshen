@@ -158,6 +158,28 @@ function killPythonServer() {
 }
 
 /**
+ * 显示错误页面（后端启动失败时）
+ */
+function showErrorPage(title, detail) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const html = `data:text/html;charset=utf-8,` + encodeURIComponent(`
+    <!DOCTYPE html><html><head><meta charset="utf-8"><title>墨参 MoShen</title>
+    <style>body{background:#0f1117;color:#e4e6eb;font-family:'Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .box{max-width:520px;text-align:center;padding:48px}
+    h1{color:#ff6b6b;margin-bottom:12px;font-size:22px}
+    p{color:#8b8fa3;line-height:1.8;font-size:14px}
+    .hint{margin-top:24px;padding:16px;background:#181b24;border-radius:8px;color:#a0a3b1;font-size:13px;text-align:left}
+    </style></head><body><div class="box">
+    <h1>${title}</h1>
+    <p>请截图反馈此页面，便于排查问题。</p>
+    <div class="hint"><b>错误详情：</b><br>${detail}<br><br><b>排查步骤：</b><br>1. 确认 8765 端口未被占用<br>2. 关闭旧进程后重试<br>3. 按 F12 打开开发者工具查看控制台</div>
+    </div></body></html>`);
+  mainWindow.loadURL(html);
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+/**
  * 创建主窗口
  */
 async function createWindow() {
@@ -165,57 +187,33 @@ async function createWindow() {
   backendPort = await findFreePort();
   console.log(`使用端口: ${backendPort}`);
 
-  // 启动后端服务
-  try {
-    await startPythonServer(backendPort);
-  } catch (e) {
-    console.error('后端服务启动失败:', e.message);
-    return;
-  }
-
-  // 等待服务就绪
-  try {
-    await waitForServer(backendPort);
-    console.log('后端服务已就绪');
-  } catch (e) {
-    console.error('等待后端服务超时:', e.message);
-    return;
-  }
-
-  // 创建浏览器窗口
+  // ★ 先创建并立即显示窗口，确保用户一定能看到界面
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1024,
     minHeight: 700,
     title: '墨参 MoShen · 小说写作助手',
-    show: false,
+    show: true,          // 创建即显示，不依赖任何事件
     autoHideMenuBar: true,
+    backgroundColor: '#0f1117',
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  // 加载后端服务地址（失败不阻塞窗口显示）
-  try {
-    await mainWindow.loadURL(`http://127.0.0.1:${backendPort}`);
-  } catch (err) {
-    console.error('页面加载失败:', err.message);
-  }
-
-  // 立即显示窗口（不依赖 ready-to-show，避免窗口永不显示）
-  mainWindow.show();
+  // 先显示一个加载提示页，让用户知道应用正在启动
+  mainWindow.loadURL(`data:text/html;charset=utf-8,` + encodeURIComponent(
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{background:#0f1117;color:#e4e6eb;font-family:'Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .box{text-align:center}.box h2{color:#7c5cfc;margin-bottom:8px}
+    .box p{color:#8b8fa3}.spin{display:inline-block;width:32px;height:32px;border:3px solid #2a2d3a;border-top-color:#7c5cfc;border-radius:50%;animation:r 0.8s linear infinite;margin:16px auto}
+    @keyframes r{to{transform:rotate(360deg)}}
+    </style></head><body><div class="box"><h2>墨参 MoShen</h2><div class="spin"></div><p>正在启动写作助手，请稍候...</p></div></body></html>`));
   mainWindow.focus();
 
-  // 兜底：若页面渲染较慢，1 秒后强制显示
-  setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
-      mainWindow.show();
-    }
-  }, 1000);
-
-  // F12 打开/关闭开发者工具（生产模式也可用）
+  // F12 打开/关闭开发者工具
   mainWindow.webContents.on('before-input-event', (event, input) => {
     if (input.key === 'F12') {
       mainWindow.webContents.toggleDevTools();
@@ -233,6 +231,33 @@ async function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // ★ 窗口已显示后，再异步启动后端服务
+  try {
+    await startPythonServer(backendPort);
+  } catch (e) {
+    console.error('后端服务启动失败:', e.message);
+    showErrorPage('后端服务启动失败', e.message);
+    return;
+  }
+
+  // 等待服务就绪
+  try {
+    await waitForServer(backendPort);
+    console.log('后端服务已就绪');
+  } catch (e) {
+    console.error('等待后端服务超时:', e.message);
+    showErrorPage('后端服务启动超时', 'Python 后端在 15 秒内未响应。' + e.message);
+    return;
+  }
+
+  // 后端就绪后，加载实际页面
+  try {
+    await mainWindow.loadURL(`http://127.0.0.1:${backendPort}`);
+  } catch (err) {
+    console.error('页面加载失败:', err.message);
+    showErrorPage('页面加载失败', err.message);
+  }
 }
 
 // 应用准备就绪
