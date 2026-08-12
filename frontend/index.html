@@ -1,0 +1,2412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>墨参 MoShen - 小说写作助手</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    /* ========== CSS 变量 ========== */
+    :root {
+      --bg-primary: #0f1117;
+      --bg-card: #181b24;
+      --bg-card-hover: #1f2330;
+      --bg-input: #1e2130;
+      --accent: #7c5cfc;
+      --accent-light: #9d7fff;
+      --accent-dim: rgba(124, 92, 252, 0.15);
+      --secondary: #4ecdc4;
+      --secondary-dim: rgba(78, 205, 196, 0.15);
+      --text-primary: #e4e6eb;
+      --text-secondary: #8b8fa3;
+      --text-muted: #5a5e6e;
+      --border: #2a2e3d;
+      --border-light: #353a4d;
+      --l1-color: #4ecdc4;
+      --l2-color: #f0c674;
+      --l3-color: #e06c75;
+      --sidebar-width: 240px;
+      --danger: #e06c75;
+      --success: #4ecdc4;
+      --warning: #f0c674;
+    }
+
+    /* ========== 重置 ========== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+    }
+
+    body {
+      font-family: "Noto Sans CJK SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-width: 1024px;
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ========== 滚动条 ========== */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-light);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* ========== 主布局 ========== */
+    #app {
+      display: flex;
+      height: 100vh;
+      width: 100%;
+    }
+
+    /* ========== 侧边栏 ========== */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      height: 100vh;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    .sidebar-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-section {
+      padding: 12px 16px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .sidebar-section-title {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+      padding: 0 4px;
+    }
+
+    .new-project-btn {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--accent-dim);
+      border: 1px dashed var(--accent);
+      border-radius: 8px;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 16px;
+      font-family: inherit;
+    }
+
+    .new-project-btn:hover {
+      background: rgba(124, 92, 252, 0.25);
+      border-style: solid;
+    }
+
+    .project-list {
+      list-style: none;
+    }
+
+    .project-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-item:hover {
+      background: var(--bg-card-hover);
+    }
+
+    .project-item.active {
+      background: var(--accent-dim);
+      border-left: 3px solid var(--accent);
+      padding-left: 9px;
+    }
+
+    .project-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .project-item.active .project-icon {
+      background: var(--accent);
+    }
+
+    .project-name {
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .settings-btn {
+      width: 100%;
+      padding: 10px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+    }
+
+    .settings-btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* ========== 主区域 ========== */
+    .main-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ========== 标签栏 ========== */
+    .tab-bar {
+      display: flex;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .tab-item {
+      padding: 14px 24px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-item:hover {
+      color: var(--text-primary);
+    }
+
+    .tab-item.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-content {
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* ========== 对话工作台 ========== */
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .messages-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .message {
+      display: flex;
+      gap: 12px;
+      max-width: 80%;
+      animation: fadeInUp 0.3s ease;
+    }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .message.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .message.assistant .message-avatar {
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+
+    .message.user .message-avatar {
+      background: var(--secondary-dim);
+      color: var(--secondary);
+      border: 1px solid var(--secondary);
+    }
+
+    .message-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .message.assistant .message-body {
+      align-items: flex-start;
+    }
+
+    .message.user .message-body {
+      align-items: flex-end;
+    }
+
+    .message-name {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    .message-bubble {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 14px;
+      line-height: 1.7;
+      word-break: break-word;
+    }
+
+    .message.user .message-bubble {
+      background: var(--accent-dim);
+      border: 1px solid rgba(124, 92, 252, 0.3);
+      border-top-right-radius: 4px;
+    }
+
+    .message.assistant .message-bubble {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top-left-radius: 4px;
+    }
+
+    /* ========== Markdown 渲染 ========== */
+    .message-bubble h1 { font-size: 18px; margin: 12px 0 6px; font-weight: 700; }
+    .message-bubble h2 { font-size: 16px; margin: 10px 0 4px; font-weight: 700; }
+    .message-bubble h3 { font-size: 15px; margin: 8px 0 4px; font-weight: 600; }
+    .message-bubble p { margin: 4px 0; }
+    .message-bubble ul, .message-bubble ol { margin: 6px 0; padding-left: 20px; }
+    .message-bubble li { margin: 2px 0; }
+    .message-bubble strong { font-weight: 700; color: var(--text-primary); }
+    .message-bubble em { font-style: italic; }
+    .message-bubble a { color: var(--secondary); text-decoration: underline; }
+    .message-bubble pre {
+      background: #0a0c12;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      margin: 8px 0;
+    }
+    .message-bubble pre code {
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 13px;
+      color: var(--secondary);
+    }
+    .message-bubble code.inline-code {
+      background: rgba(78, 205, 196, 0.12);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 13px;
+      color: var(--secondary);
+    }
+
+    /* ========== L1/L2/L3 标签高亮 ========== */
+    .l1-tag {
+      display: inline-block;
+      background: rgba(78, 205, 196, 0.15);
+      color: var(--l1-color);
+      padding: 1px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(78, 205, 196, 0.3);
+      margin: 0 2px;
+    }
+    .l2-tag {
+      display: inline-block;
+      background: rgba(240, 198, 116, 0.15);
+      color: var(--l2-color);
+      padding: 1px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(240, 198, 116, 0.3);
+      margin: 0 2px;
+    }
+    .l3-tag {
+      display: inline-block;
+      background: rgba(224, 108, 117, 0.15);
+      color: var(--l3-color);
+      padding: 1px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(224, 108, 117, 0.3);
+      margin: 0 2px;
+    }
+
+    /* ========== 思考状态 ========== */
+    .thinking-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 8px 16px;
+    }
+
+    .thinking-dots {
+      display: inline-flex;
+      gap: 4px;
+    }
+
+    .thinking-dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: thinkingPulse 1.4s infinite ease-in-out;
+    }
+
+    .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes thinkingPulse {
+      0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: var(--accent);
+      animation: blink 1s infinite;
+      vertical-align: text-bottom;
+      margin-left: 2px;
+    }
+
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+    }
+
+    /* ========== 输入区域 ========== */
+    .input-area {
+      padding: 16px 24px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--bg-primary);
+      flex-shrink: 0;
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px;
+      transition: border-color 0.2s;
+    }
+
+    .input-wrapper:focus-within {
+      border-color: var(--accent);
+    }
+
+    .input-textarea {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: inherit;
+      line-height: 1.6;
+      resize: none;
+      padding: 8px 12px;
+      max-height: 160px;
+      min-height: 40px;
+    }
+
+    .input-textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .send-btn {
+      padding: 8px 20px;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      font-family: inherit;
+      flex-shrink: 0;
+      height: 40px;
+    }
+
+    .send-btn:hover:not(:disabled) {
+      background: var(--accent-light);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .input-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-align: right;
+    }
+
+    /* ========== 空状态 ========== */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      opacity: 0.3;
+    }
+
+    .empty-state-text {
+      font-size: 15px;
+    }
+
+    .empty-state-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ========== 文件管理 ========== */
+    .files-container {
+      padding: 24px;
+      height: 100%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .section-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-card-title .icon {
+      font-size: 16px;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border-light);
+      border-radius: 10px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .drop-zone:hover {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    .drop-zone.dragging {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+      transform: scale(1.01);
+    }
+
+    .drop-zone-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .drop-zone-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .drop-zone-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .file-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+
+    .file-item:hover {
+      border-color: var(--accent);
+      background: var(--bg-card-hover);
+    }
+
+    .file-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .file-icon.md { background: rgba(78, 205, 196, 0.15); color: var(--secondary); }
+    .file-icon.txt { background: rgba(240, 198, 116, 0.15); color: var(--l2-color); }
+    .file-icon.doc { background: rgba(124, 92, 252, 0.15); color: var(--accent); }
+    .file-icon.pdf { background: rgba(224, 108, 117, 0.15); color: var(--l3-color); }
+
+    .file-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .file-name {
+      font-size: 13px;
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .file-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .file-actions-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .action-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.2s;
+      font-family: inherit;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .action-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .action-btn.primary {
+      background: var(--accent-dim);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .action-btn.primary:hover {
+      background: rgba(124, 92, 252, 0.25);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ========== 项目仪表盘 ========== */
+    .dashboard-container {
+      padding: 24px;
+      height: 100%;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .info-item {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .info-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+
+    .info-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .info-value.accent { color: var(--accent); }
+    .info-value.secondary { color: var(--secondary); }
+
+    .conflict-chart {
+      width: 100%;
+      height: 200px;
+    }
+
+    .chart-bar {
+      transition: opacity 0.2s;
+    }
+    .chart-bar:hover {
+      opacity: 0.8;
+    }
+
+    .foreshadowing-stats {
+      display: flex;
+      gap: 16px;
+    }
+
+    .foreshadow-stat {
+      flex: 1;
+      text-align: center;
+      padding: 16px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+
+    .foreshadow-stat.planted { background: rgba(78, 205, 196, 0.08); border-color: rgba(78, 205, 196, 0.3); }
+    .foreshadow-stat.resolved { background: rgba(124, 92, 252, 0.08); border-color: rgba(124, 92, 252, 0.3); }
+    .foreshadow-stat.sleeping { background: rgba(240, 198, 116, 0.08); border-color: rgba(240, 198, 116, 0.3); }
+
+    .foreshadow-number {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .foreshadow-stat.planted .foreshadow-number { color: var(--l1-color); }
+    .foreshadow-stat.resolved .foreshadow-number { color: var(--accent); }
+    .foreshadow-stat.sleeping .foreshadow-number { color: var(--l2-color); }
+
+    .foreshadow-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .summary-list, .report-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .summary-item, .report-item {
+      padding: 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: border-color 0.15s;
+    }
+
+    .summary-item:hover, .report-item:hover {
+      border-color: var(--accent);
+    }
+
+    .summary-header, .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .summary-title, .report-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .summary-time, .report-time {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .summary-text, .report-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .report-badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    .report-badge.info { background: var(--secondary-dim); color: var(--secondary); }
+    .report-badge.warning { background: rgba(240, 198, 116, 0.15); color: var(--l2-color); }
+    .report-badge.critical { background: rgba(224, 108, 117, 0.15); color: var(--l3-color); }
+
+    /* ========== 设置弹窗 ========== */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: fadeIn 0.2s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 720px;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.25s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-card-hover);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 20px 24px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    .config-group {
+      margin-bottom: 20px;
+      padding: 16px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+
+    .config-group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .config-group-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .config-field {
+      margin-bottom: 10px;
+    }
+
+    .config-field:last-child {
+      margin-bottom: 0;
+    }
+
+    .config-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .config-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .config-input:focus {
+      border-color: var(--accent);
+    }
+
+    .config-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    /* ========== 文件预览弹窗 ========== */
+    .file-preview-modal {
+      width: 800px;
+      max-height: 85vh;
+    }
+
+    .file-preview-content {
+      padding: 20px 24px;
+      max-height: 60vh;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      margin: 0 24px 20px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      color: var(--text-secondary);
+    }
+
+    /* ========== 通知 ========== */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .toast {
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      animation: slideInRight 0.25s ease;
+      max-width: 360px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    @keyframes slideInRight {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    .toast.success { background: rgba(78, 205, 196, 0.15); border: 1px solid var(--secondary); color: var(--secondary); }
+    .toast.error { background: rgba(224, 108, 117, 0.15); border: 1px solid var(--danger); color: var(--danger); }
+    .toast.info { background: rgba(124, 92, 252, 0.15); border: 1px solid var(--accent); color: var(--accent); }
+
+    /* ========== 连接状态指示器 ========== */
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 0 4px 8px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status-dot.connected { background: var(--success); }
+    .status-dot.disconnected { background: var(--danger); }
+
+    /* ========== 新建项目弹窗 ========== */
+    .new-project-modal {
+      width: 440px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- ========== 侧边栏 ========== -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">墨参 MoShen</div>
+        <div class="sidebar-subtitle">AI 小说写作助手</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="connection-status">
+          <span class="status-dot" :class="backendConnected ? 'connected' : 'disconnected'"></span>
+          <span>{{ backendConnected ? '后端已连接' : '后端未连接' }}</span>
+        </div>
+
+        <button class="new-project-btn" @click="showNewProjectModal = true">
+          <span>+</span>
+          <span>新建项目</span>
+        </button>
+
+        <div class="sidebar-section-title">项目列表</div>
+        <ul class="project-list" v-if="projects.length > 0">
+          <li
+            v-for="project in projects"
+            :key="project.id"
+            class="project-item"
+            :class="{ active: project.id === currentProjectId }"
+            @click="selectProject(project.id)"
+          >
+            <span class="project-icon"></span>
+            <span class="project-name">{{ project.name }}</span>
+          </li>
+        </ul>
+        <div v-else style="padding: 12px 4px; font-size: 12px; color: var(--text-muted);">
+          暂无项目，点击上方按钮创建
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="settings-btn" @click="openSettings">
+          <span>⚙</span>
+          <span>设置</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ========== 主区域 ========== -->
+    <main class="main-area">
+      <!-- 标签栏 -->
+      <div class="tab-bar">
+        <div
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="tab-item"
+          :class="{ active: activeTab === tab.key }"
+          @click="activeTab = tab.key"
+        >
+          <span>{{ tab.icon }}</span>
+          <span>{{ tab.label }}</span>
+        </div>
+      </div>
+
+      <!-- 标签内容 -->
+      <div class="tab-content">
+        <!-- ========== 对话工作台 ========== -->
+        <div v-if="activeTab === 'chat'" class="chat-container">
+          <div v-if="!currentProjectId" class="empty-state">
+            <div class="empty-state-icon">✦</div>
+            <div class="empty-state-text">请先在左侧选择或创建一个项目</div>
+            <div class="empty-state-hint">墨参将协助你进行小说创作</div>
+          </div>
+          <template v-else>
+            <div class="messages-area" ref="messagesArea">
+              <div v-if="messages.length === 0" class="empty-state">
+                <div class="empty-state-icon">✦</div>
+                <div class="empty-state-text">开始与墨参对话</div>
+                <div class="empty-state-hint">输入你的创作需求，墨参将为你提供写作建议</div>
+              </div>
+
+              <div
+                v-for="(msg, index) in messages"
+                :key="index"
+                class="message"
+                :class="msg.role"
+              >
+                <div class="message-avatar">
+                  {{ msg.role === 'user' ? '我' : '墨' }}
+                </div>
+                <div class="message-body">
+                  <div class="message-name">{{ msg.role === 'user' ? '我' : '墨参' }}</div>
+                  <div class="message-bubble" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=\"cursor-blink\"></span>' : '')"></div>
+                </div>
+              </div>
+
+              <div v-if="isThinking && messages.length > 0 && messages[messages.length - 1].role === 'user'" class="message assistant">
+                <div class="message-avatar">墨</div>
+                <div class="message-body">
+                  <div class="message-name">墨参</div>
+                  <div class="message-bubble">
+                    <div class="thinking-indicator">
+                      <span>正在思考</span>
+                      <div class="thinking-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="input-area">
+              <div class="input-wrapper">
+                <textarea
+                  class="input-textarea"
+                  v-model="inputText"
+                  placeholder="输入你的创作需求... (Ctrl+Enter 发送)"
+                  @keydown="handleKeyDown"
+                  rows="1"
+                  ref="inputArea"
+                ></textarea>
+                <button class="send-btn" @click="sendMessage" :disabled="!inputText.trim() || isThinking">
+                  {{ isThinking ? '思考中' : '发送' }}
+                </button>
+              </div>
+              <div class="input-hint">Ctrl + Enter 发送消息</div>
+            </div>
+          </template>
+        </div>
+
+        <!-- ========== 文件管理 ========== -->
+        <div v-if="activeTab === 'files'" class="files-container">
+          <div v-if="!currentProjectId" class="empty-state">
+            <div class="empty-state-icon">📁</div>
+            <div class="empty-state-text">请先选择一个项目</div>
+          </div>
+          <template v-else>
+            <!-- 上传区域 -->
+            <div class="section-card">
+              <div class="section-card-title"><span class="icon">📤</span> 文件上传</div>
+              <div
+                class="drop-zone"
+                :class="{ dragging: isDragging }"
+                @dragover.prevent="isDragging = true"
+                @dragleave.prevent="isDragging = false"
+                @drop.prevent="handleDrop"
+                @click="$refs.fileInput.click()"
+              >
+                <div class="drop-zone-icon">⬆</div>
+                <div class="drop-zone-text">拖拽文件到此处，或点击选择文件</div>
+                <div class="drop-zone-hint">支持 .txt .md .doc .docx .pdf 等格式</div>
+                <input type="file" ref="fileInput" style="display:none" multiple @change="handleFileSelect" />
+              </div>
+            </div>
+
+            <!-- 已上传文件 -->
+            <div class="section-card">
+              <div class="section-card-title"><span class="icon">📄</span> 已上传文件 ({{ uploadedFiles.length }})</div>
+              <div v-if="uploadedFiles.length === 0" style="color: var(--text-muted); font-size: 13px; padding: 8px 0;">
+                暂无上传文件
+              </div>
+              <div v-else class="file-list">
+                <div
+                  v-for="file in uploadedFiles"
+                  :key="file.id || file.name"
+                  class="file-item"
+                  @click="viewFile(file)"
+                >
+                  <div class="file-icon" :class="getFileIconClass(file.name)">{{ getFileExt(file.name) }}</div>
+                  <div class="file-info">
+                    <div class="file-name">{{ file.name }}</div>
+                    <div class="file-meta">{{ formatFileSize(file.size) }} · {{ file.type || '未知类型' }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="file-actions-row" v-if="uploadedFiles.length > 0">
+                <button class="action-btn primary" @click="analyzeManuscript" :disabled="processing">
+                  {{ processing === 'analyze' ? '分析中...' : '🔍 分析稿件' }}
+                </button>
+                <button class="action-btn" @click="splitBook" :disabled="processing">
+                  {{ processing === 'split' ? '拆书中...' : '📖 拆书入库' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- 项目知识库 -->
+            <div class="section-card">
+              <div class="section-card-title"><span class="icon">📚</span> 项目知识库</div>
+              <div class="file-list">
+                <div
+                  v-for="kbFile in knowledgeBaseFiles"
+                  :key="kbFile.name"
+                  class="file-item"
+                  @click="viewKnowledgeFile(kbFile)"
+                >
+                  <div class="file-icon md">md</div>
+                  <div class="file-info">
+                    <div class="file-name">{{ kbFile.name }}</div>
+                    <div class="file-meta">{{ kbFile.desc || '知识库文档' }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- ========== 项目仪表盘 ========== -->
+        <div v-if="activeTab === 'dashboard'" class="dashboard-container">
+          <div v-if="!currentProjectId" class="empty-state">
+            <div class="empty-state-icon">📊</div>
+            <div class="empty-state-text">请先选择一个项目</div>
+          </div>
+          <template v-else>
+            <!-- 项目基本信息 -->
+            <div class="section-card">
+              <div class="section-card-title"><span class="icon">📋</span> 项目基本信息</div>
+              <div class="info-grid">
+                <div class="info-item">
+                  <div class="info-label">项目名称</div>
+                  <div class="info-value">{{ dashboardData.info.name || (currentProject ? currentProject.name : '-') }}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">创建时间</div>
+                  <div class="info-value" style="font-size: 14px;">{{ dashboardData.info.created || (currentProject ? currentProject.created : '-') }}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">章节数</div>
+                  <div class="info-value accent">{{ dashboardData.info.chapters || 0 }}</div>
+                </div>
+                <div class="info-item">
+                  <div class="info-label">总字数</div>
+                  <div class="info-value secondary">{{ formatNumber(dashboardData.info.wordCount || 0) }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 冲突值曲线图 -->
+            <div class="section-card">
+              <div class="section-card-title"><span class="icon">📈</span> 冲突值曲线</div>
+              <svg class="conflict-chart" viewBox="0 0 480 200" preserveAspectRatio="none">
+                <!-- 网格线 -->
+                <line x1="0" y1="50" x2="480" y2="50" stroke="#2a2e3d" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="0" y1="100" x2="480" y2="100" stroke="#2a2e3d" stroke-width="1" stroke-dasharray="4,4" />
+                <line x1="0" y1="150" x2="480" y2="150" stroke="#2a2e3d" stroke-width="1" stroke-dasharray="4,4" />
+                <!-- 柱状图 -->
+                <g v-for="(point, i) in dashboardData.conflictCurve" :key="i">
+                  <rect
+                    class="chart-bar"
+                    :x="i * (480 / dashboardData.conflictCurve.length) + 6"
+                    :y="190 - point.value * 1.6"
+                    :width="480 / dashboardData.conflictCurve.length - 12"
+                    :height="point.value * 1.6"
+                    :fill="point.value > 70 ? '#e06c75' : point.value > 40 ? '#f0c674' : '#4ecdc4'"
+                    rx="3"
+                  />
+                  <text
+                    :x="i * (480 / dashboardData.conflictCurve.length) + 6 + (480 / dashboardData.conflictCurve.length - 12) / 2"
+                    :y="198"
+                    text-anchor="middle"
+                    fill="#5a5e6e"
+                    font-size="10"
+                  >{{ point.chapter }}</text>
+                </g>
+              </svg>
+            </div>
+
+            <!-- 伏笔状态统计 -->
+            <div class="section-card">
+              <div class="section-card-title"><span class="icon">🔮</span> 伏笔状态统计</div>
+              <div class="foreshadowing-stats">
+                <div class="foreshadow-stat planted">
+                  <div class="foreshadow-number">{{ dashboardData.foreshadowing.planted }}</div>
+                  <div class="foreshadow-label">已埋设</div>
+                </div>
+                <div class="foreshadow-stat resolved">
+                  <div class="foreshadow-number">{{ dashboardData.foreshadowing.resolved }}</div>
+                  <div class="foreshadow-label">已回收</div>
+                </div>
+                <div class="foreshadow-stat sleeping">
+                  <div class="foreshadow-number">{{ dashboardData.foreshadowing.sleeping }}</div>
+                  <div class="foreshadow-label">沉睡预警</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 最近对话摘要 + 诊断报告 -->
+            <div class="dashboard-grid">
+              <div class="section-card">
+                <div class="section-card-title"><span class="icon">💬</span> 最近对话摘要</div>
+                <div v-if="dashboardData.recentSummaries.length === 0" style="color: var(--text-muted); font-size: 13px;">
+                  暂无对话摘要
+                </div>
+                <div v-else class="summary-list">
+                  <div v-for="(item, i) in dashboardData.recentSummaries" :key="i" class="summary-item">
+                    <div class="summary-header">
+                      <div class="summary-title">{{ item.title }}</div>
+                      <div class="summary-time">{{ item.time }}</div>
+                    </div>
+                    <div class="summary-text">{{ item.summary }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="section-card">
+                <div class="section-card-title"><span class="icon">🔧</span> 诊断报告</div>
+                <div v-if="dashboardData.diagnosticReports.length === 0" style="color: var(--text-muted); font-size: 13px;">
+                  暂无诊断报告
+                </div>
+                <div v-else class="report-list">
+                  <div v-for="(report, i) in dashboardData.diagnosticReports" :key="i" class="report-item">
+                    <div class="report-header">
+                      <div class="report-title">
+                        <span class="report-badge" :class="report.level">{{ report.levelText }}</span>
+                        {{ report.title }}
+                      </div>
+                      <div class="report-time">{{ report.time }}</div>
+                    </div>
+                    <div class="report-text">{{ report.detail }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </main>
+
+    <!-- ========== 设置弹窗 ========== -->
+    <div v-if="showSettings" class="modal-overlay" @click.self="showSettings = false">
+      <div class="modal">
+        <div class="modal-header">
+          <div class="modal-title">⚙ 模型配置</div>
+          <button class="modal-close" @click="showSettings = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div v-for="group in configGroups" :key="group.key" class="config-group">
+            <div class="config-group-title">{{ group.icon }} {{ group.title }}</div>
+            <div class="config-group-desc">{{ group.desc }}</div>
+            <div class="config-field">
+              <label class="config-label">模型名称</label>
+              <input
+                class="config-input"
+                v-model="modelConfigs[group.key].name"
+                :placeholder="group.placeholderName"
+              />
+            </div>
+            <div class="config-field">
+              <label class="config-label">Base URL</label>
+              <input
+                class="config-input"
+                v-model="modelConfigs[group.key].baseUrl"
+                placeholder="https://api.openai.com/v1"
+              />
+            </div>
+            <div class="config-field">
+              <label class="config-label">API Key</label>
+              <input
+                class="config-input"
+                type="password"
+                v-model="modelConfigs[group.key].apiKey"
+                placeholder="sk-..."
+              />
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="action-btn" @click="testConnection" :disabled="testing">
+            {{ testing ? '测试中...' : '🔌 测试连接' }}
+          </button>
+          <button class="action-btn primary" @click="saveConfig">💾 保存配置</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 新建项目弹窗 ========== -->
+    <div v-if="showNewProjectModal" class="modal-overlay" @click.self="showNewProjectModal = false">
+      <div class="modal new-project-modal">
+        <div class="modal-header">
+          <div class="modal-title">✦ 新建项目</div>
+          <button class="modal-close" @click="showNewProjectModal = false">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="config-field">
+            <label class="config-label">项目名称</label>
+            <input
+              class="config-input"
+              v-model="newProjectName"
+              placeholder="输入项目名称..."
+              @keydown.enter="createProject"
+              ref="newProjectInput"
+            />
+          </div>
+          <div class="config-field">
+            <label class="config-label">项目描述（可选）</label>
+            <textarea
+              class="config-input"
+              v-model="newProjectDesc"
+              placeholder="简要描述你的小说项目..."
+              rows="3"
+              style="resize: none; font-family: inherit;"
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="action-btn" @click="showNewProjectModal = false">取消</button>
+          <button class="action-btn primary" @click="createProject" :disabled="!newProjectName.trim()">
+            创建项目
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 文件预览弹窗 ========== -->
+    <div v-if="showFilePreview" class="modal-overlay" @click.self="showFilePreview = false">
+      <div class="modal file-preview-modal">
+        <div class="modal-header">
+          <div class="modal-title">📄 {{ previewFileName }}</div>
+          <button class="modal-close" @click="showFilePreview = false">×</button>
+        </div>
+        <div class="file-preview-content">{{ previewFileContent }}</div>
+      </div>
+    </div>
+
+    <!-- ========== 通知 ========== -->
+    <div class="toast-container">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast"
+        :class="toast.type"
+      >
+        <span>{{ toast.message }}</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
+
+    createApp({
+      setup() {
+        // ========== 常量 ==========
+        const API_BASE = 'http://127.0.0.1:8765';
+
+        // ========== 状态 ==========
+        const projects = ref([]);
+        const currentProjectId = ref(null);
+        const currentProject = computed(() =>
+          projects.value.find(p => p.id === currentProjectId.value)
+        );
+
+        const activeTab = ref('chat');
+        const tabs = [
+          { key: 'chat', label: '对话工作台', icon: '💬' },
+          { key: 'files', label: '文件管理', icon: '📁' },
+          { key: 'dashboard', label: '项目仪表盘', icon: '📊' }
+        ];
+
+        // 对话状态
+        const messages = ref([]);
+        const inputText = ref('');
+        const isThinking = ref(false);
+        const messagesArea = ref(null);
+        const inputArea = ref(null);
+        let abortController = null;
+
+        // 设置状态
+        const showSettings = ref(false);
+        const testing = ref(false);
+        const modelConfigs = reactive({
+          TEXT_MASTER: { name: '', baseUrl: '', apiKey: '' },
+          STRUCTURE_ANALYST: { name: '', baseUrl: '', apiKey: '' },
+          KNOWLEDGE_BUILDER: { name: '', baseUrl: '', apiKey: '' },
+          DIALOGUE_PARTNER: { name: '', baseUrl: '', apiKey: '' }
+        });
+
+        const configGroups = [
+          { key: 'TEXT_MASTER', title: 'TEXT_MASTER 文本大师', icon: '✍', desc: '负责核心文本生成与创作', placeholderName: 'gpt-4o / claude-3.5-sonnet' },
+          { key: 'STRUCTURE_ANALYST', title: 'STRUCTURE_ANALYST 结构分析师', icon: '📐', desc: '负责叙事结构与冲突分析', placeholderName: 'gpt-4o / deepseek-chat' },
+          { key: 'KNOWLEDGE_BUILDER', title: 'KNOWLEDGE_BUILDER 知识构建者', icon: '🗂', desc: '负责知识库管理与检索', placeholderName: 'gpt-4o-mini / text-embedding' },
+          { key: 'DIALOGUE_PARTNER', title: 'DIALOGUE_PARTNER 对话伙伴', icon: '🎭', desc: '负责对话交互与反馈', placeholderName: 'gpt-4o / claude-3.5-sonnet' }
+        ];
+
+        // 文件管理状态
+        const uploadedFiles = ref([]);
+        const knowledgeBaseFiles = ref([
+          { name: '世界观规则.md', desc: '世界观设定与规则' },
+          { name: '角色档案.md', desc: '主要角色信息' },
+          { name: '时间线.md', desc: '故事时间线记录' },
+          { name: '伏笔追踪.md', desc: '伏笔埋设与回收' },
+          { name: '章节大纲.md', desc: '各章节大纲规划' }
+        ]);
+        const isDragging = ref(false);
+        const fileInput = ref(null);
+        const processing = ref(null);
+
+        // 文件预览
+        const showFilePreview = ref(false);
+        const previewFileName = ref('');
+        const previewFileContent = ref('');
+
+        // 新建项目
+        const showNewProjectModal = ref(false);
+        const newProjectName = ref('');
+        const newProjectDesc = ref('');
+        const newProjectInput = ref(null);
+
+        // 仪表盘数据
+        const dashboardData = reactive({
+          info: { name: '', created: '', chapters: 0, wordCount: 0 },
+          conflictCurve: [],
+          foreshadowing: { planted: 0, resolved: 0, sleeping: 0 },
+          recentSummaries: [],
+          diagnosticReports: []
+        });
+
+        // 后端连接状态
+        const backendConnected = ref(false);
+
+        // 通知
+        const toasts = ref([]);
+        let toastId = 0;
+
+        function showToast(message, type = 'info') {
+          const id = ++toastId;
+          toasts.value.push({ id, message, type });
+          setTimeout(() => {
+            toasts.value = toasts.value.filter(t => t.id !== id);
+          }, 3500);
+        }
+
+        // ========== Markdown 渲染 ==========
+        function escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+        }
+
+        function inlineFormat(text) {
+          let result = text;
+          // 先转义 HTML
+          result = escapeHtml(result);
+          // 加粗
+          result = result.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          // 斜体
+          result = result.replace(/\*(.+?)\*/g, '<em>$1</em>');
+          // 行内代码
+          result = result.replace(/`(.+?)`/g, '<code class="inline-code">$1</code>');
+          // 链接
+          result = result.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank">$1</a>');
+          // L1 标签
+          result = result.replace(/\[L1[^\]]*\]/g, m => `<span class="l1-tag">${m}</span>`);
+          // L2 标签
+          result = result.replace(/\[L2[^\]]*\]/g, m => `<span class="l2-tag">${m}</span>`);
+          // L3 标签
+          result = result.replace(/\[L3[^\]]*\]/g, m => `<span class="l3-tag">${m}</span>`);
+          return result;
+        }
+
+        function renderMarkdown(text) {
+          if (!text) return '';
+          const lines = text.split('\n');
+          let html = '';
+          let inCodeBlock = false;
+          let inList = false;
+          let codeBlockContent = '';
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // 代码块
+            if (line.trim().startsWith('```')) {
+              if (inCodeBlock) {
+                html += `<pre><code>${escapeHtml(codeBlockContent)}</code></pre>`;
+                codeBlockContent = '';
+                inCodeBlock = false;
+              } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                inCodeBlock = true;
+              }
+              continue;
+            }
+
+            if (inCodeBlock) {
+              codeBlockContent += line + '\n';
+              continue;
+            }
+
+            // 标题
+            if (line.startsWith('### ')) {
+              if (inList) { html += '</ul>'; inList = false; }
+              html += `<h3>${inlineFormat(line.slice(4))}</h3>`;
+              continue;
+            }
+            if (line.startsWith('## ')) {
+              if (inList) { html += '</ul>'; inList = false; }
+              html += `<h2>${inlineFormat(line.slice(3))}</h2>`;
+              continue;
+            }
+            if (line.startsWith('# ')) {
+              if (inList) { html += '</ul>'; inList = false; }
+              html += `<h1>${inlineFormat(line.slice(2))}</h1>`;
+              continue;
+            }
+
+            // 引用块
+            if (line.startsWith('> ')) {
+              if (inList) { html += '</ul>'; inList = false; }
+              html += `<blockquote style="border-left:3px solid var(--accent);padding-left:12px;color:var(--text-secondary);margin:6px 0;">${inlineFormat(line.slice(2))}</blockquote>`;
+              continue;
+            }
+
+            // 列表项
+            if (line.match(/^[-*]\s+/) || line.match(/^\d+\.\s+/)) {
+              if (!inList) {
+                html += '<ul>';
+                inList = true;
+              }
+              const content = line.replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '');
+              html += `<li>${inlineFormat(content)}</li>`;
+              continue;
+            } else if (inList && line.trim() === '') {
+              html += '</ul>';
+              inList = false;
+            }
+
+            // 空行
+            if (line.trim() === '') {
+              if (inList) { html += '</ul>'; inList = false; }
+              continue;
+            }
+
+            // 普通段落
+            if (inList) { html += '</ul>'; inList = false; }
+            html += `<p>${inlineFormat(line)}</p>`;
+          }
+
+          if (inList) html += '</ul>';
+          if (inCodeBlock) html += `<pre><code>${escapeHtml(codeBlockContent)}</code></pre>`;
+
+          return html;
+        }
+
+        // ========== 滚动到底部 ==========
+        async function scrollToBottom() {
+          await nextTick();
+          if (messagesArea.value) {
+            messagesArea.value.scrollTop = messagesArea.value.scrollHeight;
+          }
+        }
+
+        // ========== 输入框自适应高度 ==========
+        function autoResize() {
+          if (inputArea.value) {
+            inputArea.value.style.height = 'auto';
+            inputArea.value.style.height = Math.min(inputArea.value.scrollHeight, 160) + 'px';
+          }
+        }
+
+        watch(inputText, () => {
+          nextTick(autoResize);
+        });
+
+        // ========== 键盘事件 ==========
+        function handleKeyDown(e) {
+          if (e.ctrlKey && e.key === 'Enter') {
+            e.preventDefault();
+            sendMessage();
+          }
+        }
+
+        // ========== API 调用 ==========
+
+        // 检查后端连接
+        async function checkBackend() {
+          try {
+            const resp = await fetch(`${API_BASE}/api/projects`, { method: 'GET' });
+            backendConnected.value = resp.ok;
+          } catch {
+            backendConnected.value = false;
+          }
+        }
+
+        // 加载项目列表
+        async function loadProjects() {
+          try {
+            const resp = await fetch(`${API_BASE}/api/projects`);
+            if (resp.ok) {
+              const data = await resp.json();
+              projects.value = data.projects || data || [];
+              backendConnected.value = true;
+            } else {
+              throw new Error('Failed to load projects');
+            }
+          } catch (err) {
+            backendConnected.value = false;
+            // 加载示例项目
+            projects.value = [
+              { id: 'demo-1', name: '示例：星海浮沉', created: '2025-01-15' }
+            ];
+          }
+        }
+
+        // 选择项目
+        async function selectProject(projectId) {
+          currentProjectId.value = projectId;
+          messages.value = [];
+          uploadedFiles.value = [];
+          resetDashboard();
+          await loadProjectData(projectId);
+        }
+
+        async function loadProjectData(projectId) {
+          // 加载消息历史
+          try {
+            const resp = await fetch(`${API_BASE}/api/chat/history?project_id=${projectId}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              messages.value = (data.messages || []).map(m => ({
+                role: m.role,
+                content: m.content,
+                streaming: false
+              }));
+              await scrollToBottom();
+            }
+          } catch {
+            // 静默失败
+          }
+
+          // 加载文件列表
+          try {
+            const resp = await fetch(`${API_BASE}/api/files/${projectId}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              uploadedFiles.value = data.files || [];
+            }
+          } catch {
+            // 静默失败
+          }
+
+          // 加载仪表盘数据
+          await loadDashboard(projectId);
+        }
+
+        // 重置仪表盘
+        function resetDashboard() {
+          dashboardData.info = { name: '', created: '', chapters: 0, wordCount: 0 };
+          dashboardData.conflictCurve = [];
+          dashboardData.foreshadowing = { planted: 0, resolved: 0, sleeping: 0 };
+          dashboardData.recentSummaries = [];
+          dashboardData.diagnosticReports = [];
+        }
+
+        // 加载仪表盘数据
+        async function loadDashboard(projectId) {
+          try {
+            const resp = await fetch(`${API_BASE}/api/dashboard?project_id=${projectId}`);
+            if (resp.ok) {
+              const data = await resp.json();
+              if (data.info) dashboardData.info = data.info;
+              if (data.conflictCurve) dashboardData.conflictCurve = data.conflictCurve;
+              if (data.foreshadowing) dashboardData.foreshadowing = data.foreshadowing;
+              if (data.recentSummaries) dashboardData.recentSummaries = data.recentSummaries;
+              if (data.diagnosticReports) dashboardData.diagnosticReports = data.diagnosticReports;
+            } else {
+              throw new Error('Failed');
+            }
+          } catch {
+            // 加载示例数据
+            const proj = projects.value.find(p => p.id === projectId);
+            dashboardData.info = {
+              name: proj ? proj.name : '未知项目',
+              created: proj ? proj.created : '-',
+              chapters: 12,
+              wordCount: 86500
+            };
+            dashboardData.conflictCurve = [
+              { chapter: 'Ch1', value: 20 },
+              { chapter: 'Ch2', value: 35 },
+              { chapter: 'Ch3', value: 28 },
+              { chapter: 'Ch4', value: 55 },
+              { chapter: 'Ch5', value: 48 },
+              { chapter: 'Ch6', value: 72 },
+              { chapter: 'Ch7', value: 65 },
+              { chapter: 'Ch8', value: 85 },
+              { chapter: 'Ch9', value: 78 },
+              { chapter: 'Ch10', value: 92 },
+              { chapter: 'Ch11', value: 80 },
+              { chapter: 'Ch12', value: 95 }
+            ];
+            dashboardData.foreshadowing = { planted: 18, resolved: 11, sleeping: 3 };
+            dashboardData.recentSummaries = [
+              { title: '第八章情节讨论', time: '2小时前', summary: '讨论了主角在第八章的转折点，墨参建议增加 [L1建议] 伏笔呼应，并指出了 [L2质询] 人物动机不一致的问题。' },
+              { title: '角色弧线规划', time: '昨天', summary: '规划了女主角的成长弧线，墨参提出了 [L3否决] 突兀转变的警告，建议铺垫情感变化。' },
+              { title: '世界观设定审核', time: '3天前', summary: '审核了魔法系统的设定规则，确认了能量守恒原则的一致性。' }
+            ];
+            dashboardData.diagnosticReports = [
+              { level: 'critical', levelText: '严重', title: '伏笔沉睡预警', time: '1小时前', detail: '第二章埋设的"神秘信物"伏笔已超过8章未回收，建议尽快呼应或解释。' },
+              { level: 'warning', levelText: '警告', title: '人物动机断裂', time: '5小时前', detail: '主角在第七章的行为与前期性格设定存在偏差，建议增加心理过渡描写。' },
+              { level: 'info', levelText: '提示', title: '节奏分析', time: '昨天', detail: '当前叙事节奏良好，冲突值呈上升趋势，建议在第十章前后安排高潮回落。' }
+            ];
+          }
+        }
+
+        // 创建项目
+        async function createProject() {
+          if (!newProjectName.value.trim()) return;
+
+          try {
+            const resp = await fetch(`${API_BASE}/api/projects`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: newProjectName.value,
+                description: newProjectDesc.value
+              })
+            });
+
+            if (resp.ok) {
+              const data = await resp.json();
+              projects.value.push(data.project || data);
+              showToast('项目创建成功', 'success');
+            } else {
+              throw new Error('Create failed');
+            }
+          } catch {
+            // 本地创建
+            const newProj = {
+              id: 'local-' + Date.now(),
+              name: newProjectName.value,
+              created: new Date().toISOString().split('T')[0]
+            };
+            projects.value.push(newProj);
+            showToast('后端未连接，已在本地创建项目', 'info');
+          }
+
+          showNewProjectModal.value = false;
+          newProjectName.value = '';
+          newProjectDesc.value = '';
+        }
+
+        // 发送消息 (SSE 流式)
+        async function sendMessage() {
+          const content = inputText.value.trim();
+          if (!content || isThinking.value) return;
+
+          inputText.value = '';
+          isThinking.value = true;
+
+          // 添加用户消息
+          messages.value.push({ role: 'user', content: content, streaming: false });
+          await scrollToBottom();
+
+          // 添加助手消息占位
+          const assistantMsg = reactive({ role: 'assistant', content: '', streaming: true });
+          messages.value.push(assistantMsg);
+
+          // 创建 AbortController
+          abortController = new AbortController();
+
+          try {
+            const resp = await fetch(`${API_BASE}/api/chat`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                project_id: currentProjectId.value,
+                message: content,
+                stream: true
+              }),
+              signal: abortController.signal
+            });
+
+            if (!resp.ok) {
+              throw new Error(`HTTP ${resp.status}`);
+            }
+
+            const reader = resp.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop();
+
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  const data = line.slice(6).trim();
+                  if (data === '[DONE]') {
+                    break;
+                  }
+                  try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.content) {
+                      assistantMsg.content += parsed.content;
+                      await scrollToBottom();
+                    } else if (parsed.delta) {
+                      assistantMsg.content += parsed.delta;
+                      await scrollToBottom();
+                    } else if (parsed.text) {
+                      assistantMsg.content += parsed.text;
+                      await scrollToBottom();
+                    }
+                  } catch {
+                    // 非 JSON，作为纯文本处理
+                    if (data) {
+                      assistantMsg.content += data;
+                      await scrollToBottom();
+                    }
+                  }
+                }
+              }
+            }
+
+            assistantMsg.streaming = false;
+          } catch (err) {
+            if (err.name === 'AbortError') {
+              assistantMsg.content += '\n\n*[消息已中断]*';
+            } else {
+              // 后端不可用时的模拟回复
+              assistantMsg.content = generateMockResponse(content);
+            }
+            assistantMsg.streaming = false;
+          } finally {
+            isThinking.value = false;
+            abortController = null;
+            await scrollToBottom();
+          }
+        }
+
+        // 模拟回复（后端不可用时）
+        function generateMockResponse(userInput) {
+          return `**墨参** 收到了你的消息：
+
+> ${userInput}
+
+---
+
+### 分析
+
+[L1建议] 这段内容可以进一步深化角色的内心冲突，让读者更投入。
+
+[L2质询] 主角的行动动机是否足够清晰？建议在对话中增加暗示。
+
+[L3否决] 直接让反派暴露全部计划的写法会削弱悬念感，建议改为渐进式揭露。
+
+---
+
+*（注：后端服务未连接，以上为模拟回复。请启动后端服务以获得完整的 AI 写作辅助。）*`;
+        }
+
+        // ========== 文件管理 ==========
+        function handleDrop(e) {
+          isDragging.value = false;
+          const files = e.dataTransfer.files;
+          if (files.length > 0) {
+            uploadFiles(files);
+          }
+        }
+
+        function handleFileSelect(e) {
+          const files = e.target.files;
+          if (files.length > 0) {
+            uploadFiles(files);
+          }
+          e.target.value = '';
+        }
+
+        async function uploadFiles(fileList) {
+          for (const file of fileList) {
+            const fileObj = {
+              id: 'local-' + Date.now() + '-' + Math.random().toString(36).slice(2),
+              name: file.name,
+              size: file.size,
+              type: file.type || getFileExt(file.name),
+              file: file
+            };
+            uploadedFiles.value.push(fileObj);
+
+            // 尝试上传到后端
+            try {
+              const formData = new FormData();
+              formData.append('file', file);
+              formData.append('project_id', currentProjectId.value);
+
+              const resp = await fetch(`${API_BASE}/api/files/upload`, {
+                method: 'POST',
+                body: formData
+              });
+
+              if (resp.ok) {
+                const data = await resp.json();
+                if (data.file) {
+                  fileObj.id = data.file.id || fileObj.id;
+                }
+                showToast(`文件 "${file.name}" 上传成功`, 'success');
+              } else {
+                throw new Error('Upload failed');
+              }
+            } catch {
+              showToast(`文件 "${file.name}" 已添加到本地列表（后端未连接）`, 'info');
+            }
+          }
+        }
+
+        async function analyzeManuscript() {
+          if (uploadedFiles.value.length === 0) return;
+          processing.value = 'analyze';
+          showToast('正在分析稿件...', 'info');
+
+          try {
+            const resp = await fetch(`${API_BASE}/api/files/analyze`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ project_id: currentProjectId.value })
+            });
+
+            if (resp.ok) {
+              const data = await resp.json();
+              showToast('稿件分析完成', 'success');
+              // 切换到对话工作台查看结果
+              if (data.summary) {
+                messages.value.push({ role: 'assistant', content: data.summary, streaming: false });
+              }
+              activeTab.value = 'chat';
+            } else {
+              throw new Error('Analyze failed');
+            }
+          } catch {
+            showToast('后端未连接，无法分析稿件', 'error');
+          } finally {
+            processing.value = null;
+          }
+        }
+
+        async function splitBook() {
+          if (uploadedFiles.value.length === 0) return;
+          processing.value = 'split';
+          showToast('正在拆书入库...', 'info');
+
+          try {
+            const resp = await fetch(`${API_BASE}/api/files/split`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ project_id: currentProjectId.value })
+            });
+
+            if (resp.ok) {
+              showToast('拆书入库完成', 'success');
+              // 刷新知识库
+              await loadProjectData(currentProjectId.value);
+            } else {
+              throw new Error('Split failed');
+            }
+          } catch {
+            showToast('后端未连接，无法拆书入库', 'error');
+          } finally {
+            processing.value = null;
+          }
+        }
+
+        // 查看文件内容
+        async function viewFile(file) {
+          previewFileName.value = file.name;
+
+          // 如果有本地 file 对象，读取内容
+          if (file.file) {
+            try {
+              const text = await file.file.text();
+              previewFileContent.value = text;
+            } catch {
+              previewFileContent.value = '无法读取文件内容';
+            }
+          } else {
+            // 从后端获取
+            try {
+              const resp = await fetch(`${API_BASE}/api/files/content?project_id=${currentProjectId.value}&file_id=${file.id}`);
+              if (resp.ok) {
+                const data = await resp.json();
+                previewFileContent.value = data.content || '文件内容为空';
+              } else {
+                previewFileContent.value = '无法获取文件内容';
+              }
+            } catch {
+              previewFileContent.value = '后端未连接，无法获取文件内容';
+            }
+          }
+
+          showFilePreview.value = true;
+        }
+
+        function viewKnowledgeFile(kbFile) {
+          previewFileName.value = kbFile.name;
+          previewFileContent.value = `# ${kbFile.name}\n\n${kbFile.desc || '知识库文档'}\n\n（请连接后端以查看完整内容）`;
+          showFilePreview.value = true;
+        }
+
+        // ========== 设置 ==========
+        function openSettings() {
+          loadConfig();
+          showSettings.value = true;
+        }
+
+        async function loadConfig() {
+          try {
+            const resp = await fetch(`${API_BASE}/api/config`);
+            if (resp.ok) {
+              const data = await resp.json();
+              for (const key of Object.keys(modelConfigs)) {
+                if (data[key]) {
+                  modelConfigs[key].name = data[key].name || '';
+                  modelConfigs[key].baseUrl = data[key].baseUrl || '';
+                  modelConfigs[key].apiKey = data[key].apiKey || '';
+                }
+              }
+            }
+          } catch {
+            // 静默失败
+          }
+        }
+
+        async function saveConfig() {
+          try {
+            const resp = await fetch(`${API_BASE}/api/config`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(modelConfigs)
+            });
+
+            if (resp.ok) {
+              showToast('配置保存成功', 'success');
+              showSettings.value = false;
+            } else {
+              throw new Error('Save failed');
+            }
+          } catch {
+            showToast('后端未连接，配置仅保存在本地', 'info');
+            // 保存到 localStorage
+            localStorage.setItem('moshen_config', JSON.stringify(modelConfigs));
+            showSettings.value = false;
+          }
+        }
+
+        async function testConnection() {
+          testing.value = true;
+          try {
+            const resp = await fetch(`${API_BASE}/api/config/test`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(modelConfigs)
+            });
+
+            if (resp.ok) {
+              const data = await resp.json();
+              showToast('连接测试成功', 'success');
+            } else {
+              showToast('连接测试失败', 'error');
+            }
+          } catch {
+            showToast('后端未连接，无法测试', 'error');
+          } finally {
+            testing.value = false;
+          }
+        }
+
+        // 从 localStorage 加载配置
+        function loadLocalConfig() {
+          try {
+            const saved = localStorage.getItem('moshen_config');
+            if (saved) {
+              const data = JSON.parse(saved);
+              for (const key of Object.keys(modelConfigs)) {
+                if (data[key]) {
+                  modelConfigs[key].name = data[key].name || '';
+                  modelConfigs[key].baseUrl = data[key].baseUrl || '';
+                  modelConfigs[key].apiKey = data[key].apiKey || '';
+                }
+              }
+            }
+          } catch {
+            // 静默失败
+          }
+        }
+
+        // ========== 工具函数 ==========
+        function formatFileSize(bytes) {
+          if (!bytes || bytes === 0) return '0 B';
+          if (typeof bytes === 'string') return bytes;
+          const k = 1024;
+          const sizes = ['B', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatNumber(num) {
+          if (num >= 10000) {
+            return (num / 10000).toFixed(1) + ' 万';
+          }
+          return num.toLocaleString();
+        }
+
+        function getFileExt(filename) {
+          const ext = filename.split('.').pop().toLowerCase();
+          return ext;
+        }
+
+        function getFileIconClass(filename) {
+          const ext = getFileExt(filename);
+          if (['md', 'markdown'].includes(ext)) return 'md';
+          if (['txt'].includes(ext)) return 'txt';
+          if (['doc', 'docx'].includes(ext)) return 'doc';
+          if (['pdf'].includes(ext)) return 'pdf';
+          return 'doc';
+        }
+
+        // ========== 监听 ==========
+        watch(showNewProjectModal, (val) => {
+          if (val) {
+            nextTick(() => {
+              if (newProjectInput.value) {
+                newProjectInput.value.focus();
+              }
+            });
+          }
+        });
+
+        // ========== 生命周期 ==========
+        onMounted(async () => {
+          await checkBackend();
+          await loadProjects();
+          loadLocalConfig();
+
+          // 自动选择第一个项目
+          if (projects.value.length > 0) {
+            selectProject(projects.value[0].id);
+          }
+
+          // 定期检查后端连接
+          setInterval(checkBackend, 30000);
+        });
+
+        return {
+          // 状态
+          projects,
+          currentProjectId,
+          currentProject,
+          activeTab,
+          tabs,
+          messages,
+          inputText,
+          isThinking,
+          showSettings,
+          modelConfigs,
+          configGroups,
+          testing,
+          uploadedFiles,
+          knowledgeBaseFiles,
+          isDragging,
+          fileInput,
+          processing,
+          showFilePreview,
+          previewFileName,
+          previewFileContent,
+          showNewProjectModal,
+          newProjectName,
+          newProjectDesc,
+          newProjectInput,
+          dashboardData,
+          backendConnected,
+          toasts,
+          messagesArea,
+          inputArea,
+
+          // 方法
+          selectProject,
+          createProject,
+          sendMessage,
+          handleKeyDown,
+          renderMarkdown,
+          handleDrop,
+          handleFileSelect,
+          analyzeManuscript,
+          splitBook,
+          viewFile,
+          viewKnowledgeFile,
+          openSettings,
+          saveConfig,
+          testConnection,
+          formatFileSize,
+          formatNumber,
+          getFileExt,
+          getFileIconClass,
+          showToast
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+*.spec
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables (keep .env.example)
+.env
+*.env.local
+moshen_env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Workspace data (user-specific, not for version control)
+workspace/
+
+# PyWebView / Electron build artifacts
+*.exe
+*.msi
+
+# Config files with secrets
+config.json
