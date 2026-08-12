@@ -4,10 +4,17 @@
 """
 import sys
 import os
+import io
 import time
 import threading
 import socket
 from pathlib import Path
+
+# pythonw.exe 无控制台，stdout/stderr 为 None，需重定向避免 print 崩溃
+if sys.stdout is None:
+    sys.stdout = io.StringIO()
+if sys.stderr is None:
+    sys.stderr = io.StringIO()
 
 # 确保可以导入同目录下的模块
 sys.path.insert(0, str(Path(__file__).parent))
@@ -83,7 +90,6 @@ def main():
     # 等待服务器就绪
     if not wait_for_server("127.0.0.1", port):
         print("  错误：服务器启动失败")
-        input("按 Enter 键退出...")
         sys.exit(1)
 
     print(f"  服务已就绪")

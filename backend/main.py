@@ -18,6 +18,9 @@ from core.config import get_config_manager
 from routes.chat import router as chat_router
 from routes.project import router as project_router
 from routes.files import router as files_router
+from routes.workspace import router as workspace_router
+from routes.knowledge import router as knowledge_router
+from routes.settings_writer import router as settings_router
 
 app = FastAPI(title="墨参 MoShen", version="0.1.0", description="小说写作助手")
 
@@ -34,6 +37,9 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(project_router)
 app.include_router(files_router)
+app.include_router(workspace_router)
+app.include_router(knowledge_router)
+app.include_router(settings_router)
 
 
 # ===== 配置管理路由 =====
