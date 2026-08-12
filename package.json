@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "electron . --dev",
     "build:python": "pyinstaller moshen.spec --noconfirm",
-    "build:electron": "electron-builder --win",
+    "build:electron": "electron-builder --win --publish never",
     "build": "npm run build:python && npm run build:electron",
     "start": "electron ."
   },
@@ -44,7 +44,8 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,
