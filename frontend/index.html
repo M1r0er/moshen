@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>墨参 MoShen - 小说写作助手</title>
-  <script src="/static/vue.global.js"></script>
   <style>
     /* ========== CSS 变量 ========== */
     :root {
@@ -71,6 +70,7 @@
     }
 
     /* ========== 主布局 ========== */
+    [v-cloak] { display: none !important; }
     #app {
       display: flex;
       height: 100vh;
@@ -1108,7 +1108,23 @@
   </style>
 </head>
 <body>
-  <div id="app">
+  <!-- 诊断面板（Vue 挂载后自动隐藏） -->
+  <div id="diagnostic" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#0f1117;color:#e4e6eb;z-index:99999;display:flex;align-items:center;justify-content:center;font-size:16px;padding:40px;">
+    <div style="max-width:600px;">
+      <h2 style="color:#7c5cfc;margin-bottom:16px;">墨参 MoShen 正在启动...</h2>
+      <div id="diag-content" style="color:#8b8fa3;line-height:1.8;">
+        <div>✓ HTML 已加载</div>
+        <div id="diag-js">⏳ 检查 JavaScript...</div>
+        <div id="diag-vue">⏳ 检查 Vue 库...</div>
+        <div id="diag-mount">⏳ 等待 Vue 挂载...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" v-cloak>
+    <div id="loading-screen" style="display:flex;align-items:center;justify-content:center;height:100vh;color:#e4e6eb;font-size:18px;">
+      正在加载墨参 MoShen...
+    </div>
     <!-- ========== 侧边栏 ========== -->
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -1197,7 +1213,7 @@
                 </div>
                 <div class="message-body">
                   <div class="message-name">{{ msg.role === 'user' ? '我' : '墨参' }}</div>
-                  <div class="message-bubble" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=\"cursor-blink\"></span>' : '')"></div>
+                  <div class="message-bubble" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
                 </div>
               </div>
 
@@ -1544,10 +1560,38 @@
     </div>
   </div>
 
+  <!-- 第1步：诊断脚本（立即执行，不依赖 Vue） -->
   <script>
+    (function() {
+      var diagJs = document.getElementById('diag-js');
+      if (diagJs) diagJs.innerHTML = '✓ JavaScript 正常运行';
+    })();
+
+    window.onerror = function(msg, url, line, col, err) {
+      var d = document.getElementById('diag-mount');
+      if (d) {
+        d.innerHTML = '✗ JS错误: ' + msg + '<br>行: ' + line + '<br>' + (err && err.stack ? err.stack : '');
+      }
+    };
+  </script>
+
+  <!-- 第2步：加载 Vue 库 -->
+  <script src="/static/vue.global.js"></script>
+
+  <!-- 第3步：Vue 初始化 -->
+  <script>
+    (function() {
+      var diagVue = document.getElementById('diag-vue');
+      if (typeof Vue === 'undefined') {
+        if (diagVue) diagVue.innerHTML = '✗ Vue 库未加载（/static/vue.global.js 加载失败）';
+        return;
+      }
+      if (diagVue) diagVue.innerHTML = '✓ Vue 库已加载 (v' + Vue.version + ')';
+    })();
+
     const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
 
-    createApp({
+    const app = createApp({
       setup() {
         // ========== 常量 ==========
         const API_BASE = window.location.origin;
@@ -2404,9 +2448,31 @@
           getFileExt,
           getFileIconClass,
           showToast
-        };
+      };
+    }
+    });
+
+    app.config.errorHandler = function(err, vm, info) {
+      var d = document.getElementById('diag-mount');
+      if (d) {
+        d.innerHTML = '✗ Vue错误: ' + (err && err.message ? err.message : err) + '<br>' + info + '<br>' + (err && err.stack ? err.stack : '');
       }
-    }).mount('#app');
+      console.error('Vue Error:', err, info);
+    };
+
+    try {
+      app.mount('#app');
+      // Vue 挂载成功，隐藏诊断面板
+      var diag = document.getElementById('diagnostic');
+      if (diag) diag.style.display = 'none';
+      console.log('Vue app mounted successfully');
+    } catch(e) {
+      var d = document.getElementById('diag-mount');
+      if (d) {
+        d.innerHTML = '✗ 挂载失败: ' + e.message + '<br>' + (e.stack || '');
+      }
+      console.error('Mount failed:', e);
+    }
   </script>
 </body>
 </html>
