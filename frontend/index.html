@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>墨参 MoShen - 小说写作助手</title>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="/static/vue.global.js"></script>
   <style>
     /* ========== CSS 变量 ========== */
     :root {
@@ -1550,7 +1550,7 @@
     createApp({
       setup() {
         // ========== 常量 ==========
-        const API_BASE = 'http://127.0.0.1:8765';
+        const API_BASE = window.location.origin;
 
         // ========== 状态 ==========
         const projects = ref([]);
