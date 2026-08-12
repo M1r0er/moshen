@@ -41,8 +41,19 @@ def get_resource_path(*parts: str) -> Path:
 
 
 def get_frontend_dir() -> Path:
-    """获取前端文件目录"""
-    return get_resource_path("frontend")
+    """获取前端文件目录
+
+    开发环境：项目根目录/frontend（与 backend 同级）
+    打包环境：_MEIPASS/frontend
+    """
+    if getattr(sys, '_MEIPASS', None):
+        # 打包环境
+        return Path(sys._MEIPASS) / "frontend"
+    else:
+        # 开发环境：frontend 与 backend 同级，在项目根目录下
+        # __file__ = backend/core/resource_path.py
+        # parent.parent.parent = 项目根目录
+        return Path(__file__).parent.parent.parent / "frontend"
 
 
 def get_prompts_dir() -> Path:
