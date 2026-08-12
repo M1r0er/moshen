@@ -376,9 +376,9 @@ body {
         <div class="sidebar-section-title">项目</div>
         <button class="new-project-btn" @click="showNewProjectModal = true">+ 新建项目</button>
         <ul class="project-list" v-if="projects.length > 0">
-          <li v-for="project in projects" :key="project.id"
-              class="project-item" :class="{ active: project.id === currentProjectId }"
-              @click="selectProject(project.id)">
+          <li v-for="project in projects" :key="project.project_id"
+              class="project-item" :class="{ active: project.project_id === currentProjectId }"
+              @click="selectProject(project.project_id)">
             <span class="dot"></span>
             <span>{{ project.name }}</span>
           </li>
