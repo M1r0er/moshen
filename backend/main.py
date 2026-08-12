@@ -45,25 +45,29 @@ app.include_router(settings_router)
 # ===== 配置管理路由 =====
 
 class ConfigUpdateRequest(BaseModel):
-    configs: dict
+    default_api: dict = {}
+    independent_keys: bool = False
+    roles: dict = {}
 
 
 @app.get("/api/config")
 async def get_config():
-    """获取模型配置状态"""
+    """获取模型配置状态（包含默认API、开关、四角色）"""
     mgr = get_config_manager()
-    return {
-        "configs": mgr.get_all_configs(),
-        "any_configured": mgr.is_any_configured(),
-    }
+    return mgr.get_full_config()
 
 
 @app.post("/api/config")
 async def save_config(req: ConfigUpdateRequest):
     """保存模型配置"""
     mgr = get_config_manager()
-    mgr.save_config(req.configs)
-    return {"success": True, "configs": mgr.get_all_configs()}
+    data = {
+        "default_api": req.default_api,
+        "independent_keys": req.independent_keys,
+        "roles": req.roles,
+    }
+    mgr.save_config(data)
+    return {"success": True, **mgr.get_full_config()}
 
 
 @app.post("/api/config/test")

@@ -338,6 +338,18 @@ body {
 .config-status.ok { background: rgba(63, 185, 80, 0.15); color: var(--green); }
 .config-status.miss { background: rgba(248, 81, 73, 0.15); color: var(--red); }
 
+/* Toggle Switch */
+.toggle-switch {
+  width: 44px; height: 24px; border-radius: 12px; background: var(--border-color);
+  cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0;
+}
+.toggle-switch.on { background: var(--accent); }
+.toggle-knob {
+  width: 20px; height: 20px; border-radius: 50%; background: #fff;
+  position: absolute; top: 2px; left: 2px; transition: transform 0.2s;
+}
+.toggle-switch.on .toggle-knob { transform: translateX(20px); }
+
 /* ===== Toast ===== */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -629,9 +641,9 @@ body {
 
   <!-- ========== Config Modal ========== -->
   <div class="modal-overlay" v-if="showConfigModal" @click.self="showConfigModal = false">
-    <div class="modal" style="max-width:640px">
+    <div class="modal" style="max-width:680px">
       <div class="modal-title">设置</div>
-      <div class="modal-body" style="max-height:60vh;overflow-y:auto">
+      <div class="modal-body" style="max-height:62vh;overflow-y:auto">
         <!-- 工作区设置 -->
         <div class="config-group">
           <div class="config-group-title">工作区</div>
@@ -640,25 +652,59 @@ body {
             <button class="btn btn-primary" @click="selectWorkspace" style="white-space:nowrap">切换</button>
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
-            当前: {{ workspacePath || '未设置' }}<br>工作区用于存放项目文件和知识库数据
+            当前: {{ workspacePath || '未设置' }}
           </div>
         </div>
         <div class="divider"></div>
-        <!-- 模型配置 -->
-        <div v-for="(role, key) in modelRoles" :key="key" class="config-group">
-          <div class="config-group-title">{{ key }} <span style="font-size:11px;color:var(--text-muted);font-weight:400">{{ role }}</span></div>
+        <!-- 默认 API -->
+        <div class="config-group">
+          <div class="config-group-title">默认 API</div>
           <div class="config-row">
-            <input v-model="configData[key].model" placeholder="模型名称">
-            <input v-model="configData[key].base_url" placeholder="API Base URL">
+            <input v-model="configData.default_api.model" placeholder="模型名称（如 gpt-4o）">
+            <input v-model="configData.default_api.base_url" placeholder="API Base URL（如 https://api.openai.com/v1）">
           </div>
           <div class="config-row">
-            <input v-model="configData[key].api_key" placeholder="API Key" type="password">
+            <input v-model="configData.default_api.api_key" placeholder="API Key" type="password">
             <div style="display:flex;align-items:center">
-              <span class="config-status" :class="configData[key].is_configured ? 'ok' : 'miss'">
-                {{ configData[key].is_configured ? '已配置' : '未配置' }}
+              <span class="config-status" :class="configData.default_api.is_configured ? 'ok' : 'miss'">
+                {{ configData.default_api.is_configured ? '已配置' : '未配置' }}
               </span>
             </div>
           </div>
+        </div>
+        <div class="divider"></div>
+        <!-- 职能独立 API 开关 -->
+        <div class="config-group">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div class="config-group-title" style="margin-bottom:2px">职能独立 API Key</div>
+              <div style="font-size:12px;color:var(--text-muted)">关闭时统一使用默认 API，开启后可为每个职能独立配置</div>
+            </div>
+            <div class="toggle-switch" :class="{ on: configData.independent_keys }" @click="configData.independent_keys = !configData.independent_keys">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+        </div>
+        <!-- 四角色配置 -->
+        <div v-if="configData.independent_keys">
+          <div v-for="(role, key) in modelRoles" :key="key" class="config-group">
+            <div class="config-group-title">{{ key }} <span style="font-size:11px;color:var(--text-muted);font-weight:400">{{ role }}</span></div>
+            <div class="config-row">
+              <input v-model="configData.roles[key].model" placeholder="模型名称">
+              <input v-model="configData.roles[key].base_url" placeholder="API Base URL">
+            </div>
+            <div class="config-row">
+              <input v-model="configData.roles[key].api_key" placeholder="API Key" type="password">
+              <div style="display:flex;align-items:center">
+                <span class="config-status" :class="configData.roles[key].is_configured ? 'ok' : 'miss'">
+                  {{ configData.roles[key].is_configured ? '已配置' : '未配置' }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-else style="padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm);text-align:center;font-size:13px;color:var(--text-muted)">
+          四角色配置已禁用，统一使用默认 API（不同职能仍使用不同提示词）
         </div>
       </div>
       <div class="modal-footer">
@@ -729,7 +775,11 @@ createApp({
 
     // Config
     const showConfigModal = ref(false);
-    const configData = ref({});
+    const configData = ref({
+      default_api: { model: '', base_url: '', api_key: '', is_configured: false },
+      independent_keys: false,
+      roles: {},
+    });
     const modelRoles = {
       TEXT_MASTER: '文学性分析、文风诊断',
       STRUCTURE_ANALYST: '大纲结构、节奏诊断',
@@ -1062,7 +1112,11 @@ createApp({
     async function openSettings() {
       try {
         const data = await apiJSON('/api/config');
-        configData.value = data.configs || {};
+        configData.value = {
+          default_api: data.default_api || { model: '', base_url: '', api_key: '', is_configured: false },
+          independent_keys: data.independent_keys || false,
+          roles: data.roles || {},
+        };
         showConfigModal.value = true;
       } catch (e) { showToast('加载配置失败', 'error'); }
     }
@@ -1071,10 +1125,15 @@ createApp({
         await apiJSON('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ configs: configData.value }),
+          body: JSON.stringify({
+            default_api: configData.value.default_api,
+            independent_keys: configData.value.independent_keys,
+            roles: configData.value.roles,
+          }),
         });
         showToast('配置已保存', 'success');
         showConfigModal.value = false;
+        await checkHealth();
       } catch (e) { showToast('保存失败', 'error'); }
     }
     async function testConfig() {
@@ -1098,9 +1157,9 @@ createApp({
         // 后端正常，检查 API 配置
         try {
           const cfg = await apiJSON('/api/config');
-          const configs = cfg.configs || {};
-          const anyConfigured = Object.values(configs).some(c => c.is_configured);
-          apiStatus.value = anyConfigured ? 'ready' : 'unconfigured';
+          const defaultReady = cfg.default_api?.is_configured;
+          const rolesReady = Object.values(cfg.roles || {}).some(r => r.is_configured);
+          apiStatus.value = (defaultReady || rolesReady) ? 'ready' : 'unconfigured';
         } catch (e) {
           apiStatus.value = 'unconfigured';
         }
