@@ -107,6 +107,12 @@ body {
 .project-item.active { background: var(--accent-dim); color: var(--accent); }
 .project-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
 .project-item.active .dot { background: var(--accent); }
+.project-name-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-actions { display: none; gap: 4px; flex-shrink: 0; }
+.project-item:hover .project-actions { display: flex; }
+.project-action-btn { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer; font-size: 14px; color: var(--text-muted); }
+.project-action-btn:hover { background: var(--bg-hover); color: var(--accent); }
+.project-action-btn.del:hover { color: var(--red); }
 
 .sidebar-footer { padding: 12px; border-top: 1px solid var(--border-color); }
 .settings-btn {
@@ -393,7 +399,11 @@ body {
               class="project-item" :class="{ active: project.project_id === currentProjectId }"
               @click="selectProject(project.project_id)">
             <span class="dot"></span>
-            <span>{{ project.name }}</span>
+            <span class="project-name-text">{{ project.name }}</span>
+            <span class="project-actions" @click.stop>
+              <span class="project-action-btn" @click="startRename(project)" title="重命名">&#9998;</span>
+              <span class="project-action-btn del" @click="deleteProject(project)" title="删除">&times;</span>
+            </span>
           </li>
         </ul>
         <div v-else style="padding: 8px 4px; font-size: 12px; color: var(--text-muted)">暂无项目</div>
@@ -639,6 +649,20 @@ body {
     </div>
   </div>
 
+  <!-- ========== Rename Project Modal ========== -->
+  <div class="modal-overlay" v-if="showRenameModal" @click.self="showRenameModal = false">
+    <div class="modal">
+      <div class="modal-title">重命名项目</div>
+      <div class="modal-body">
+        <input class="modal-input" v-model="renameInput" placeholder="新名称" @keydown.enter="confirmRename">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showRenameModal = false">取消</button>
+        <button class="btn btn-primary" @click="confirmRename">确认</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== Config Modal ========== -->
   <div class="modal-overlay" v-if="showConfigModal" @click.self="showConfigModal = false">
     <div class="modal" style="max-width:680px">
@@ -735,6 +759,9 @@ createApp({
     const currentProjectId = ref(null);
     const showNewProjectModal = ref(false);
     const newProjectName = ref('');
+    const showRenameModal = ref(false);
+    const renameInput = ref('');
+    const renamingProjectId = ref(null);
     const activeTab = ref('chat');
     const tabs = [
       { key: 'chat', label: '对话', icon: '💬' },
@@ -861,6 +888,38 @@ createApp({
         await loadProjects();
         showToast('项目已创建', 'success');
       } catch (e) { showToast('创建失败: ' + e.message, 'error'); }
+    }
+    async function startRename(project) {
+      renamingProjectId.value = project.project_id;
+      renameInput.value = project.name;
+      showRenameModal.value = true;
+    }
+    async function confirmRename() {
+      if (!renameInput.value.trim()) return;
+      try {
+        await apiJSON(`/api/projects/${renamingProjectId.value}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: renameInput.value.trim() }),
+        });
+        showRenameModal.value = false;
+        showToast('项目已重命名', 'success');
+        await loadProjects();
+      } catch (e) { showToast('重命名失败: ' + e.message, 'error'); }
+    }
+    async function deleteProject(project) {
+      if (!confirm(`确定要删除项目"${project.name}"吗？此操作不可恢复。`)) return;
+      try {
+        await api(`/api/projects/${project.project_id}`, { method: 'DELETE' });
+        showToast('项目已删除', 'success');
+        if (currentProjectId.value === project.project_id) {
+          currentProjectId.value = null;
+          messages.value = [];
+          settingsList.value = [];
+          fileList.value = [];
+        }
+        await loadProjects();
+      } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
     }
 
     // ===== Chat =====
@@ -1196,6 +1255,7 @@ createApp({
     return {
       apiStatus, apiStatusClass, apiStatusLabel, workspacePath, workspaceInput, showWorkspaceModal,
       projects, currentProjectId, showNewProjectModal, newProjectName,
+      showRenameModal, renameInput, renamingProjectId,
       activeTab, tabs,
       messages, inputText, isThinking, messagesArea,
       settingsList, currentSettingFile, currentSettingContent,
@@ -1206,6 +1266,7 @@ createApp({
       showConfigModal, configData, modelRoles, testingConfig,
       toastMsg, toastType,
       showToast, selectWorkspace, loadProjects, selectProject, createProject,
+      startRename, confirmRename, deleteProject,
       sendMessage, renderMarkdown,
       optimizeSetting, saveSetting, loadSetting, deleteSetting,
       loadKnowledge, handleFileUpload, handleFileDrop, searchKnowledge,

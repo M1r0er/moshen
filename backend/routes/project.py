@@ -15,6 +15,10 @@ class CreateProjectRequest(BaseModel):
     description: str = ""
 
 
+class RenameProjectRequest(BaseModel):
+    name: str
+
+
 @router.get("")
 async def list_projects():
     """列出所有项目"""
@@ -36,6 +40,26 @@ async def get_project(project_id: str):
     if not meta:
         raise HTTPException(404, "项目不存在")
     return meta
+
+
+@router.put("/{project_id}")
+async def rename_project(project_id: str, req: RenameProjectRequest):
+    """重命名项目"""
+    if not req.name.strip():
+        raise HTTPException(400, "项目名称不能为空")
+    meta = kb.rename_project(project_id, req.name.strip())
+    if not meta:
+        raise HTTPException(404, "项目不存在")
+    return {"success": True, "project": meta}
+
+
+@router.delete("/{project_id}")
+async def delete_project(project_id: str):
+    """删除项目"""
+    success = kb.delete_project(project_id)
+    if not success:
+        raise HTTPException(404, "项目不存在")
+    return {"success": True}
 
 
 @router.get("/{project_id}/kb-files")

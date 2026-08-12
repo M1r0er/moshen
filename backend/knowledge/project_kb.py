@@ -394,6 +394,31 @@ class ProjectKBManager:
                     json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
                 )
 
+    def rename_project(self, project_id: str, new_name: str) -> dict | None:
+        """重命名项目"""
+        if not new_name.strip():
+            return None
+        meta = self.get_project(project_id)
+        if not meta:
+            return None
+        meta["name"] = new_name.strip()
+        meta["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        project_dir = self.get_project_dir(project_id)
+        if project_dir:
+            (project_dir / "project.json").write_text(
+                json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        return meta
+
+    def delete_project(self, project_id: str) -> bool:
+        """删除项目（删除整个目录）"""
+        project_dir = self.get_project_dir(project_id)
+        if not project_dir:
+            return False
+        import shutil
+        shutil.rmtree(project_dir, ignore_errors=True)
+        return True
+
 
 # 全局单例
 _kb_manager: ProjectKBManager | None = None
