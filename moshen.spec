@@ -49,6 +49,7 @@ a = Analysis(
         'aiofiles',
         'core',
         'core.config',
+        'core.resource_path',
         'core.llm_provider',
         'core.prompt_loader',
         'core.context_manager',

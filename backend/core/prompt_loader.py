@@ -11,7 +11,8 @@ class PromptLoader:
 
     def __init__(self, prompts_dir: str | None = None):
         if prompts_dir is None:
-            prompts_dir = str(Path(__file__).parent.parent / "prompts")
+            from core.resource_path import get_prompts_dir
+            prompts_dir = str(get_prompts_dir())
         self.prompts_dir = prompts_dir
         self._cache: dict[str, str] = {}
 

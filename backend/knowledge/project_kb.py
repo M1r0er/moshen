@@ -7,9 +7,11 @@ import json
 import time
 from pathlib import Path
 
+from core.resource_path import get_workspace_dir
+
 
 # 工作区根目录
-WORKSPACE_ROOT = Path(__file__).parent.parent.parent / "workspace"
+WORKSPACE_ROOT = get_workspace_dir()
 
 # 知识库文件模板
 KB_TEMPLATES = {

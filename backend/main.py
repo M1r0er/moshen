@@ -94,7 +94,9 @@ async def health():
 
 # ===== 前端静态文件 =====
 
-frontend_dir = Path(__file__).parent.parent / "frontend"
+from core.resource_path import get_frontend_dir
+
+frontend_dir = get_frontend_dir()
 
 if frontend_dir.exists():
     # 挂载前端静态资源
