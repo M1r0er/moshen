@@ -135,6 +135,7 @@ body {
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
 .status-dot.connected { background: var(--green); }
 .status-dot.disconnected { background: var(--red); }
+.status-dot.unconfigured { background: var(--orange); }
 
 .tab-content { flex: 1; overflow: hidden; position: relative; }
 
@@ -402,8 +403,8 @@ body {
         </div>
         <div class="tab-spacer"></div>
         <div class="tab-status">
-          <span class="status-dot" :class="backendConnected ? 'connected' : 'disconnected'"></span>
-          <span>{{ backendConnected ? '已连接' : '未连接' }}</span>
+          <span class="status-dot" :class="apiStatusClass"></span>
+          <span>{{ apiStatusLabel }}</span>
         </div>
       </div>
 
@@ -680,7 +681,7 @@ const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
 createApp({
   setup() {
     // ===== State =====
-    const backendConnected = ref(false);
+    const apiStatus = ref('disconnected'); // disconnected | unconfigured | ready
     const workspacePath = ref('');
     const workspaceInput = ref('');
     const showWorkspaceModal = ref(false);
@@ -1094,9 +1095,29 @@ createApp({
     async function checkHealth() {
       try {
         await apiJSON('/api/health');
-        backendConnected.value = true;
-      } catch (e) { backendConnected.value = false; }
+        // 后端正常，检查 API 配置
+        try {
+          const cfg = await apiJSON('/api/config');
+          const configs = cfg.configs || {};
+          const anyConfigured = Object.values(configs).some(c => c.is_configured);
+          apiStatus.value = anyConfigured ? 'ready' : 'unconfigured';
+        } catch (e) {
+          apiStatus.value = 'unconfigured';
+        }
+      } catch (e) { apiStatus.value = 'disconnected'; }
     }
+
+    // ===== Computed =====
+    const apiStatusClass = computed(() => {
+      if (apiStatus.value === 'ready') return 'connected';
+      if (apiStatus.value === 'unconfigured') return 'unconfigured';
+      return 'disconnected';
+    });
+    const apiStatusLabel = computed(() => {
+      if (apiStatus.value === 'ready') return 'API 已就绪';
+      if (apiStatus.value === 'unconfigured') return '未配置 API';
+      return '未连接';
+    });
 
     // ===== Lifecycle =====
     onMounted(async () => {
@@ -1114,7 +1135,7 @@ createApp({
     });
 
     return {
-      backendConnected, workspacePath, workspaceInput, showWorkspaceModal,
+      apiStatus, apiStatusClass, apiStatusLabel, workspacePath, workspaceInput, showWorkspaceModal,
       projects, currentProjectId, showNewProjectModal, newProjectName,
       activeTab, tabs,
       messages, inputText, isThinking, messagesArea,
