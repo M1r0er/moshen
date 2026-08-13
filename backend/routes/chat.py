@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from engines.dialogue_manager import get_dialogue_manager
+from core.config import get_config_manager, MODEL_ROLES
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -16,6 +17,8 @@ class ChatRequest(BaseModel):
     message: str
     project_id: str | None = None
     history: list[dict] = []
+    model: str | None = None        # 指定模型名称，None/"auto" 为自动选择
+    role: str | None = None         # 指定职能角色，None/"auto" 为自动选择
 
 
 @router.post("")
@@ -28,9 +31,9 @@ async def chat(req: ChatRequest):
             user_input=req.message,
             history=req.history,
             project_id=req.project_id,
+            model_override=req.model,
+            role_override=req.role,
         ):
-            # sse_data 已经是 "event: xxx\ndata: {...}\n\n" 格式
-            # 解析为 sse_starlette 需要的格式
             lines = sse_data.strip().split("\n")
             event = ""
             data = ""
@@ -50,3 +53,24 @@ async def list_intents():
     from engines.intent_router import get_intent_router
     router_ = get_intent_router()
     return {"intents": router_.list_intents()}
+
+
+@router.get("/models")
+async def list_available_models():
+    """获取可用的模型列表和职能信息（用于前端下拉选择）"""
+    cm = get_config_manager()
+    default_models = cm.get_available_models("DEFAULT")
+
+    roles_info = {}
+    for role_key, role_desc in MODEL_ROLES.items():
+        models = cm.get_available_models(role_key) if cm.independent_keys else default_models
+        roles_info[role_key] = {
+            "label": role_desc,
+            "models": models,
+        }
+
+    return {
+        "independent_keys": cm.independent_keys,
+        "default_models": default_models,
+        "roles": roles_info,
+    }

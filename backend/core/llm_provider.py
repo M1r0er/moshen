@@ -48,9 +48,20 @@ class LLMProvider:
         role: str = "DIALOGUE_PARTNER",
         temperature: float | None = None,
         max_tokens: int | None = None,
+        model_override: str | None = None,
+        user_input: str = "",
+        intent: str = "",
     ) -> str:
-        """同步生成（非流式），返回完整文本"""
-        cfg = self.config_manager.get_model(role)
+        """同步生成（非流式），返回完整文本
+
+        Args:
+            model_override: 指定模型名称。None 或 "auto" 表示自动选择
+            user_input: 用户输入（auto模式下用于任务判断）
+            intent: 意图（auto模式下用于任务判断）
+        """
+        cfg = self.config_manager.get_model(
+            role, model_name=model_override, user_input=user_input, intent=intent
+        )
         if cfg is None:
             raise RuntimeError("没有可用的 LLM 模型配置，请先在设置中配置 API Key")
 
@@ -88,9 +99,20 @@ class LLMProvider:
         role: str = "DIALOGUE_PARTNER",
         temperature: float | None = None,
         max_tokens: int | None = None,
+        model_override: str | None = None,
+        user_input: str = "",
+        intent: str = "",
     ) -> AsyncGenerator[str, None]:
-        """流式生成，逐块返回文本"""
-        cfg = self.config_manager.get_model(role)
+        """流式生成，逐块返回文本
+
+        Args:
+            model_override: 指定模型名称。None 或 "auto" 表示自动选择
+            user_input: 用户输入（auto模式下用于任务判断）
+            intent: 意图（auto模式下用于任务判断）
+        """
+        cfg = self.config_manager.get_model(
+            role, model_name=model_override, user_input=user_input, intent=intent
+        )
         if cfg is None:
             raise RuntimeError("没有可用的 LLM 模型配置，请先在设置中配置 API Key")
 

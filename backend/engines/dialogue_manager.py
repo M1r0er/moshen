@@ -57,6 +57,8 @@ class DialogueManager:
         user_input: str,
         history: list[dict] | None = None,
         project_id: str | None = None,
+        model_override: str | None = None,
+        role_override: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """流式对话
 
@@ -64,6 +66,8 @@ class DialogueManager:
             user_input: 用户输入
             history: 对话历史 [{role, content}, ...]
             project_id: 项目ID
+            model_override: 指定模型名称。None/"auto" 为自动选择
+            role_override: 指定职能角色。None/"auto" 为自动选择（通过意图识别）
 
         Yields:
             SSE 格式的数据块
@@ -77,16 +81,39 @@ class DialogueManager:
         elif project_id and not self._current_project_id:
             self.set_project(project_id)
 
-        # 意图识别
-        intent = self.intent_router.detect(user_input)
+        # 确定使用哪个职能角色
+        if role_override and role_override != "auto":
+            # 用户手动指定了职能
+            model_role = role_override
+            intent_result = None
+            intent_desc = f"手动指定: {model_role}"
+        else:
+            # auto 模式：通过意图识别自动选择
+            intent = self.intent_router.detect(user_input)
+            model_role = intent.model_role
+            intent_result = intent
+            intent_desc = self.intent_router.get_intent_description(intent.intent)
 
         # 发送意图信息
         yield self._sse("intent", {
-            "intent": intent.intent,
-            "description": self.intent_router.get_intent_description(intent.intent),
-            "model_role": intent.model_role,
-            "confidence": intent.confidence,
+            "intent": intent_result.intent if intent_result else "manual",
+            "description": intent_desc,
+            "model_role": model_role,
+            "confidence": intent_result.confidence if intent_result else 1.0,
         })
+
+        # 发送实际使用的模型信息
+        actual_cfg = self.config_mgr.get_model(
+            model_role, model_name=model_override,
+            user_input=user_input,
+            intent=intent_result.intent if intent_result else "",
+        )
+        if actual_cfg:
+            yield self._sse("model_info", {
+                "role": model_role,
+                "model": actual_cfg.model,
+                "auto_selected": (not model_override or model_override == "auto"),
+            })
 
         # 设置工作层：当前讨论焦点
         focus = f"用户正在讨论：{user_input[:200]}"
@@ -101,7 +128,10 @@ class DialogueManager:
         full_response = ""
         try:
             async for chunk in self.llm.generate_stream(
-                messages, role=intent.model_role
+                messages, role=model_role,
+                model_override=model_override,
+                user_input=user_input,
+                intent=intent_result.intent if intent_result else "",
             ):
                 full_response += chunk
                 yield self._sse("chunk", {"content": chunk})
@@ -120,7 +150,9 @@ class DialogueManager:
         # 完成
         yield self._sse("done", {
             "full_response": full_response,
-            "intent": intent.intent,
+            "intent": intent_result.intent if intent_result else "manual",
+            "model_role": model_role,
+            "model": actual_cfg.model if actual_cfg else "",
         })
 
     async def _evaluate_intervention(

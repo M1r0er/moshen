@@ -401,6 +401,42 @@ body {
   border-radius: 50%; animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Multi-Model Input ===== */
+.model-list { display: flex; flex-direction: column; gap: 6px; }
+.model-list-item { display: flex; gap: 6px; align-items: center; }
+.model-list-item input { flex: 1; }
+.model-del-btn {
+  width: 26px; height: 26px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; border-radius: 4px; cursor: pointer; font-size: 16px;
+  color: var(--text-muted); background: var(--bg-tertiary); border: none;
+}
+.model-del-btn:hover { color: var(--red); }
+.model-add-btn {
+  font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer;
+  color: var(--accent); background: var(--accent-dim); border: 1px dashed var(--accent);
+  align-self: flex-start; margin-top: 4px;
+}
+.model-add-btn:hover { background: var(--accent); color: #fff; }
+.model-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+/* ===== Chat Selectors ===== */
+.chat-selectors {
+  display: flex; gap: 8px; align-items: center; max-width: 900px; margin: 0 auto 8px;
+}
+.chat-selector { display: flex; align-items: center; gap: 4px; }
+.chat-selector label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.chat-selector select {
+  background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px;
+  color: var(--text-primary); padding: 4px 8px; font-size: 12px; cursor: pointer;
+  max-width: 180px;
+}
+.chat-selector select:focus { outline: none; border-color: var(--accent); }
+.chat-selector select option { background: var(--bg-secondary); }
+.model-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--accent-dim); color: var(--accent); white-space: nowrap;
+}
 </style>
 </head>
 <body>
@@ -490,6 +526,23 @@ body {
               </div>
             </div>
             <div class="chat-input-area">
+              <div class="chat-selectors">
+                <div class="chat-selector">
+                  <label>模型</label>
+                  <select v-model="selectedModel">
+                    <option value="auto">auto（自动）</option>
+                    <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                </div>
+                <div class="chat-selector" v-if="chatRoles.independent">
+                  <label>职能</label>
+                  <select v-model="selectedRole">
+                    <option value="auto">auto（自动）</option>
+                    <option v-for="(desc, key) in chatRoles.roles" :key="key" :value="key">{{ key }}</option>
+                  </select>
+                </div>
+                <div class="model-badge" v-if="lastUsedModel">{{ lastUsedModel }}</div>
+              </div>
               <div class="chat-input-row">
                 <textarea class="chat-input" v-model="inputText"
                   placeholder="输入你的创作需求..."
@@ -887,8 +940,15 @@ body {
         <div class="config-group">
           <div class="config-group-title">默认 API</div>
           <div class="config-row">
-            <input v-model="configData.default_api.model" placeholder="模型名称（如 gpt-4o）">
-            <input v-model="configData.default_api.base_url" placeholder="API Base URL（如 https://api.openai.com/v1）">
+            <div class="model-list" style="flex:1">
+              <div v-for="(m, i) in configData.default_api.models" :key="i" class="model-list-item">
+                <input v-model="configData.default_api.models[i]" :placeholder="'模型名称 ' + (i+1) + '（如 gpt-4o）'">
+                <button class="model-del-btn" v-if="configData.default_api.models.length > 1" @click="configData.default_api.models.splice(i, 1)">&times;</button>
+              </div>
+              <button class="model-add-btn" @click="configData.default_api.models.push('')">+ 添加模型</button>
+              <div class="model-hint">第一个为默认模型；auto 模式会根据任务复杂度自动选择</div>
+            </div>
+            <input v-model="configData.default_api.base_url" placeholder="API Base URL（如 https://api.openai.com/v1）" style="flex:1">
           </div>
           <div class="config-row">
             <input v-model="configData.default_api.api_key" placeholder="API Key" type="password">
@@ -917,8 +977,14 @@ body {
           <div v-for="(role, key) in modelRoles" :key="key" class="config-group">
             <div class="config-group-title">{{ key }} <span style="font-size:11px;color:var(--text-muted);font-weight:400">{{ role }}</span></div>
             <div class="config-row">
-              <input v-model="configData.roles[key].model" placeholder="模型名称">
-              <input v-model="configData.roles[key].base_url" placeholder="API Base URL">
+              <div class="model-list" style="flex:1">
+                <div v-for="(m, i) in configData.roles[key].models" :key="i" class="model-list-item">
+                  <input v-model="configData.roles[key].models[i]" :placeholder="'模型名称 ' + (i+1)">
+                  <button class="model-del-btn" v-if="configData.roles[key].models.length > 1" @click="configData.roles[key].models.splice(i, 1)">&times;</button>
+                </div>
+                <button class="model-add-btn" @click="configData.roles[key].models.push('')">+ 添加模型</button>
+              </div>
+              <input v-model="configData.roles[key].base_url" placeholder="API Base URL" style="flex:1">
             </div>
             <div class="config-row">
               <input v-model="configData.roles[key].api_key" placeholder="API Key" type="password">
@@ -1031,7 +1097,7 @@ createApp({
     // Config
     const showConfigModal = ref(false);
     const configData = ref({
-      default_api: { model: '', base_url: '', api_key: '', is_configured: false },
+      default_api: { models: [''], base_url: '', api_key: '', is_configured: false },
       independent_keys: false,
       roles: {},
     });
@@ -1042,6 +1108,13 @@ createApp({
       DIALOGUE_PARTNER: '日常对话、创意讨论',
     };
     const testingConfig = ref(false);
+
+    // Chat model/role selectors
+    const selectedModel = ref('auto');
+    const selectedRole = ref('auto');
+    const availableModels = ref([]);
+    const chatRoles = ref({ independent: false, roles: {} });
+    const lastUsedModel = ref('');
 
     // Toast
     const toastMsg = ref('');
@@ -1154,6 +1227,21 @@ createApp({
     }
 
     // ===== Chat =====
+    async function loadChatModels() {
+      try {
+        const data = await apiJSON('/api/chat/models');
+        availableModels.value = data.default_models || [];
+        chatRoles.value = {
+          independent: data.independent_keys || false,
+          roles: data.roles || {},
+        };
+        // 如果当前选中的模型不在可用列表中，重置为 auto
+        if (selectedModel.value !== 'auto' && !availableModels.value.includes(selectedModel.value)) {
+          selectedModel.value = 'auto';
+        }
+      } catch (e) { console.error('loadChatModels:', e); }
+    }
+
     async function sendMessage() {
       if (!inputText.value.trim() || isThinking.value) return;
       const userMsg = inputText.value.trim();
@@ -1168,7 +1256,13 @@ createApp({
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: userMsg, project_id: currentProjectId.value, history: history.slice(0, -1) }),
+          body: JSON.stringify({
+            message: userMsg,
+            project_id: currentProjectId.value,
+            history: history.slice(0, -1),
+            model: selectedModel.value,
+            role: selectedRole.value,
+          }),
         });
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
@@ -1192,6 +1286,7 @@ createApp({
                   await nextTick();
                   scrollMessages();
                 }
+                if (data.model) { lastUsedModel.value = data.model; }
                 if (data.done) { assistantMsg.streaming = false; }
               } catch (e) {}
             }
@@ -1590,28 +1685,52 @@ createApp({
     async function openSettings() {
       try {
         const data = await apiJSON('/api/config');
+        // 确保每个 API 配置都有 models 数组（兼容旧格式 model 字符串）
+        const defaultApi = data.default_api || {};
+        if (!defaultApi.models || defaultApi.models.length === 0) {
+          defaultApi.models = defaultApi.model ? [defaultApi.model] : [''];
+        }
+        const rolesData = data.roles || {};
+        for (const key of Object.keys(modelRoles)) {
+          if (!rolesData[key]) rolesData[key] = { models: [''], base_url: '', api_key: '', is_configured: false };
+          if (!rolesData[key].models || rolesData[key].models.length === 0) {
+            rolesData[key].models = rolesData[key].model ? [rolesData[key].model] : [''];
+          }
+        }
         configData.value = {
-          default_api: data.default_api || { model: '', base_url: '', api_key: '', is_configured: false },
+          default_api: defaultApi,
           independent_keys: data.independent_keys || false,
-          roles: data.roles || {},
+          roles: rolesData,
         };
         showConfigModal.value = true;
       } catch (e) { showToast('加载配置失败', 'error'); }
     }
     async function saveConfig() {
       try {
+        // 过滤空模型名
+        const cleanData = {
+          default_api: {
+            ...configData.value.default_api,
+            models: (configData.value.default_api.models || []).filter(m => m && m.trim()),
+          },
+          independent_keys: configData.value.independent_keys,
+          roles: {},
+        };
+        for (const key of Object.keys(configData.value.roles)) {
+          cleanData.roles[key] = {
+            ...configData.value.roles[key],
+            models: (configData.value.roles[key].models || []).filter(m => m && m.trim()),
+          };
+        }
         await apiJSON('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            default_api: configData.value.default_api,
-            independent_keys: configData.value.independent_keys,
-            roles: configData.value.roles,
-          }),
+          body: JSON.stringify(cleanData),
         });
         showToast('配置已保存', 'success');
         showConfigModal.value = false;
         await checkHealth();
+        await loadChatModels();
       } catch (e) { showToast('保存失败', 'error'); }
     }
     async function testConfig() {
@@ -1662,6 +1781,7 @@ createApp({
       await loadWorkspace();
       await loadProjects();
       await loadKnowledge();
+      await loadChatModels();
       setInterval(checkHealth, 30000);
     });
 
@@ -1677,6 +1797,8 @@ createApp({
       showRenameModal, renameInput, renamingProjectId,
       activeTab, tabs,
       messages, inputText, isThinking, messagesArea,
+      // Chat selectors
+      selectedModel, selectedRole, availableModels, chatRoles, lastUsedModel,
       // Settings
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
       currentSettingNodeId, currentSettingNode,
@@ -1696,7 +1818,7 @@ createApp({
       toastMsg, toastType,
       showToast, selectWorkspace, loadProjects, selectProject, createProject,
       startRename, confirmRename, deleteProject,
-      sendMessage, renderMarkdown,
+      sendMessage, renderMarkdown, loadChatModels,
       optimizeSetting, loadSettings,
       loadKnowledge, handleFileUpload, handleFileDrop, searchKnowledge,
       viewKnowledge, toggleEditKnowledge, saveKnowledgeEdit, deleteKnowledge, typeLabel,
