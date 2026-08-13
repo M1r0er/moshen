@@ -10,8 +10,28 @@ from pathlib import Path
 from core.resource_path import get_workspace_dir
 
 
-# 工作区根目录
-WORKSPACE_ROOT = get_workspace_dir()
+def _read_user_workspace() -> Path:
+    """读取用户通过UI选择的工作区路径（~/.moshen/workspace.json）
+    
+    优先使用用户选择的工作区路径，不存在时回退到默认路径。
+    """
+    config_path = Path.home() / ".moshen" / "workspace.json"
+    if config_path.exists():
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            path = data.get("path", "")
+            if path:
+                p = Path(path)
+                if p.exists() and p.is_dir():
+                    return p
+        except (json.JSONDecodeError, IOError):
+            pass
+    # 回退到默认路径
+    return get_workspace_dir()
+
+
+# 工作区根目录（动态读取用户选择的工作区）
+WORKSPACE_ROOT = _read_user_workspace()
 
 # 知识库文件模板
 KB_TEMPLATES = {
@@ -128,7 +148,8 @@ class ProjectKBManager:
         if workspace_root:
             self.root = Path(workspace_root)
         else:
-            self.root = WORKSPACE_ROOT
+            # 动态读取用户选择的工作区路径
+            self.root = _read_user_workspace()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def create_project(self, name: str, description: str = "") -> dict:
@@ -160,6 +181,7 @@ class ProjectKBManager:
             "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "chapters": [],
             "total_words": 0,
+            "workspace_path": "",  # 项目独立工作区路径（可选）
         }
         (project_dir / "project.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -197,6 +219,94 @@ class ProjectKBManager:
         """获取项目目录路径"""
         d = self.root / project_id
         return d if d.exists() else None
+
+    def get_project_workspace(self, project_id: str) -> str:
+        """获取项目的独立工作区路径（如果设置了）"""
+        meta = self.get_project(project_id)
+        if meta:
+            return meta.get("workspace_path", "")
+        return ""
+
+    def set_project_workspace(self, project_id: str, path: str) -> dict | None:
+        """设置项目的独立工作区路径"""
+        project_dir = self.get_project_dir(project_id)
+        if not project_dir:
+            return None
+
+        # 验证路径
+        if path:
+            p = Path(path).expanduser().resolve()
+            if not p.exists():
+                return None
+            path = str(p)
+
+        meta = self.get_project(project_id)
+        if not meta:
+            return None
+
+        meta["workspace_path"] = path
+        meta["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        (project_dir / "project.json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        return meta
+
+    def list_workspace_files(self, project_id: str) -> list[dict]:
+        """列出项目独立工作区中的文件（递归，最多2层）"""
+        ws_path = self.get_project_workspace(project_id)
+        if not ws_path:
+            return []
+
+        ws = Path(ws_path)
+        if not ws.exists() or not ws.is_dir():
+            return []
+
+        def _scan(directory: Path, depth: int, max_depth: int = 2) -> list[dict]:
+            items = []
+            try:
+                for child in sorted(directory.iterdir(), key=lambda x: (not x.is_dir(), x.name)):
+                    if child.name.startswith("."):
+                        continue
+                    node = {
+                        "name": child.name,
+                        "path": str(child),
+                        "relative_path": str(child.relative_to(ws)),
+                        "type": "dir" if child.is_dir() else "file",
+                        "size": child.stat().st_size if child.is_file() else None,
+                    }
+                    if child.is_dir() and depth < max_depth:
+                        node["children"] = _scan(child, depth + 1, max_depth)
+                    items.append(node)
+            except PermissionError:
+                pass
+            return items
+
+        return _scan(ws, depth=1)
+
+    def read_workspace_file(self, project_id: str, relative_path: str) -> str | None:
+        """读取项目工作区中的文件内容"""
+        ws_path = self.get_project_workspace(project_id)
+        if not ws_path:
+            return None
+
+        ws = Path(ws_path)
+        filepath = (ws / relative_path).resolve()
+
+        # 安全检查：确保文件在工作区内
+        try:
+            filepath.relative_to(ws.resolve())
+        except ValueError:
+            return None
+
+        if not filepath.exists() or not filepath.is_file():
+            return None
+
+        # 尝试 UTF-8，回退 GB18030
+        raw = filepath.read_bytes()
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw.decode("gb18030", errors="replace")
 
     def get_project_summary(self, project_id: str) -> str:
         """获取项目知识库摘要（用于 LLM 上下文），包含知识库模板、设定树和上传文档"""
@@ -243,7 +353,33 @@ class ProjectKBManager:
                     except (UnicodeDecodeError, IOError):
                         pass
             if file_summaries:
-                parts.append(f"### 工作区文档\n" + "\n\n".join(file_summaries))
+                parts.append(f"### 上传文档\n" + "\n\n".join(file_summaries))
+
+        # 4. 项目独立工作区文档
+        ws_path = self.get_project_workspace(project_id)
+        if ws_path:
+            ws = Path(ws_path)
+            if ws.exists() and ws.is_dir():
+                ws_summaries = []
+                for f in ws.rglob("*"):
+                    if f.is_file() and not f.name.startswith(".") and f.suffix.lower() in (".txt", ".md", ".doc", ".docx"):
+                        try:
+                            rel_path = f.relative_to(ws)
+                            raw = f.read_bytes()
+                            try:
+                                content = raw.decode("utf-8")
+                            except UnicodeDecodeError:
+                                content = raw.decode("gb18030", errors="replace")
+                            summary = content[:1500]
+                            if len(content) > 1500:
+                                summary += "\n...(内容已截断)"
+                            ws_summaries.append(f"#### {rel_path}\n{summary}")
+                            if len(ws_summaries) >= 10:  # 最多10个文件
+                                break
+                        except (UnicodeDecodeError, IOError, PermissionError):
+                            pass
+                if ws_summaries:
+                    parts.append(f"### 项目工作区文档 ({ws_path})\n" + "\n\n".join(ws_summaries))
 
         if not parts:
             return "（项目知识库为空，请通过对话逐步构建世界观、角色、大纲等内容）"
@@ -469,6 +605,133 @@ class ProjectKBManager:
         shutil.rmtree(project_dir, ignore_errors=True)
         return True
 
+    # ===== 多对话管理 =====
+
+    def _get_conversations_dir(self, project_id: str) -> Path | None:
+        """获取对话目录"""
+        project_dir = self.get_project_dir(project_id)
+        if not project_dir:
+            return None
+        conv_dir = project_dir / "conversations"
+        conv_dir.mkdir(exist_ok=True)
+        return conv_dir
+
+    def create_conversation(self, project_id: str, title: str = "") -> dict:
+        """创建新对话"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return None
+
+        import hashlib
+        conv_id = f"conv_{int(time.time())}_{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        conv = {
+            "id": conv_id,
+            "title": title or "新对话",
+            "messages": [],
+            "created_at": now,
+            "updated_at": now,
+        }
+        filepath = conv_dir / f"{conv_id}.json"
+        filepath.write_text(json.dumps(conv, ensure_ascii=False, indent=2), encoding="utf-8")
+        return conv
+
+    def list_conversations(self, project_id: str) -> list[dict]:
+        """列出项目的所有对话（仅元数据，不含消息）"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return []
+
+        conversations = []
+        for f in conv_dir.iterdir():
+            if f.is_file() and f.suffix == ".json":
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    conversations.append({
+                        "id": data.get("id", f.stem),
+                        "title": data.get("title", "未命名"),
+                        "message_count": len(data.get("messages", [])),
+                        "created_at": data.get("created_at", ""),
+                        "updated_at": data.get("updated_at", ""),
+                    })
+                except (json.JSONDecodeError, IOError):
+                    pass
+
+        # 按更新时间降序
+        conversations.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
+        return conversations
+
+    def get_conversation(self, project_id: str, conv_id: str) -> dict | None:
+        """获取对话完整内容（含消息）"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return None
+
+        filepath = conv_dir / f"{conv_id}.json"
+        if not filepath.exists():
+            return None
+
+        try:
+            return json.loads(filepath.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return None
+
+    def save_conversation(self, project_id: str, conv_id: str,
+                          messages: list[dict], title: str | None = None) -> dict | None:
+        """保存对话消息"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return None
+
+        filepath = conv_dir / f"{conv_id}.json"
+        if not filepath.exists():
+            return None
+
+        try:
+            data = json.loads(filepath.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            data = {"id": conv_id, "title": "未命名", "messages": []}
+
+        data["messages"] = messages
+        if title is not None:
+            data["title"] = title
+        data["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return data
+
+    def delete_conversation(self, project_id: str, conv_id: str) -> bool:
+        """删除对话"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return False
+
+        filepath = conv_dir / f"{conv_id}.json"
+        if filepath.exists():
+            filepath.unlink()
+            return True
+        return False
+
+    def rename_conversation(self, project_id: str, conv_id: str, title: str) -> dict | None:
+        """重命名对话"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return None
+
+        filepath = conv_dir / f"{conv_id}.json"
+        if not filepath.exists():
+            return None
+
+        try:
+            data = json.loads(filepath.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return None
+
+        data["title"] = title.strip() or "未命名"
+        data["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return data
+
 
 # 全局单例
 _kb_manager: ProjectKBManager | None = None
@@ -478,4 +741,8 @@ def get_project_kb_manager() -> ProjectKBManager:
     global _kb_manager
     if _kb_manager is None:
         _kb_manager = ProjectKBManager()
+    else:
+        # 每次获取时刷新工作区路径（用户可能通过UI切换了工作区）
+        _kb_manager.root = _read_user_workspace()
+        _kb_manager.root.mkdir(parents=True, exist_ok=True)
     return _kb_manager

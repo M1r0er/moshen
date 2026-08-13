@@ -19,6 +19,14 @@ class RenameProjectRequest(BaseModel):
     name: str
 
 
+class SetWorkspaceRequest(BaseModel):
+    path: str
+
+
+class ReadFileRequest(BaseModel):
+    relative_path: str
+
+
 @router.get("")
 async def list_projects():
     """列出所有项目"""
@@ -96,3 +104,56 @@ async def list_chapters(project_id: str):
 async def list_reports(project_id: str):
     """列出诊断报告"""
     return {"reports": kb.list_diagnosis_reports(project_id)}
+
+
+# ===== 项目独立工作区 =====
+
+@router.get("/{project_id}/workspace")
+async def get_project_workspace(project_id: str):
+    """获取项目工作区信息"""
+    if not kb.get_project(project_id):
+        raise HTTPException(404, "项目不存在")
+    ws_path = kb.get_project_workspace(project_id)
+    return {
+        "path": ws_path,
+        "exists": bool(ws_path),
+    }
+
+
+@router.put("/{project_id}/workspace")
+async def set_project_workspace(project_id: str, req: SetWorkspaceRequest):
+    """设置项目独立工作区路径"""
+    path = req.path.strip()
+    if path:
+        from pathlib import Path
+        p = Path(path).expanduser().resolve()
+        if not p.exists():
+            raise HTTPException(400, f"路径不存在: {p}")
+        if not p.is_dir():
+            raise HTTPException(400, f"路径不是目录: {p}")
+        path = str(p)
+
+    meta = kb.set_project_workspace(project_id, path)
+    if not meta:
+        raise HTTPException(404, "项目不存在")
+    return {"success": True, "workspace_path": meta.get("workspace_path", "")}
+
+
+@router.get("/{project_id}/workspace/tree")
+async def get_workspace_tree(project_id: str):
+    """获取项目工作区文件树"""
+    if not kb.get_project(project_id):
+        raise HTTPException(404, "项目不存在")
+    files = kb.list_workspace_files(project_id)
+    return {"files": files}
+
+
+@router.post("/{project_id}/workspace/read")
+async def read_workspace_file(project_id: str, req: ReadFileRequest):
+    """读取项目工作区中的文件"""
+    if not kb.get_project(project_id):
+        raise HTTPException(404, "项目不存在")
+    content = kb.read_workspace_file(project_id, req.relative_path)
+    if content is None:
+        raise HTTPException(404, "文件不存在或无法读取")
+    return {"relative_path": req.relative_path, "content": content}

@@ -1,33 +1,33 @@
 @echo off
-title Ä«²Î MoShen ¡¤ Ð¡ËµÐ´×÷ÖúÊÖ
+title Ä«ï¿½ï¿½ MoShen ï¿½ï¿½ Ð¡ËµÐ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 
 echo ========================================
-echo   Ä«²Î MoShen ¡¤ Ð¡ËµÐ´×÷ÖúÊÖ (Electron)
+echo   Ä«ï¿½ï¿½ MoShen ï¿½ï¿½ Ð¡ËµÐ´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ (Electron)
 echo ========================================
 echo.
 
 cd /d "d:\Trae Workspace\moshen"
 
-echo [1/3] ¼ì²é Node.js »·¾³...
+echo [1/3] ï¿½ï¿½ï¿½ Node.js ï¿½ï¿½ï¿½ï¿½...
 set "NODE_PATH=C:\Program Files\nodejs\node.exe"
 if not exist "%NODE_PATH%" (
-    echo ´íÎó£ºÎ´ÕÒµ½ Node.js£¬ÇëÏÈ°²×° Node.js 18+
+    echo ï¿½ï¿½ï¿½ï¿½Î´ï¿½Òµï¿½ Node.jsï¿½ï¿½ï¿½ï¿½ï¿½È°ï¿½×° Node.js 18+
     pause
     exit /b 1
 )
 
-echo [2/3] ¼ì²éÒÀÀµ...
+echo [2/3] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½...
 if not exist "node_modules\electron" (
-    echo Ê×´ÎÔËÐÐ£¬ÕýÔÚ°²×°ÒÀÀµ...
+    echo ï¿½×´ï¿½ï¿½ï¿½ï¿½Ð£ï¿½ï¿½ï¿½ï¿½Ú°ï¿½×°ï¿½ï¿½ï¿½ï¿½...
     "%NODE_PATH%" "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" install
     if errorlevel 1 (
-        echo ÒÀÀµ°²×°Ê§°Ü£¬Çë¼ì²éÍøÂçÁ¬½Ó
+        echo ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×°Ê§ï¿½Ü£ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
         pause
         exit /b 1
     )
 )
 
-echo [3/3] Æô¶¯×ÀÃæÓ¦ÓÃ...
+echo [3/3] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½...
 echo.
 
 set "PYTHON_PATH=C:\Users\Administrator\AppData\Local\Programs\Python\Python313\python.exe"
