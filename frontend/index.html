@@ -214,7 +214,42 @@ body {
 @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
 
 .chat-input-area { padding: 12px 20px 16px; border-top: 1px solid var(--border-color); background: var(--bg-secondary); }
+.chat-input-wrapper { position: relative; transition: background 0.15s; border-radius: 8px; padding: 4px; }
+.chat-input-wrapper.drag-over { background: var(--accent-dim); outline: 2px dashed var(--accent); outline-offset: -2px; }
+.drag-hint {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  font-size: 12px; color: var(--accent); font-weight: 500; pointer-events: none;
+}
+.chat-attachments {
+  max-width: 900px; margin: 0 auto 8px; display: flex; flex-wrap: wrap; gap: 6px;
+}
+.attachment-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px;
+  background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 4px;
+  font-size: 12px; color: var(--text-primary); max-width: 240px;
+}
+.attachment-icon { flex-shrink: 0; }
+.attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-size { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+.attachment-remove {
+  background: none; border: none; cursor: pointer; color: var(--text-muted);
+  font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0;
+}
+.attachment-remove:hover { color: var(--red); }
 .chat-input-row { display: flex; gap: 10px; max-width: 900px; margin: 0 auto; align-items: flex-end; }
+
+/* 消息内附件显示 */
+.msg-attachments {
+  max-width: 600px; margin-bottom: 4px; display: flex; flex-direction: column; gap: 3px;
+}
+.msg-attachment-item {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  background: var(--accent-dim); border: 1px solid var(--accent); border-radius: 4px;
+  font-size: 12px; color: var(--text-primary);
+}
+.msg-att-icon { flex-shrink: 0; }
+.msg-att-name { font-weight: 500; }
+.msg-att-size { color: var(--text-muted); font-size: 11px; }
 .chat-attach-btn {
   flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border-color);
   background: var(--bg-primary); color: var(--text-muted); border-radius: 6px;
@@ -599,7 +634,15 @@ body {
                 <div class="message-avatar">{{ msg.role === 'user' ? '我' : '墨' }}</div>
                 <div class="message-body">
                   <div class="message-name">{{ msg.role === 'user' ? '我' : '墨参' }}</div>
-                  <div class="message-bubble" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
+                  <!-- 附件显示区（在消息气泡上方） -->
+                  <div class="msg-attachments" v-if="msg.attachments && msg.attachments.length > 0">
+                    <div class="msg-attachment-item" v-for="(att, ai) in msg.attachments" :key="ai">
+                      <span class="msg-att-icon">📎</span>
+                      <span class="msg-att-name">{{ att.name }}</span>
+                      <span class="msg-att-size" v-if="att.size">{{ formatFileSize(att.size) }}</span>
+                    </div>
+                  </div>
+                  <div class="message-bubble" v-if="msg.content || !msg.attachments || msg.attachments.length === 0" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
                   <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
                     <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库">📥 存入知识库</button>
                   </div>
@@ -633,16 +676,32 @@ body {
                 </div>
                 <div class="model-badge" v-if="lastUsedModel">{{ lastUsedModel }}</div>
               </div>
-              <div class="chat-input-row">
-                <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
-                <input type="file" ref="chatFileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload">
-                <textarea class="chat-input" v-model="inputText"
-                  placeholder="输入你的创作需求..."
-                  @keydown.enter.exact.prevent="sendMessage"
-                  rows="1" ref="chatInput"></textarea>
-                <button class="send-btn" @click="sendMessage" :disabled="!inputText.trim() || isThinking">
-                  {{ isThinking ? '思考中' : '发送' }}
-                </button>
+              <div class="chat-input-wrapper"
+                @dragover.prevent="isDragOver = true"
+                @dragleave.prevent="isDragOver = false"
+                @drop.prevent="handleDrop"
+                :class="{ 'drag-over': isDragOver }">
+                <!-- 附件显示区 -->
+                <div class="chat-attachments" v-if="chatAttachments.length > 0">
+                  <div class="attachment-chip" v-for="(att, idx) in chatAttachments" :key="idx">
+                    <span class="attachment-icon">📄</span>
+                    <span class="attachment-name" :title="att.name">{{ att.name }}</span>
+                    <span class="attachment-size">{{ formatFileSize(att.size) }}</span>
+                    <button class="attachment-remove" @click="removeAttachment(idx)" title="移除">&times;</button>
+                  </div>
+                </div>
+                <div class="chat-input-row">
+                  <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
+                  <input type="file" ref="chatFileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload" multiple>
+                  <textarea class="chat-input" v-model="inputText"
+                    :placeholder="chatAttachments.length > 0 ? '附件已添加，输入你的问题...' : '输入你的创作需求...（可拖拽文件到此处）'"
+                    @keydown.enter.exact.prevent="sendMessage"
+                    rows="1" ref="chatInput"></textarea>
+                  <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0) || isThinking">
+                    {{ isThinking ? '思考中' : '发送' }}
+                  </button>
+                </div>
+                <div class="drag-hint" v-if="isDragOver">松开鼠标以上传文件</div>
               </div>
             </div>
           </template>
@@ -1220,6 +1279,8 @@ createApp({
     const convRenameInput = ref('');
     const messagesArea = ref(null);
     const chatFileInput = ref(null);
+    const chatAttachments = ref([]);
+    const isDragOver = ref(false);
 
     // Settings Writer
     const settingsTree = ref([]);
@@ -1578,21 +1639,30 @@ createApp({
       // 只在有消息时保存
       if (messages.value.length === 0) return;
       try {
-        // 自动生成标题：用第一条用户消息的前20字
+        // 自动生成标题：用第一条用户消息的前20字，无文字时用附件名
         let title = null;
         const firstUserMsg = messages.value.find(m => m.role === 'user');
         if (firstUserMsg) {
           const existing = conversations.value.find(c => c.id === currentConversationId.value);
           if (existing && (existing.title === '新对话' || existing.title.startsWith('新对话 '))) {
-            title = firstUserMsg.content.substring(0, 20).trim();
-            if (firstUserMsg.content.length > 20) title += '...';
+            if (firstUserMsg.content && firstUserMsg.content.trim()) {
+              title = firstUserMsg.content.substring(0, 20).trim();
+              if (firstUserMsg.content.length > 20) title += '...';
+            } else if (firstUserMsg.attachments && firstUserMsg.attachments.length > 0) {
+              title = '📎 ' + firstUserMsg.attachments[0].name;
+            }
           }
         }
-        // 过滤掉 streaming 状态
-        const cleanMessages = messages.value.map(m => ({
-          role: m.role,
-          content: m.content,
-        }));
+        // 过滤掉 streaming 状态，保留附件信息
+        const cleanMessages = messages.value
+          .filter(m => !m.streaming)
+          .map(m => {
+            const msg = { role: m.role, content: m.content };
+            if (m.attachments && m.attachments.length > 0) {
+              msg.attachments = m.attachments;
+            }
+            return msg;
+          });
         await apiJSON('/api/conversations/' + currentProjectId.value + '/' + currentConversationId.value, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -1661,64 +1731,66 @@ createApp({
       if (chatFileInput.value) chatFileInput.value.click();
     }
     async function handleFileUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      // 重置input以便重复选择同一文件
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
       event.target.value = '';
-
-      const maxSize = 10 * 1024 * 1024; // 10MB
-      if (file.size > maxSize) {
-        showToast('文件过大，请选择10MB以内的文件', 'error');
-        return;
-      }
-
-      const ext = file.name.split('.').pop().toLowerCase();
-      showToast('正在读取文件: ' + file.name, 'info');
-
-      try {
-        let content = '';
-        if (ext === 'txt' || ext === 'md') {
-          // 文本文件直接读取
-          content = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsText(file, 'utf-8');
-          });
-        } else if (ext === 'docx' || ext === 'doc') {
-          // Word文件上传到后端解析
-          const formData = new FormData();
-          formData.append('file', file);
-          const res = await fetch('/api/chat/upload-file', {
-            method: 'POST',
-            body: formData,
-          });
-          const data = await res.json();
-          if (data.error) {
-            showToast('文件解析失败: ' + data.error, 'error');
-            return;
-          }
-          content = data.content;
-        } else {
-          showToast('不支持的文件格式，请上传 .txt, .md, .docx 文件', 'error');
-          return;
+      await processFiles(Array.from(files));
+    }
+    async function handleDrop(event) {
+      isDragOver.value = false;
+      const files = event.dataTransfer?.files;
+      if (!files || files.length === 0) return;
+      await processFiles(Array.from(files));
+    }
+    async function processFiles(files) {
+      const maxSize = 10 * 1024 * 1024;
+      for (const file of files) {
+        if (file.size > maxSize) {
+          showToast('文件过大: ' + file.name + '（限制10MB）', 'error');
+          continue;
         }
-
-        // 将文件内容插入到输入框
-        const fileHeader = '--- 文件: ' + file.name + ' ---\n';
-        const fileFooter = '\n--- 文件结束 ---\n\n';
-        const currentText = inputText.value.trim();
-        inputText.value = currentText
-          ? fileHeader + content + fileFooter + currentText
-          : fileHeader + content + fileFooter;
-        showToast('文件内容已插入: ' + file.name, 'success');
-      } catch (e) {
-        showToast('读取文件失败: ' + e.message, 'error');
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['txt', 'md', 'docx', 'doc'].includes(ext)) {
+          showToast('不支持的格式: ' + file.name + '（支持 txt/md/docx）', 'error');
+          continue;
+        }
+        try {
+          let content = '';
+          if (ext === 'txt' || ext === 'md') {
+            content = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsText(file, 'utf-8');
+            });
+          } else {
+            const formData = new FormData();
+            formData.append('file', file);
+            const res = await fetch('/api/chat/upload-file', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (data.error) { showToast('解析失败: ' + file.name, 'error'); continue; }
+            content = data.content;
+          }
+          chatAttachments.value.push({ name: file.name, content, size: file.size });
+          showToast('已添加附件: ' + file.name, 'success');
+        } catch (e) {
+          showToast('读取失败: ' + file.name + ' - ' + e.message, 'error');
+        }
       }
+    }
+    function removeAttachment(idx) {
+      chatAttachments.value.splice(idx, 1);
+    }
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + 'B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
     }
 
     async function sendMessage() {
-      if (!inputText.value.trim() || isThinking.value) return;
+      const hasText = inputText.value.trim();
+      const hasAttachments = chatAttachments.value.length > 0;
+      if ((!hasText && !hasAttachments) || isThinking.value) return;
 
       // 如果没有当前对话，自动创建一个
       if (!currentConversationId.value) {
@@ -1733,9 +1805,28 @@ createApp({
         } catch (e) { console.error('auto create conversation:', e); }
       }
 
-      const userMsg = inputText.value.trim();
-      messages.value.push({ role: 'user', content: userMsg });
+      // 组装消息：附件内容 + 用户输入
+      let userMsg = inputText.value.trim();
+      if (hasAttachments) {
+        let attachmentText = '';
+        for (const att of chatAttachments.value) {
+          attachmentText += '--- 文件: ' + att.name + ' ---\n' + att.content + '\n--- 文件结束 ---\n\n';
+        }
+        userMsg = attachmentText + userMsg;
+      }
+
+      // 记录附件信息用于消息展示
+      const sentAttachments = hasAttachments
+        ? chatAttachments.value.map(a => ({ name: a.name, size: a.size }))
+        : [];
+
+      messages.value.push({
+        role: 'user',
+        content: hasText ? inputText.value.trim() : '',
+        attachments: sentAttachments,
+      });
       inputText.value = '';
+      chatAttachments.value = [];
       isThinking.value = true;
       await nextTick();
       scrollMessages();
@@ -2299,6 +2390,30 @@ createApp({
       await loadKnowledge();
       await loadChatModels();
       setInterval(checkHealth, 30000);
+
+      // ===== 全局拖拽阻止（PyWebView 修复）=====
+      // PyWebView 默认会拦截文件拖拽并尝试打开文件，导致 JS drop 事件不触发
+      // 需要在 document 级别阻止默认行为，仅允许 chat-input-wrapper 内的拖放
+      document.addEventListener('dragover', (e) => {
+        const wrapper = e.target.closest && e.target.closest('.chat-input-wrapper');
+        if (wrapper) {
+          // 在聊天输入区内，允许拖放，但仍然阻止默认行为（防止导航）
+          e.preventDefault();
+        } else {
+          // 其他区域，阻止一切拖放默认行为
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      });
+      document.addEventListener('drop', (e) => {
+        const wrapper = e.target.closest && e.target.closest('.chat-input-wrapper');
+        if (!wrapper) {
+          // 非聊天输入区，阻止文件打开
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        // 聊聊输入区内的 drop 由 Vue @drop.prevent="handleDrop" 处理
+      });
       // 定期自动保存当前对话（每30秒）
       setInterval(async () => {
         if (currentProjectId.value && currentConversationId.value && messages.value.length > 0) {
@@ -2309,9 +2424,13 @@ createApp({
       window.addEventListener('beforeunload', () => {
         if (currentProjectId.value && currentConversationId.value && messages.value.length > 0) {
           try {
-            const cleanMessages = messages.value.filter(m => !m.streaming).map(m => ({
-              role: m.role, content: m.content,
-            }));
+            const cleanMessages = messages.value.filter(m => !m.streaming).map(m => {
+              const msg = { role: m.role, content: m.content };
+              if (m.attachments && m.attachments.length > 0) {
+                msg.attachments = m.attachments;
+              }
+              return msg;
+            });
             fetch('/api/conversations/' + currentProjectId.value + '/' + currentConversationId.value, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
@@ -2365,6 +2484,8 @@ createApp({
       openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
       sendMessage, renderMarkdown, loadChatModels,
       triggerFileInput, handleFileUpload, chatFileInput,
+      handleDrop, processFiles, removeAttachment, formatFileSize,
+      chatAttachments, isDragOver,
       loadConversations, loadConversationMessages, createConversation,
       onConvSelectChange, switchConversation, saveCurrentConversation, deleteConversation,
       startRenameConversation, confirmRenameConversation,
