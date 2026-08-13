@@ -635,7 +635,7 @@ body {
               </div>
               <div class="chat-input-row">
                 <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
-                <input type="file" ref="fileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload">
+                <input type="file" ref="chatFileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload">
                 <textarea class="chat-input" v-model="inputText"
                   placeholder="输入你的创作需求..."
                   @keydown.enter.exact.prevent="sendMessage"
@@ -1219,7 +1219,7 @@ createApp({
     const showConvRenameModal = ref(false);
     const convRenameInput = ref('');
     const messagesArea = ref(null);
-    const fileInput = ref(null);
+    const chatFileInput = ref(null);
 
     // Settings Writer
     const settingsTree = ref([]);
@@ -1658,7 +1658,7 @@ createApp({
 
     // ===== File Upload in Chat =====
     function triggerFileInput() {
-      if (fileInput.value) fileInput.value.click();
+      if (chatFileInput.value) chatFileInput.value.click();
     }
     async function handleFileUpload(event) {
       const file = event.target.files[0];
@@ -2364,7 +2364,7 @@ createApp({
       loadProjectWorkspace, openProjectWsModal, confirmProjectWs, clearProjectWs,
       openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
       sendMessage, renderMarkdown, loadChatModels,
-      triggerFileInput, handleFileUpload, fileInput,
+      triggerFileInput, handleFileUpload, chatFileInput,
       loadConversations, loadConversationMessages, createConversation,
       onConvSelectChange, switchConversation, saveCurrentConversation, deleteConversation,
       startRenameConversation, confirmRenameConversation,
