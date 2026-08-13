@@ -179,6 +179,12 @@ class UpdateKnowledgeRequest(BaseModel):
     title: str | None = None
 
 
+class SaveFromChatRequest(BaseModel):
+    title: str
+    content: str
+    type: str = "other"
+
+
 # ===== 路由 =====
 
 @router.get("")
@@ -318,6 +324,46 @@ async def search_knowledge(req: SearchRequest):
         "source_detail": req.query,
         "type": req.type,
         "content": result,
+    }
+
+
+@router.post("/from-chat")
+async def save_from_chat(req: SaveFromChatRequest):
+    """从对话内容直接保存为知识条目（无需 LLM 分析）"""
+    if not req.title.strip():
+        raise HTTPException(400, "标题不能为空")
+    if not req.content.strip():
+        raise HTTPException(400, "内容不能为空")
+
+    title = req.title.strip()
+    content = req.content.strip()
+
+    # 提取标题（如果内容中有 H1，优先使用）
+    extracted_title = extract_title_from_content(content, title)
+
+    # 生成知识条目
+    kid = uuid.uuid4().hex[:12]
+    metadata = create_metadata(
+        title=extracted_title,
+        source="chat",
+        source_detail="对话保存",
+        ktype=req.type,
+    )
+    metadata["id"] = kid
+
+    # 保存 MD 文件
+    kd = get_knowledge_dir()
+    md_content = build_knowledge_md(metadata, content)
+    write_text_safe(kd / f"{kid}.md", md_content)
+
+    return {
+        "id": kid,
+        "title": extracted_title,
+        "filename": f"{kid}.md",
+        "source": "chat",
+        "source_detail": "对话保存",
+        "type": req.type,
+        "content": content,
     }
 
 

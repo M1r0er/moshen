@@ -199,6 +199,13 @@ body {
 .message-bubble pre code { background: none; padding: 0; }
 .message-bubble ul, .message-bubble ol { padding-left: 20px; margin: 4px 0; }
 .message-bubble strong { color: var(--accent); }
+.message-actions { margin-top: 6px; display: flex; gap: 8px; }
+.msg-action-btn {
+  font-size: 11px; padding: 3px 10px; border: 1px solid var(--border-color);
+  background: var(--bg-secondary); color: var(--text-muted); border-radius: 4px;
+  cursor: pointer; transition: all 0.15s;
+}
+.msg-action-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
 .cursor-blink { display: inline-block; width: 2px; height: 16px; background: var(--accent); animation: blink 1s infinite; vertical-align: text-bottom; }
 @keyframes blink { 50% { opacity: 0; } }
 .thinking-dots span { display: inline-block; animation: bounce 1.4s infinite; }
@@ -411,6 +418,7 @@ body {
 .toast.success { background: var(--green); color: #fff; }
 .toast.error { background: var(--red); color: #fff; }
 .toast.info { background: var(--accent); color: #fff; }
+.toast.warn { background: #e8a317; color: #fff; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 /* ===== Loading ===== */
@@ -584,6 +592,9 @@ body {
                 <div class="message-body">
                   <div class="message-name">{{ msg.role === 'user' ? '我' : '墨参' }}</div>
                   <div class="message-bubble" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
+                  <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
+                    <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库">📥 存入知识库</button>
+                  </div>
                 </div>
               </div>
               <div v-if="isThinking" class="message assistant">
@@ -918,6 +929,39 @@ body {
     </div>
   </div>
 
+  <!-- ========== Save to Knowledge Modal ========== -->
+  <div class="modal-overlay" v-if="showSaveToKbModal" @click.self="showSaveToKbModal = false">
+    <div class="modal">
+      <div class="modal-title">存入知识库</div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px">
+          <div class="field-label">标题</div>
+          <input class="modal-input" v-model="saveToKbTitle" placeholder="知识条目标题" @keydown.enter="confirmSaveToKnowledge">
+        </div>
+        <div style="margin-bottom:12px">
+          <div class="field-label">类别</div>
+          <select class="field-select" v-model="saveToKbType">
+            <option value="other">其他</option>
+            <option value="world">世界观</option>
+            <option value="character">人物</option>
+            <option value="setting">设定</option>
+            <option value="plot">剧情</option>
+            <option value="style">文风</option>
+            <option value="reference">参考资料</option>
+          </select>
+        </div>
+        <div style="margin-bottom:8px">
+          <div class="field-label">内容预览</div>
+          <div style="max-height:200px;overflow-y:auto;padding:8px;border:1px solid var(--border-color);border-radius:6px;background:var(--bg-secondary);font-size:12px;white-space:pre-wrap">{{ saveToKbContent.substring(0, 500) }}{{ saveToKbContent.length > 500 ? '...' : '' }}</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showSaveToKbModal = false">取消</button>
+        <button class="btn btn-primary" @click="confirmSaveToKnowledge">保存</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== New Setting Modal ========== -->
   <div class="modal-overlay" v-if="showNewSettingModal" @click.self="showNewSettingModal = false">
     <div class="modal">
@@ -1141,6 +1185,11 @@ createApp({
     const projectWorkspacePath = ref('');
     const showProjectWsModal = ref(false);
     const projectWsInput = ref('');
+    // Save to knowledge from chat
+    const showSaveToKbModal = ref(false);
+    const saveToKbTitle = ref('');
+    const saveToKbType = ref('other');
+    const saveToKbContent = ref('');
     const activeTab = ref('chat');
     const tabs = [
       { key: 'chat', label: '对话', icon: '💬' },
@@ -1402,6 +1451,56 @@ createApp({
       } catch (e) { showToast('清除失败: ' + e.message, 'error'); }
     }
 
+    // ===== Save to Knowledge from Chat =====
+    function openSaveToKnowledgeModal(content) {
+      saveToKbContent.value = content;
+      // 尝试从内容中提取标题
+      let title = '';
+      const h1Match = content.match(/^#\s+(.+)$/m);
+      if (h1Match) {
+        title = h1Match[1].trim();
+      } else {
+        // 取前30字作为默认标题
+        title = content.substring(0, 30).replace(/[#*\n]/g, '').trim();
+        if (content.length > 30) title += '...';
+      }
+      saveToKbTitle.value = title;
+      saveToKbType.value = 'other';
+      showSaveToKbModal.value = true;
+    }
+    async function confirmSaveToKnowledge() {
+      if (!saveToKbTitle.value.trim() || !saveToKbContent.value.trim()) return;
+      try {
+        await apiJSON('/api/knowledge/from-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: saveToKbTitle.value.trim(),
+            content: saveToKbContent.value.trim(),
+            type: saveToKbType.value,
+          }),
+        });
+        showSaveToKbModal.value = false;
+        showToast('已存入知识库: ' + saveToKbTitle.value, 'success');
+        // 刷新知识库列表
+        await loadKnowledge();
+      } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+    function checkKnowledgeClaim(content) {
+      // 检测 AI 是否声称已存入知识库
+      const patterns = [
+        /已存入知识库/,
+        /已保存到知识库/,
+        /已加入知识库/,
+        /已记录到知识库/,
+        /存入知识库/,
+      ];
+      for (const p of patterns) {
+        if (p.test(content)) return true;
+      }
+      return false;
+    }
+
     // ===== Conversations =====
     async function loadConversations() {
       if (!currentProjectId.value) { conversations.value = []; return; }
@@ -1612,6 +1711,10 @@ createApp({
         assistantMsg.streaming = false;
         // 对话完成后自动保存
         await saveCurrentConversation();
+        // 检测 AI 是否声称已存入知识库，如果是则提示用户真正保存
+        if (checkKnowledgeClaim(assistantMsg.content)) {
+          showToast('AI声称已存入知识库但实际未保存，点击消息下方按钮手动存入', 'warn');
+        }
       } catch (e) {
         isThinking.value = false;
         showToast('发送失败: ' + e.message, 'error');
@@ -2138,6 +2241,7 @@ createApp({
       projects, currentProjectId, showNewProjectModal, newProjectName,
       showRenameModal, renameInput, renamingProjectId,
       projectWorkspacePath, showProjectWsModal, projectWsInput,
+      showSaveToKbModal, saveToKbTitle, saveToKbType, saveToKbContent,
       activeTab, tabs,
       messages, inputText, isThinking, messagesArea,
       // Conversations
@@ -2164,6 +2268,7 @@ createApp({
       showToast, selectWorkspace, loadProjects, selectProject, createProject,
       startRename, confirmRename, deleteProject,
       loadProjectWorkspace, openProjectWsModal, confirmProjectWs, clearProjectWs,
+      openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
       sendMessage, renderMarkdown, loadChatModels,
       loadConversations, loadConversationMessages, createConversation,
       onConvSelectChange, switchConversation, saveCurrentConversation, deleteConversation,
