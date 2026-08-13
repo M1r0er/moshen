@@ -3,7 +3,7 @@
 SSE 流式对话接口
 """
 import json
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
@@ -74,3 +74,18 @@ async def list_available_models():
         "default_models": default_models,
         "roles": roles_info,
     }
+
+
+@router.post("/upload-file")
+async def upload_chat_file(file: UploadFile = File(...)):
+    """上传文件并返回文本内容，用于对话中引用文件"""
+    from routes.knowledge import parse_uploaded_file
+    try:
+        content = await parse_uploaded_file(file)
+        return {
+            "filename": file.filename,
+            "content": content,
+            "size": len(content),
+        }
+    except Exception as e:
+        return {"error": str(e), "filename": file.filename}

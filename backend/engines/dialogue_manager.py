@@ -3,6 +3,7 @@
 核心编排模块：意图识别 → 上下文组装 → LLM调用 → 干预评估 → 流式返回
 """
 import json
+import re
 import time
 from typing import AsyncGenerator
 from pathlib import Path
@@ -14,6 +15,12 @@ from core.config import get_config_manager
 from engines.intent_router import get_intent_router
 from engines.intervention import get_intervention_engine
 from knowledge.project_kb import get_project_kb_manager
+
+# 知识库存写标记的正则：[[KB_SAVE:标题:类型]]内容[[/KB_SAVE]]
+_KB_SAVE_PATTERN = re.compile(
+    r'\[\[KB_SAVE:([^:\]]+):([^\]]+)\]\](.*?)\[\[/KB_SAVE\]\]',
+    re.DOTALL
+)
 
 
 class DialogueManager:
@@ -143,6 +150,48 @@ class DialogueManager:
 
             if intervention and intervention.get("need_intervention"):
                 yield self._sse("intervention", intervention)
+
+            # 知识库存写：检测 KB_SAVE 标记并自动保存
+            kb_matches = _KB_SAVE_PATTERN.findall(full_response)
+            if kb_matches:
+                # 延迟导入避免循环依赖
+                from routes.knowledge import save_knowledge_entry
+
+                saved_entries = []
+                for match in kb_matches:
+                    title = match[0].strip()
+                    kb_type = match[1].strip().lower()
+                    content = match[2].strip()
+
+                    # 类型映射
+                    type_map = {
+                        "世界观": "world", "world": "world",
+                        "人物": "character", "character": "character",
+                        "设定": "setting", "setting": "setting",
+                        "剧情": "plot", "plot": "plot",
+                        "文风": "style", "style": "style",
+                        "参考": "reference", "reference": "reference",
+                    }
+                    kb_type = type_map.get(kb_type, "other")
+
+                    result = save_knowledge_entry(title, content, kb_type)
+                    if result:
+                        saved_entries.append({
+                            "id": result["id"],
+                            "title": result["title"],
+                            "type": kb_type,
+                        })
+
+                if saved_entries:
+                    # 发送保存成功事件
+                    yield self._sse("kb_saved", {"entries": saved_entries})
+
+                    # 发送清理后的文本（移除标记块）
+                    clean_response = _KB_SAVE_PATTERN.sub('', full_response)
+                    # 清理多余的空行
+                    clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                    yield self._sse("kb_clean", {"clean_content": clean_response})
+                    full_response = clean_response
 
         except Exception as e:
             yield self._sse("error", {"message": str(e)})

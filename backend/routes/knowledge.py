@@ -167,6 +167,46 @@ def create_metadata(
     }
 
 
+def save_knowledge_entry(title: str, content: str, ktype: str = "other") -> dict:
+    """直接保存知识条目（供对话管理器调用，无需 HTTP 请求）
+
+    Args:
+        title: 条目标题
+        content: 条目内容（Markdown）
+        ktype: 条目类型
+
+    Returns:
+        保存结果 dict，包含 id, title 等
+    """
+    title = title.strip()
+    content = content.strip()
+    if not title or not content:
+        return None
+
+    extracted_title = extract_title_from_content(content, title)
+    kid = uuid.uuid4().hex[:12]
+    metadata = create_metadata(
+        title=extracted_title,
+        source="chat",
+        source_detail="AI自动整理",
+        ktype=ktype,
+    )
+    metadata["id"] = kid
+
+    kd = get_knowledge_dir()
+    md_content = build_knowledge_md(metadata, content)
+    write_text_safe(kd / f"{kid}.md", md_content)
+
+    return {
+        "id": kid,
+        "title": extracted_title,
+        "filename": f"{kid}.md",
+        "source": "chat",
+        "source_detail": "AI自动整理",
+        "type": ktype,
+    }
+
+
 # ===== 请求模型 =====
 
 class SearchRequest(BaseModel):

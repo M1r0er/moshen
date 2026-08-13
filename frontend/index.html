@@ -215,6 +215,14 @@ body {
 
 .chat-input-area { padding: 12px 20px 16px; border-top: 1px solid var(--border-color); background: var(--bg-secondary); }
 .chat-input-row { display: flex; gap: 10px; max-width: 900px; margin: 0 auto; align-items: flex-end; }
+.chat-attach-btn {
+  flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--border-color);
+  background: var(--bg-primary); color: var(--text-muted); border-radius: 6px;
+  cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.chat-attach-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.chat-attach-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .chat-input {
   flex: 1; padding: 10px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
   color: var(--text-primary); border-radius: var(--radius); font-size: 14px; resize: none; min-height: 42px; max-height: 200px;
@@ -626,6 +634,8 @@ body {
                 <div class="model-badge" v-if="lastUsedModel">{{ lastUsedModel }}</div>
               </div>
               <div class="chat-input-row">
+                <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
+                <input type="file" ref="fileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload">
                 <textarea class="chat-input" v-model="inputText"
                   placeholder="输入你的创作需求..."
                   @keydown.enter.exact.prevent="sendMessage"
@@ -1209,6 +1219,7 @@ createApp({
     const showConvRenameModal = ref(false);
     const convRenameInput = ref('');
     const messagesArea = ref(null);
+    const fileInput = ref(null);
 
     // Settings Writer
     const settingsTree = ref([]);
@@ -1519,7 +1530,8 @@ createApp({
         const data = await apiJSON('/api/conversations/' + currentProjectId.value + '/' + currentConversationId.value);
         messages.value = data.messages || [];
         await nextTick();
-        scrollMessages();
+        // 延迟滚动确保DOM完全渲染
+        setTimeout(() => scrollMessages(), 80);
       } catch (e) {
         messages.value = [];
       }
@@ -1644,6 +1656,67 @@ createApp({
       } catch (e) { console.error('loadChatModels:', e); }
     }
 
+    // ===== File Upload in Chat =====
+    function triggerFileInput() {
+      if (fileInput.value) fileInput.value.click();
+    }
+    async function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      // 重置input以便重复选择同一文件
+      event.target.value = '';
+
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (file.size > maxSize) {
+        showToast('文件过大，请选择10MB以内的文件', 'error');
+        return;
+      }
+
+      const ext = file.name.split('.').pop().toLowerCase();
+      showToast('正在读取文件: ' + file.name, 'info');
+
+      try {
+        let content = '';
+        if (ext === 'txt' || ext === 'md') {
+          // 文本文件直接读取
+          content = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsText(file, 'utf-8');
+          });
+        } else if (ext === 'docx' || ext === 'doc') {
+          // Word文件上传到后端解析
+          const formData = new FormData();
+          formData.append('file', file);
+          const res = await fetch('/api/chat/upload-file', {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.error) {
+            showToast('文件解析失败: ' + data.error, 'error');
+            return;
+          }
+          content = data.content;
+        } else {
+          showToast('不支持的文件格式，请上传 .txt, .md, .docx 文件', 'error');
+          return;
+        }
+
+        // 将文件内容插入到输入框
+        const fileHeader = '--- 文件: ' + file.name + ' ---\n';
+        const fileFooter = '\n--- 文件结束 ---\n\n';
+        const currentText = inputText.value.trim();
+        inputText.value = currentText
+          ? fileHeader + content + fileFooter + currentText
+          : fileHeader + content + fileFooter;
+        showToast('文件内容已插入: ' + file.name, 'success');
+      } catch (e) {
+        showToast('读取文件失败: ' + e.message, 'error');
+      }
+    }
+
     async function sendMessage() {
       if (!inputText.value.trim() || isThinking.value) return;
 
@@ -1683,6 +1756,8 @@ createApp({
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let currentEvent = '';
+        let kbSavedReceived = false;
         let assistantMsg = { role: 'assistant', content: '', streaming: true };
         messages.value.push(assistantMsg);
         isThinking.value = false;
@@ -1694,16 +1769,35 @@ createApp({
           const lines = buffer.split('\n');
           buffer = lines.pop() || '';
           for (const line of lines) {
-            if (line.startsWith('data:')) {
+            if (line.startsWith('event:')) {
+              currentEvent = line.slice(6).trim();
+            } else if (line.startsWith('data:')) {
               try {
                 const data = JSON.parse(line.slice(5).trim());
-                if (data.content) {
+                if (currentEvent === 'chunk' && data.content) {
+                  assistantMsg.content += data.content;
+                  await nextTick();
+                  scrollMessages();
+                } else if (currentEvent === 'model_info' && data.model) {
+                  lastUsedModel.value = data.model;
+                } else if (currentEvent === 'kb_saved' && data.entries) {
+                  kbSavedReceived = true;
+                  for (const entry of data.entries) {
+                    showToast('已自动存入知识库: ' + entry.title, 'success');
+                  }
+                  await loadKnowledge();
+                } else if (currentEvent === 'kb_clean' && data.clean_content) {
+                  assistantMsg.content = data.clean_content;
+                  await nextTick();
+                  scrollMessages();
+                } else if (currentEvent === 'done') {
+                  assistantMsg.streaming = false;
+                } else if (data.content) {
+                  // 兼容旧格式
                   assistantMsg.content += data.content;
                   await nextTick();
                   scrollMessages();
                 }
-                if (data.model) { lastUsedModel.value = data.model; }
-                if (data.done) { assistantMsg.streaming = false; }
               } catch (e) {}
             }
           }
@@ -1711,8 +1805,8 @@ createApp({
         assistantMsg.streaming = false;
         // 对话完成后自动保存
         await saveCurrentConversation();
-        // 检测 AI 是否声称已存入知识库，如果是则提示用户真正保存
-        if (checkKnowledgeClaim(assistantMsg.content)) {
+        // 检测 AI 是否声称已存入知识库但未使用标记格式
+        if (checkKnowledgeClaim(assistantMsg.content) && !kbSavedReceived) {
           showToast('AI声称已存入知识库但实际未保存，点击消息下方按钮手动存入', 'warn');
         }
       } catch (e) {
@@ -2270,6 +2364,7 @@ createApp({
       loadProjectWorkspace, openProjectWsModal, confirmProjectWs, clearProjectWs,
       openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
       sendMessage, renderMarkdown, loadChatModels,
+      triggerFileInput, handleFileUpload, fileInput,
       loadConversations, loadConversationMessages, createConversation,
       onConvSelectChange, switchConversation, saveCurrentConversation, deleteConversation,
       startRenameConversation, confirmRenameConversation,
