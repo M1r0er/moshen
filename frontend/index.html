@@ -256,6 +256,33 @@ body {
 .optimized-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .optimized-tag { font-size: 11px; padding: 2px 8px; background: var(--accent-dim); color: var(--accent); border-radius: 10px; }
 
+/* Tree View */
+.settings-sidebar-header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.settings-sidebar-header-row span { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.tree-node { user-select: none; }
+.tree-node-row {
+  display: flex; align-items: center; gap: 4px; padding: 5px 8px; border-radius: var(--radius-sm);
+  cursor: pointer; font-size: 13px; color: var(--text-secondary); transition: background 0.1s;
+}
+.tree-node-row:hover { background: var(--bg-hover); color: var(--text-primary); }
+.tree-node-row.active { background: var(--accent-dim); color: var(--accent); }
+.tree-toggle { width: 16px; text-align: center; font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+.tree-icon { font-size: 12px; flex-shrink: 0; }
+.tree-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-actions { display: none; gap: 2px; flex-shrink: 0; }
+.tree-node-row:hover .tree-actions { display: flex; }
+.tree-action-btn { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border-radius: 3px; cursor: pointer; font-size: 12px; color: var(--text-muted); }
+.tree-action-btn:hover { background: var(--bg-tertiary); color: var(--accent); }
+.tree-action-btn.del:hover { color: var(--red); }
+.tree-cat-tag { font-size: 10px; padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+.settings-sidebar-footer { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--border-color); display: flex; gap: 6px; }
+.settings-sidebar-footer .btn { flex: 1; font-size: 12px; padding: 6px 8px; }
+
+/* Export Menu */
+.export-menu { position: absolute; bottom: 100%; left: 0; right: 0; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow: hidden; z-index: 10; }
+.export-menu-item { padding: 8px 12px; cursor: pointer; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+.export-menu-item:hover { background: var(--bg-hover); color: var(--accent); }
+
 /* ===== Knowledge Page ===== */
 .knowledge-container { display: flex; height: 100%; }
 .knowledge-sidebar {
@@ -483,27 +510,58 @@ body {
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
-            <div class="settings-sidebar">
-              <div class="settings-sidebar-header">设定文件</div>
-              <div v-for="s in settingsList" :key="s.filename"
-                   class="setting-item" :class="{ active: currentSettingFile === s.filename }"
-                   @click="loadSetting(s.filename)">
-                <span>📄</span>
-                <span>{{ s.filename.replace('.md', '') }}</span>
-                <span class="del" @click.stop="deleteSetting(s.filename)">×</span>
+            <!-- 设定目录树 -->
+            <div class="settings-sidebar" style="display:flex;flex-direction:column">
+              <div class="settings-sidebar-header-row">
+                <span>设定目录</span>
+                <span style="font-size:11px;color:var(--text-muted)">{{ settingsTreeTotal }} 条</span>
               </div>
-              <div v-if="settingsList.length === 0" style="padding:8px 4px;font-size:12px;color:var(--text-muted)">
-                暂无设定文件
+              <div style="flex:1;overflow-y:auto">
+                <div v-for="item in flatTree" :key="item.id"
+                     class="tree-node-row"
+                     :class="{ active: currentSettingNodeId === item.id }"
+                     :style="{ paddingLeft: (8 + item.level * 16) + 'px' }"
+                     @click="selectSettingNode(item)">
+                  <span class="tree-toggle" v-if="item.hasChildren" @click.stop="toggleTreeNode(item.id)">
+                    {{ expandedNodes[item.id] ? '▼' : '▶' }}
+                  </span>
+                  <span class="tree-toggle" v-else></span>
+                  <span class="tree-icon">{{ categoryIcon(item.category) }}</span>
+                  <span class="tree-label">{{ item.title }}</span>
+                  <span class="tree-cat-tag" :style="categoryTagStyle(item.category)">{{ categoryLabel(item.category) }}</span>
+                  <span class="tree-actions" @click.stop>
+                    <span class="tree-action-btn" @click="openAddChildModal(item.id)" title="添加子项">+</span>
+                    <span class="tree-action-btn del" @click="deleteSettingNode(item)" title="删除">×</span>
+                  </span>
+                </div>
+                <div v-if="flatTree.length === 0" style="padding:12px 4px;font-size:12px;color:var(--text-muted)">
+                  暂无设定，点击下方「新建」按钮添加
+                </div>
+              </div>
+              <div class="settings-sidebar-footer" style="position:relative">
+                <button class="btn btn-primary" @click="showNewSettingModal = true">+ 新建</button>
+                <button class="btn btn-secondary" @click="showImportModal = true">导入</button>
+                <button class="btn btn-secondary" @click="showExportMenu = !showExportMenu">导出</button>
+                <div class="export-menu" v-if="showExportMenu" @click.stop>
+                  <div class="export-menu-item" @click="exportSettings('txt')">📝 TXT 纯文本</div>
+                  <div class="export-menu-item" @click="exportSettings('md')">📋 Markdown</div>
+                  <div class="export-menu-item" @click="exportSettings('html')">🌐 HTML 网页</div>
+                  <div class="export-menu-item" @click="exportSettings('docx')">📄 Word 文档</div>
+                </div>
               </div>
             </div>
+
+            <!-- 设定编辑区 -->
             <div class="settings-main">
-              <div class="settings-form">
+              <div v-if="!currentSettingNode" class="settings-form">
                 <div style="margin-bottom:16px">
                   <div class="field-label">设定类别</div>
                   <select class="field-select" v-model="settingCategory">
                     <option value="world">世界观</option>
-                    <option value="character">人物设定</option>
-                    <option value="plot">剧情大纲</option>
+                    <option value="character">人物</option>
+                    <option value="location">地区</option>
+                    <option value="item">物品</option>
+                    <option value="plot">剧情</option>
                     <option value="system">力量体系</option>
                     <option value="other">其他</option>
                   </select>
@@ -518,7 +576,7 @@ body {
                     <span v-if="optimizing" class="loading-spinner"></span>
                     {{ optimizing ? 'AI 优化中...' : 'AI 优化' }}
                   </button>
-                  <button class="btn btn-secondary" @click="saveSetting" :disabled="!optimizedText.trim()">保存设定</button>
+                  <button class="btn btn-secondary" @click="saveAsNewSetting" :disabled="!optimizedText.trim()">保存为新设定</button>
                 </div>
                 <div v-if="optimizedText" class="optimized-result">
                   <div class="optimized-header">
@@ -527,10 +585,48 @@ body {
                   </div>
                   <textarea class="field-textarea" v-model="optimizedText" style="min-height:200px;margin-top:8px"></textarea>
                 </div>
-                <div v-if="currentSettingContent !== null" class="divider"></div>
-                <div v-if="currentSettingContent !== null">
-                  <div class="field-label">当前设定内容</div>
-                  <div class="knowledge-content" style="margin-top:8px">{{ currentSettingContent }}</div>
+              </div>
+
+              <div v-else class="settings-form">
+                <div style="margin-bottom:16px">
+                  <div class="field-label">标题</div>
+                  <input class="field-input" v-model="currentSettingNode.title" @change="updateSettingNode"
+                    placeholder="设定标题">
+                </div>
+                <div style="margin-bottom:16px">
+                  <div class="field-label">类别</div>
+                  <select class="field-select" v-model="currentSettingNode.category" @change="updateSettingNode">
+                    <option value="world">世界观</option>
+                    <option value="character">人物</option>
+                    <option value="location">地区</option>
+                    <option value="item">物品</option>
+                    <option value="plot">剧情</option>
+                    <option value="system">力量体系</option>
+                    <option value="other">其他</option>
+                  </select>
+                </div>
+                <div style="margin-bottom:16px">
+                  <div class="field-label">设定内容</div>
+                  <textarea class="field-textarea" v-model="currentSettingNode.content"
+                    style="min-height:300px" placeholder="输入设定内容..."></textarea>
+                </div>
+                <div class="btn-row">
+                  <button class="btn btn-primary" @click="updateSettingNode">保存修改</button>
+                  <button class="btn btn-secondary" @click="optimizeCurrentNode" :disabled="optimizing">
+                    <span v-if="optimizing" class="loading-spinner"></span>
+                    AI 优化
+                  </button>
+                  <button class="btn btn-secondary" @click="openMoveModal">移动到</button>
+                </div>
+                <div v-if="optimizedText" class="optimized-result">
+                  <div class="optimized-header">
+                    <span class="optimized-tag">AI 优化结果</span>
+                    <span style="font-size:12px;color:var(--text-muted)">可编辑后点击「应用」替换原内容</span>
+                  </div>
+                  <textarea class="field-textarea" v-model="optimizedText" style="min-height:200px;margin-top:8px"></textarea>
+                  <div class="btn-row">
+                    <button class="btn btn-primary" @click="applyOptimized">应用优化结果</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -663,6 +759,113 @@ body {
     </div>
   </div>
 
+  <!-- ========== New Setting Modal ========== -->
+  <div class="modal-overlay" v-if="showNewSettingModal" @click.self="showNewSettingModal = false">
+    <div class="modal">
+      <div class="modal-title">新建设定</div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px">
+          <div class="field-label">标题</div>
+          <input class="modal-input" v-model="newSettingTitle" placeholder="设定标题" @keydown.enter="confirmNewSetting">
+        </div>
+        <div style="margin-bottom:12px">
+          <div class="field-label">类别</div>
+          <select class="field-select" v-model="newSettingCategory">
+            <option value="world">世界观</option>
+            <option value="character">人物</option>
+            <option value="location">地区</option>
+            <option value="item">物品</option>
+            <option value="plot">剧情</option>
+            <option value="system">力量体系</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label">父级目录（可选）</div>
+          <select class="field-select" v-model="newSettingParentId" style="max-height:120px">
+            <option :value="null">（顶级目录）</option>
+            <option v-for="item in flatTree" :key="item.id" :value="item.id">
+              {{ '　'.repeat(item.level - 1) }}{{ item.title }}
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showNewSettingModal = false">取消</button>
+        <button class="btn btn-primary" @click="confirmNewSetting">创建</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Import From File Modal ========== -->
+  <div class="modal-overlay" v-if="showImportModal" @click.self="showImportModal = false">
+    <div class="modal">
+      <div class="modal-title">从文档导入设定</div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px">
+          <div class="field-label">选择文档</div>
+          <select class="field-select" v-model="importFilename">
+            <option value="">请选择...</option>
+            <option v-for="f in fileList" :key="f.filename" :value="f.filename">{{ f.filename }}</option>
+          </select>
+          <div v-if="fileList.length === 0" style="font-size:12px;color:var(--text-muted);margin-top:4px">
+            暂无已上传文档，请先在「文件」页面上传
+          </div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div class="field-label">提取类别</div>
+          <select class="field-select" v-model="importCategory">
+            <option value="world">世界观</option>
+            <option value="character">人物</option>
+            <option value="location">地区</option>
+            <option value="item">物品</option>
+            <option value="plot">剧情</option>
+            <option value="system">力量体系</option>
+            <option value="other">其他</option>
+          </select>
+        </div>
+        <div>
+          <div class="field-label">父级目录（可选）</div>
+          <select class="field-select" v-model="importParentId">
+            <option :value="null">（顶级目录）</option>
+            <option v-for="item in flatTree" :key="item.id" :value="item.id">
+              {{ '　'.repeat(item.level - 1) }}{{ item.title }}
+            </option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showImportModal = false">取消</button>
+        <button class="btn btn-primary" @click="confirmImport" :disabled="!importFilename || importing">
+          <span v-if="importing" class="loading-spinner"></span>
+          {{ importing ? 'AI 提取中...' : '开始提取' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== Move Node Modal ========== -->
+  <div class="modal-overlay" v-if="showMoveModal" @click.self="showMoveModal = false">
+    <div class="modal">
+      <div class="modal-title">移动设定</div>
+      <div class="modal-body">
+        <div class="field-label">将「{{ currentSettingNode ? currentSettingNode.title : '' }}」移动到</div>
+        <select class="field-select" v-model="moveTargetId" style="margin-top:8px">
+          <option :value="null">（顶级目录）</option>
+          <template v-for="item in flatTree" :key="item.id">
+            <option v-if="currentSettingNodeId !== item.id" :value="item.id">
+              {{ '　'.repeat(item.level - 1) }}{{ item.title }}
+            </option>
+          </template>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showMoveModal = false">取消</button>
+        <button class="btn btn-primary" @click="confirmMove">移动</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== Config Modal ========== -->
   <div class="modal-overlay" v-if="showConfigModal" @click.self="showConfigModal = false">
     <div class="modal" style="max-width:680px">
@@ -777,13 +980,38 @@ createApp({
     const messagesArea = ref(null);
 
     // Settings Writer
-    const settingsList = ref([]);
-    const currentSettingFile = ref('');
-    const currentSettingContent = ref(null);
+    const settingsTree = ref([]);
+    const settingsTreeTotal = ref(0);
+    const currentSettingNodeId = ref(null);
+    const currentSettingNode = ref(null);
+    const expandedNodes = ref({});
     const settingInput = ref('');
     const settingCategory = ref('world');
     const optimizedText = ref('');
     const optimizing = ref(false);
+    const showNewSettingModal = ref(false);
+    const newSettingTitle = ref('');
+    const newSettingCategory = ref('world');
+    const newSettingParentId = ref(null);
+    const showImportModal = ref(false);
+    const importFilename = ref('');
+    const importCategory = ref('world');
+    const importParentId = ref(null);
+    const importing = ref(false);
+    const showExportMenu = ref(false);
+    const showMoveModal = ref(false);
+    const moveTargetId = ref(null);
+
+    // Category metadata
+    const CAT_META = {
+      world: { label: '世界观', icon: '🌍', color: 'rgba(88,166,255,0.15)', text: 'var(--blue)' },
+      character: { label: '人物', icon: '👤', color: 'rgba(124,92,252,0.15)', text: 'var(--accent)' },
+      location: { label: '地区', icon: '📍', color: 'rgba(63,185,80,0.15)', text: 'var(--green)' },
+      item: { label: '物品', icon: '⚔️', color: 'rgba(210,153,34,0.15)', text: 'var(--orange)' },
+      plot: { label: '剧情', icon: '📖', color: 'rgba(248,81,73,0.15)', text: 'var(--red)' },
+      system: { label: '力量体系', icon: '⚡', color: 'rgba(210,153,34,0.15)', text: 'var(--orange)' },
+      other: { label: '其他', icon: '📝', color: 'rgba(139,148,158,0.15)', text: 'var(--text-secondary)' },
+    };
 
     // Knowledge
     const knowledgeList = ref([]);
@@ -915,7 +1143,10 @@ createApp({
         if (currentProjectId.value === project.project_id) {
           currentProjectId.value = null;
           messages.value = [];
-          settingsList.value = [];
+          settingsTree.value = [];
+          settingsTreeTotal.value = 0;
+          currentSettingNodeId.value = null;
+          currentSettingNode.value = null;
           fileList.value = [];
         }
         await loadProjects();
@@ -1001,21 +1232,122 @@ createApp({
     }
 
     // ===== Settings Writer =====
+
+    // Helper functions for categories
+    function categoryIcon(cat) { return (CAT_META[cat] || CAT_META.other).icon; }
+    function categoryLabel(cat) { return (CAT_META[cat] || CAT_META.other).label; }
+    function categoryTagStyle(cat) {
+      const m = CAT_META[cat] || CAT_META.other;
+      return { background: m.color, color: m.text };
+    }
+
+    // Flatten tree for display (with expand/collapse)
+    function _flattenTreeNodes(nodes, level, parentExpanded) {
+      const result = [];
+      for (const node of nodes) {
+        const hasChildren = node.children && node.children.length > 0;
+        const isExpanded = expandedNodes.value[node.id] !== false; // default expanded
+        result.push({
+          id: node.id,
+          title: node.title,
+          category: node.category,
+          level: level,
+          hasChildren: hasChildren,
+          _node: node,
+        });
+        if (hasChildren && isExpanded && parentExpanded) {
+          result.push(..._flattenTreeNodes(node.children, level + 1, parentExpanded && isExpanded));
+        }
+      }
+      return result;
+    }
+    const flatTree = computed(() => _flattenTreeNodes(settingsTree.value, 1, true));
+
     async function loadSettings() {
       try {
-        const data = await apiJSON('/api/settings/' + currentProjectId.value);
-        settingsList.value = data.files || [];
-      } catch (e) { settingsList.value = []; }
+        const data = await apiJSON('/api/settings/' + currentProjectId.value + '/tree');
+        settingsTree.value = data.tree?.nodes || [];
+        settingsTreeTotal.value = data.total || 0;
+        // Auto-expand all nodes by default
+        const allIds = {};
+        function collectIds(nodes) {
+          for (const n of nodes) {
+            allIds[n.id] = true;
+            if (n.children) collectIds(n.children);
+          }
+        }
+        collectIds(settingsTree.value);
+        expandedNodes.value = allIds;
+      } catch (e) { settingsTree.value = []; settingsTreeTotal.value = 0; }
     }
-    async function loadSetting(filename) {
+
+    function toggleTreeNode(id) {
+      expandedNodes.value[id] = !expandedNodes.value[id];
+    }
+
+    function selectSettingNode(item) {
+      currentSettingNodeId.value = item.id;
+      // Deep copy the node for editing
+      currentSettingNode.value = JSON.parse(JSON.stringify(item._node));
+      optimizedText.value = '';
+    }
+
+    async function confirmNewSetting() {
+      if (!newSettingTitle.value.trim()) return;
       try {
-        const data = await apiJSON('/api/settings/' + currentProjectId.value + '/' + encodeURIComponent(filename));
-        currentSettingFile.value = filename;
-        currentSettingContent.value = data.content;
-        optimizedText.value = data.content;
-        settingInput.value = '';
-      } catch (e) { showToast('加载失败', 'error'); }
+        await apiJSON('/api/settings/' + currentProjectId.value + '/node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: newSettingTitle.value.trim(),
+            category: newSettingCategory.value,
+            content: '',
+            parent_id: newSettingParentId.value,
+          }),
+        });
+        showToast('设定已创建', 'success');
+        showNewSettingModal.value = false;
+        newSettingTitle.value = '';
+        newSettingParentId.value = null;
+        await loadSettings();
+      } catch (e) { showToast('创建失败: ' + e.message, 'error'); }
     }
+
+    function openAddChildModal(parentId) {
+      newSettingParentId.value = parentId;
+      showNewSettingModal.value = true;
+    }
+
+    async function updateSettingNode() {
+      if (!currentSettingNode.value) return;
+      try {
+        await apiJSON('/api/settings/' + currentProjectId.value + '/node/' + currentSettingNode.value.id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: currentSettingNode.value.title,
+            content: currentSettingNode.value.content,
+            category: currentSettingNode.value.category,
+          }),
+        });
+        showToast('已保存', 'success');
+        await loadSettings();
+      } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+
+    async function deleteSettingNode(item) {
+      if (!confirm(`确定删除「${item.title}」吗？子节点也会一并删除。`)) return;
+      try {
+        await api('/api/settings/' + currentProjectId.value + '/node/' + item.id, { method: 'DELETE' });
+        showToast('已删除', 'success');
+        if (currentSettingNodeId.value === item.id) {
+          currentSettingNodeId.value = null;
+          currentSettingNode.value = null;
+        }
+        await loadSettings();
+      } catch (e) { showToast('删除失败', 'error'); }
+    }
+
     async function optimizeSetting() {
       if (!settingInput.value.trim()) return;
       optimizing.value = true;
@@ -1034,34 +1366,121 @@ createApp({
       } catch (e) { showToast('优化失败: ' + e.message, 'error'); }
       optimizing.value = false;
     }
-    async function saveSetting() {
-      if (!optimizedText.value.trim()) return;
-      const cats = { world: '世界观', character: '人物设定', plot: '剧情大纲', system: '力量体系', other: '设定' };
-      const filename = (cats[settingCategory.value] || '设定') + '_' + Date.now() + '.md';
+
+    async function optimizeCurrentNode() {
+      if (!currentSettingNode.value || !currentSettingNode.value.content.trim()) {
+        showToast('设定内容为空，无法优化', 'error');
+        return;
+      }
+      optimizing.value = true;
       try {
-        await apiJSON('/api/settings/' + currentProjectId.value, {
+        const data = await apiJSON('/api/settings/optimize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filename: filename, content: optimizedText.value }),
+          body: JSON.stringify({
+            project_id: currentProjectId.value,
+            content: currentSettingNode.value.content,
+            category: currentSettingNode.value.category,
+          }),
+        });
+        optimizedText.value = data.optimized;
+        showToast('AI 优化完成', 'success');
+      } catch (e) { showToast('优化失败: ' + e.message, 'error'); }
+      optimizing.value = false;
+    }
+
+    async function applyOptimized() {
+      if (!optimizedText.value.trim() || !currentSettingNode.value) return;
+      currentSettingNode.value.content = optimizedText.value;
+      await updateSettingNode();
+      optimizedText.value = '';
+    }
+
+    async function saveAsNewSetting() {
+      if (!optimizedText.value.trim()) return;
+      try {
+        await apiJSON('/api/settings/' + currentProjectId.value + '/node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: 'AI优化设定_' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}),
+            category: settingCategory.value,
+            content: optimizedText.value,
+            parent_id: null,
+          }),
         });
         showToast('设定已保存', 'success');
+        optimizedText.value = '';
+        settingInput.value = '';
         await loadSettings();
-        currentSettingFile.value = filename;
-        currentSettingContent.value = optimizedText.value;
       } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
     }
-    async function deleteSetting(filename) {
-      if (!confirm('确认删除此设定文件？')) return;
+
+    function openMoveModal() {
+      if (!currentSettingNode.value) return;
+      moveTargetId.value = null;
+      showMoveModal.value = true;
+    }
+
+    async function confirmMove() {
+      if (!currentSettingNode.value) return;
       try {
-        await api('/api/settings/' + currentProjectId.value + '/' + encodeURIComponent(filename), { method: 'DELETE' });
-        showToast('已删除', 'success');
-        if (currentSettingFile.value === filename) {
-          currentSettingFile.value = '';
-          currentSettingContent.value = null;
-          optimizedText.value = '';
-        }
+        await apiJSON('/api/settings/' + currentProjectId.value + '/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            node_id: currentSettingNode.value.id,
+            new_parent_id: moveTargetId.value,
+          }),
+        });
+        showToast('已移动', 'success');
+        showMoveModal.value = false;
         await loadSettings();
-      } catch (e) { showToast('删除失败', 'error'); }
+      } catch (e) { showToast('移动失败: ' + e.message, 'error'); }
+    }
+
+    async function confirmImport() {
+      if (!importFilename.value) return;
+      importing.value = true;
+      try {
+        await apiJSON('/api/settings/' + currentProjectId.value + '/import-from-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            filename: importFilename.value,
+            category: importCategory.value,
+            parent_id: importParentId.value,
+          }),
+        });
+        showToast('AI 提取完成，设定已添加', 'success');
+        showImportModal.value = false;
+        importFilename.value = '';
+        importParentId.value = null;
+        await loadSettings();
+      } catch (e) { showToast('导入失败: ' + e.message, 'error'); }
+      importing.value = false;
+    }
+
+    async function exportSettings(format) {
+      showExportMenu.value = false;
+      try {
+        const url = '/api/settings/' + currentProjectId.value + '/export?format=' + format;
+        const res = await fetch(url);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ detail: '导出失败' }));
+          throw new Error(err.detail);
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : 'settings.' + format;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('导出成功', 'success');
+      } catch (e) { showToast('导出失败: ' + e.message, 'error'); }
     }
 
     // ===== Knowledge =====
@@ -1258,8 +1677,18 @@ createApp({
       showRenameModal, renameInput, renamingProjectId,
       activeTab, tabs,
       messages, inputText, isThinking, messagesArea,
-      settingsList, currentSettingFile, currentSettingContent,
+      // Settings
+      settingsTree, settingsTreeTotal, flatTree, expandedNodes,
+      currentSettingNodeId, currentSettingNode,
       settingInput, settingCategory, optimizedText, optimizing,
+      showNewSettingModal, newSettingTitle, newSettingCategory, newSettingParentId,
+      showImportModal, importFilename, importCategory, importParentId, importing,
+      showExportMenu, showMoveModal, moveTargetId,
+      categoryIcon, categoryLabel, categoryTagStyle,
+      toggleTreeNode, selectSettingNode, confirmNewSetting, openAddChildModal,
+      updateSettingNode, deleteSettingNode, optimizeCurrentNode, applyOptimized,
+      saveAsNewSetting, openMoveModal, confirmMove, confirmImport, exportSettings,
+      // Knowledge
       knowledgeList, currentKnowledge, knowledgeMode, searchQuery, searchType,
       analyzing, isDragging, editingKnowledge, knowledgeFileInput,
       fileList, fileInput,
@@ -1268,7 +1697,7 @@ createApp({
       showToast, selectWorkspace, loadProjects, selectProject, createProject,
       startRename, confirmRename, deleteProject,
       sendMessage, renderMarkdown,
-      optimizeSetting, saveSetting, loadSetting, deleteSetting,
+      optimizeSetting, loadSettings,
       loadKnowledge, handleFileUpload, handleFileDrop, searchKnowledge,
       viewKnowledge, toggleEditKnowledge, saveKnowledgeEdit, deleteKnowledge, typeLabel,
       uploadFile, openSettings, saveConfig, testConfig,

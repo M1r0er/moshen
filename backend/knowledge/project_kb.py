@@ -199,27 +199,77 @@ class ProjectKBManager:
         return d if d.exists() else None
 
     def get_project_summary(self, project_id: str) -> str:
-        """获取项目知识库摘要（用于 LLM 上下文）"""
+        """获取项目知识库摘要（用于 LLM 上下文），包含知识库模板、设定树和上传文档"""
         project_dir = self.get_project_dir(project_id)
         if not project_dir:
             return ""
 
         parts = []
+
+        # 1. 知识库模板文件
         for filename in KB_TEMPLATES:
             filepath = project_dir / filename
             if filepath.exists():
                 content = filepath.read_text(encoding="utf-8").strip()
-                # 只包含有实际内容的文件（非模板）
                 if content and not content.endswith("（描述力量分级、来源、上限、修炼/获取方式）"):
-                    # 截取前 2000 字
                     if len(content) > 2000:
                         content = content[:2000] + "\n...(内容已截断)"
                     parts.append(f"### {filename}\n{content}")
+
+        # 2. 设定树
+        settings_tree_path = project_dir / "settings" / "settings_tree.json"
+        if settings_tree_path.exists():
+            try:
+                tree = json.loads(settings_tree_path.read_text(encoding="utf-8"))
+                settings_text = self._format_settings_tree_for_context(tree.get("nodes", []))
+                if settings_text:
+                    parts.append(f"### 设定树\n{settings_text}")
+            except (json.JSONDecodeError, IOError):
+                pass
+
+        # 3. 上传文档摘要
+        upload_dir = project_dir / "uploads"
+        if upload_dir.exists():
+            file_summaries = []
+            for f in upload_dir.iterdir():
+                if f.is_file() and not f.name.startswith("."):
+                    try:
+                        content = f.read_text(encoding="utf-8")
+                        # 每个文件截取前 1500 字作为摘要
+                        summary = content[:1500]
+                        if len(content) > 1500:
+                            summary += "\n...(内容已截断)"
+                        file_summaries.append(f"#### {f.name}\n{summary}")
+                    except (UnicodeDecodeError, IOError):
+                        pass
+            if file_summaries:
+                parts.append(f"### 工作区文档\n" + "\n\n".join(file_summaries))
 
         if not parts:
             return "（项目知识库为空，请通过对话逐步构建世界观、角色、大纲等内容）"
 
         return "\n\n---\n\n".join(parts)
+
+    def _format_settings_tree_for_context(self, nodes: list, level: int = 1) -> str:
+        """将设定树格式化为上下文文本"""
+        lines = []
+        for node in nodes:
+            indent = "  " * (level - 1)
+            title = node.get("title", "")
+            content = node.get("content", "").strip()
+            if content:
+                # 截取前 800 字
+                if len(content) > 800:
+                    content = content[:800] + "..."
+                lines.append(f"{indent}- **{title}**: {content[:200]}...")
+            else:
+                lines.append(f"{indent}- **{title}**")
+            children = node.get("children", [])
+            if children:
+                child_text = self._format_settings_tree_for_context(children, level + 1)
+                if child_text:
+                    lines.append(child_text)
+        return "\n".join(lines)
 
     def read_kb_file(self, project_id: str, filename: str) -> str | None:
         """读取知识库文件"""
