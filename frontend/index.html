@@ -1572,6 +1572,21 @@ createApp({
       }
       return false;
     }
+    function checkSettingClaim(content) {
+      // 检测 AI 是否声称已存入设定页
+      const patterns = [
+        /已存入设定/,
+        /已保存到设定/,
+        /已加入设定/,
+        /已记录到设定/,
+        /存入设定页/,
+        /已添加到设定/,
+      ];
+      for (const p of patterns) {
+        if (p.test(content)) return true;
+      }
+      return false;
+    }
 
     // ===== Conversations =====
     async function loadConversations() {
@@ -1849,6 +1864,7 @@ createApp({
         let buffer = '';
         let currentEvent = '';
         let kbSavedReceived = false;
+        let settingSavedReceived = false;
         let assistantMsg = { role: 'assistant', content: '', streaming: true };
         messages.value.push(assistantMsg);
         isThinking.value = false;
@@ -1881,6 +1897,17 @@ createApp({
                   assistantMsg.content = data.clean_content;
                   await nextTick();
                   scrollMessages();
+                } else if (currentEvent === 'setting_saved' && data.entries) {
+                  settingSavedReceived = true;
+                  for (const entry of data.entries) {
+                    showToast('已存入设定页: ' + entry.title + '（' + (entry.category_label || entry.category) + '）', 'success');
+                  }
+                  // 刷新设定树
+                  if (currentProjectId.value) await loadSettings();
+                } else if (currentEvent === 'setting_clean' && data.clean_content) {
+                  assistantMsg.content = data.clean_content;
+                  await nextTick();
+                  scrollMessages();
                 } else if (currentEvent === 'done') {
                   assistantMsg.streaming = false;
                 } else if (data.content) {
@@ -1899,6 +1926,10 @@ createApp({
         // 检测 AI 是否声称已存入知识库但未使用标记格式
         if (checkKnowledgeClaim(assistantMsg.content) && !kbSavedReceived) {
           showToast('AI声称已存入知识库但实际未保存，点击消息下方按钮手动存入', 'warn');
+        }
+        // 检测 AI 是否声称已存入设定页但未使用标记格式
+        if (checkSettingClaim(assistantMsg.content) && !settingSavedReceived) {
+          showToast('AI声称已存入设定页但实际未保存，请手动检查设定页', 'warn');
         }
       } catch (e) {
         isThinking.value = false;

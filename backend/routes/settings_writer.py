@@ -178,6 +178,90 @@ def _get_node_path(nodes: list, node_id: str, path: list = None) -> list | None:
     return None
 
 
+def _find_node_by_title(nodes: list, title: str) -> dict | None:
+    """按标题递归查找节点（模糊匹配，用于AI设定存写时查找父节点）"""
+    for node in nodes:
+        if node["title"] == title:
+            return node
+        found = _find_node_by_title(node.get("children", []), title)
+        if found:
+            return found
+    return None
+
+
+# 类别中文映射
+_CATEGORY_CN_MAP = {
+    "世界观": "world", "world": "world",
+    "人物": "character", "character": "character",
+    "地区": "location", "location": "location",
+    "物品": "item", "item": "item",
+    "剧情": "plot", "plot": "plot",
+    "力量体系": "system", "system": "system",
+    "其他": "other", "other": "other",
+}
+
+
+def save_setting_entry(
+    project_id: str,
+    title: str,
+    content: str,
+    category: str = "other",
+    parent_title: str | None = None,
+) -> dict | None:
+    """直接保存设定条目（供对话管理器调用，无需 HTTP 请求）
+
+    Args:
+        project_id: 项目ID
+        title: 设定标题
+        content: 设定内容（Markdown）
+        category: 设定类别（中英文均可）
+        parent_title: 父节点标题（可选，用于创建子设定）
+
+    Returns:
+        保存结果 dict，包含 id, title, category 等；失败返回 None
+    """
+    title = title.strip()
+    content = content.strip()
+    if not title or not content:
+        return None
+
+    cat_key = _CATEGORY_CN_MAP.get(category.strip().lower(), "other")
+
+    try:
+        tree = load_tree(project_id)
+
+        new_node = {
+            "id": _gen_node_id(),
+            "title": title,
+            "category": cat_key,
+            "content": content,
+            "children": [],
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+
+        if parent_title:
+            parent_title = parent_title.strip()
+            parent = _find_node_by_title(tree["nodes"], parent_title)
+            if parent:
+                parent["children"].append(new_node)
+            else:
+                # 父节点不存在，作为顶级节点
+                tree["nodes"].append(new_node)
+        else:
+            tree["nodes"].append(new_node)
+
+        save_tree(project_id, tree)
+        return {
+            "id": new_node["id"],
+            "title": title,
+            "category": cat_key,
+            "category_label": CATEGORIES.get(cat_key, "其他"),
+        }
+    except Exception:
+        return None
+
+
 # ===== 请求模型 =====
 
 class OptimizeRequest(BaseModel):

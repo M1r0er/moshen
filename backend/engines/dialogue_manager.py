@@ -22,6 +22,13 @@ _KB_SAVE_PATTERN = re.compile(
     re.DOTALL
 )
 
+# 设定存写标记的正则：[[SETTING_SAVE:标题:类别]]内容[[/SETTING_SAVE]]
+# 可选父节点：[[SETTING_SAVE:标题:类别:父标题]]内容[[/SETTING_SAVE]]
+_SETTING_SAVE_PATTERN = re.compile(
+    r'\[\[SETTING_SAVE:([^:\]]+):([^\]:]+)(?::([^:\]]+))?\]\](.*?)\[\[/SETTING_SAVE\]\]',
+    re.DOTALL
+)
+
 
 class DialogueManager:
     """对话管理器 - 系统的核心编排中心"""
@@ -192,6 +199,39 @@ class DialogueManager:
                     clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
                     yield self._sse("kb_clean", {"clean_content": clean_response})
                     full_response = clean_response
+
+            # 设定存写：检测 SETTING_SAVE 标记并自动保存到设定页
+            setting_matches = _SETTING_SAVE_PATTERN.findall(full_response)
+            if setting_matches:
+                from routes.settings_writer import save_setting_entry
+
+                pid = project_id or self._current_project_id
+                if pid:
+                    saved_settings = []
+                    for match in setting_matches:
+                        s_title = match[0].strip()
+                        s_category = match[1].strip()
+                        s_parent = match[2].strip() if match[2] else None
+                        s_content = match[3].strip()
+
+                        result = save_setting_entry(
+                            project_id=pid,
+                            title=s_title,
+                            content=s_content,
+                            category=s_category,
+                            parent_title=s_parent,
+                        )
+                        if result:
+                            saved_settings.append(result)
+
+                    if saved_settings:
+                        yield self._sse("setting_saved", {"entries": saved_settings})
+
+                        # 清理标记块
+                        clean_response = _SETTING_SAVE_PATTERN.sub('', full_response)
+                        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                        yield self._sse("setting_clean", {"clean_content": clean_response})
+                        full_response = clean_response
 
         except Exception as e:
             yield self._sse("error", {"message": str(e)})
