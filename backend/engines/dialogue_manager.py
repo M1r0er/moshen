@@ -29,6 +29,12 @@ _SETTING_SAVE_PATTERN = re.compile(
     re.DOTALL
 )
 
+# 设定更新标记的正则：[[SETTING_UPDATE:标题]]新内容[[/SETTING_UPDATE]]
+_SETTING_UPDATE_PATTERN = re.compile(
+    r'\[\[SETTING_UPDATE:([^:\]]+)\]\](.*?)\[\[/SETTING_UPDATE\]\]',
+    re.DOTALL
+)
+
 
 class DialogueManager:
     """对话管理器 - 系统的核心编排中心"""
@@ -50,13 +56,27 @@ class DialogueManager:
             self._refresh_project_context()
 
     def _refresh_project_context(self):
-        """刷新项目知识库上下文"""
+        """刷新项目知识库上下文（含设定树摘要）"""
         if not self._current_project_id:
             self.context_mgr.set_memory_layer("")
             return
 
-        summary = self.project_kb.get_project_summary(self._current_project_id)
-        self.context_mgr.set_memory_layer(summary)
+        parts = []
+        # 知识库摘要
+        kb_summary = self.project_kb.get_project_summary(self._current_project_id)
+        if kb_summary:
+            parts.append(f"### 知识库\n{kb_summary}")
+
+        # 设定树摘要
+        try:
+            from routes.settings_writer import get_settings_summary
+            settings_summary = get_settings_summary(self._current_project_id)
+            if settings_summary:
+                parts.append(f"### 设定页\n{settings_summary}")
+        except Exception:
+            pass
+
+        self.context_mgr.set_memory_layer("\n\n".join(parts))
 
     def _init_core_layer(self):
         """初始化核心层（助手人格）"""
@@ -232,6 +252,48 @@ class DialogueManager:
                         clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
                         yield self._sse("setting_clean", {"clean_content": clean_response})
                         full_response = clean_response
+
+                        # 刷新项目上下文，使下一轮对话能看到新设定
+                        self._refresh_project_context()
+
+            # 设定更新：检测 SETTING_UPDATE 标记并修改已有设定
+            update_matches = _SETTING_UPDATE_PATTERN.findall(full_response)
+            if update_matches:
+                from routes.settings_writer import update_setting_entry
+
+                pid = project_id or self._current_project_id
+                if pid:
+                    updated_settings = []
+                    failed_updates = []
+                    for match in update_matches:
+                        u_title = match[0].strip()
+                        u_content = match[1].strip()
+
+                        result = update_setting_entry(
+                            project_id=pid,
+                            title=u_title,
+                            content=u_content,
+                        )
+                        if result:
+                            updated_settings.append(result)
+                        else:
+                            failed_updates.append(u_title)
+
+                    if updated_settings:
+                        yield self._sse("setting_updated", {"entries": updated_settings})
+
+                    if failed_updates:
+                        yield self._sse("setting_update_failed", {"titles": failed_updates})
+
+                    if updated_settings or failed_updates:
+                        # 清理标记块
+                        clean_response = _SETTING_UPDATE_PATTERN.sub('', full_response)
+                        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                        yield self._sse("setting_clean", {"clean_content": clean_response})
+                        full_response = clean_response
+
+                    # 刷新项目上下文，使下一轮对话能看到更新后的设定
+                    self._refresh_project_context()
 
         except Exception as e:
             yield self._sse("error", {"message": str(e)})

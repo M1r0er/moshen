@@ -1908,6 +1908,16 @@ createApp({
                   assistantMsg.content = data.clean_content;
                   await nextTick();
                   scrollMessages();
+                } else if (currentEvent === 'setting_updated' && data.entries) {
+                  settingSavedReceived = true;
+                  for (const entry of data.entries) {
+                    showToast('已更新设定: ' + entry.title, 'success');
+                  }
+                  if (currentProjectId.value) await loadSettings();
+                } else if (currentEvent === 'setting_update_failed' && data.titles) {
+                  for (const title of data.titles) {
+                    showToast('未找到设定「' + title + '」，无法更新（请检查标题是否一致）', 'warn');
+                  }
                 } else if (currentEvent === 'done') {
                   assistantMsg.streaming = false;
                 } else if (data.content) {

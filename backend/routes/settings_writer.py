@@ -262,6 +262,108 @@ def save_setting_entry(
         return None
 
 
+def get_settings_summary(project_id: str, max_content_len: int = 800) -> str:
+    """生成设定树摘要文本，供对话管理器注入上下文
+
+    格式：
+      【世界观】
+      ▸ 天元大陆
+        大陆分为五域，每域有独特的灵气特征...
+      ▸ 修炼体系
+        ▸ 灵根分类
+          天灵根、地灵根、人灵根三级...
+    """
+    try:
+        tree = load_tree(project_id)
+        if not tree.get("nodes"):
+            return ""
+
+        lines = []
+        # 按类别分组
+        by_cat = {}
+        for node in tree["nodes"]:
+            cat = node.get("category", "other")
+            by_cat.setdefault(cat, []).append(node)
+
+        def render_node(node, indent):
+            title = node.get("title", "")
+            content = node.get("content", "").strip()
+            prefix = "  " * indent + "▸ "
+            lines.append(f"{prefix}{title}")
+            if content:
+                truncated = content[:max_content_len]
+                if len(content) > max_content_len:
+                    truncated += "..."
+                for cl in truncated.split("\n"):
+                    lines.append("  " * (indent + 1) + cl)
+            for child in node.get("children", []):
+                render_node(child, indent + 1)
+
+        for cat_key in ["world", "character", "location", "item", "plot", "system", "other"]:
+            nodes = by_cat.get(cat_key, [])
+            if not nodes:
+                continue
+            cat_label = CATEGORIES.get(cat_key, "其他")
+            lines.append(f"【{cat_label}】")
+            for node in nodes:
+                render_node(node, 0)
+            lines.append("")
+
+        return "\n".join(lines).strip()
+    except Exception:
+        return ""
+
+
+def update_setting_entry(
+    project_id: str,
+    title: str,
+    content: str | None = None,
+    new_title: str | None = None,
+    new_category: str | None = None,
+) -> dict | None:
+    """按标题查找并更新已有设定条目（供对话管理器调用）
+
+    Args:
+        project_id: 项目ID
+        title: 要查找的设定标题（精确匹配）
+        content: 新内容（None 表示不修改内容）
+        new_title: 新标题（None 表示不修改标题）
+        new_category: 新类别（None 表示不修改类别）
+
+    Returns:
+        更新结果 dict；未找到匹配则返回 None
+    """
+    title = title.strip()
+    if not title:
+        return None
+
+    try:
+        tree = load_tree(project_id)
+        node = _find_node_by_title(tree["nodes"], title)
+        if not node:
+            return None
+
+        if new_title:
+            node["title"] = new_title.strip()
+        if content is not None:
+            node["content"] = content.strip()
+        if new_category:
+            cat_key = _CATEGORY_CN_MAP.get(new_category.strip().lower(), "other")
+            node["category"] = cat_key
+        node["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+
+        save_tree(project_id, tree)
+        return {
+            "id": node["id"],
+            "title": node["title"],
+            "category": node["category"],
+            "category_label": CATEGORIES.get(node["category"], "其他"),
+            "updated": True,
+        }
+    except Exception:
+        return None
+
+
 # ===== 请求模型 =====
 
 class OptimizeRequest(BaseModel):
