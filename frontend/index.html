@@ -1004,7 +1004,7 @@ body {
                   </text>
                   <circle :cx="node.x + 170" :cy="node.y + 10" r="8"
                     fill="var(--red)" style="cursor:pointer;opacity:0.7"
-                    @click.stop="deleteOutlineNode(node.id)" v-if="outlineHoveredNodeId === node.id" />
+                    @mousedown.stop.prevent="deleteOutlineNode(node.id)" v-if="outlineHoveredNodeId === node.id" />
                   <text :x="node.x + 170" :y="node.y + 14" class="outline-node-delete" style="pointer-events:none">×</text>
                 </g>
               </svg>
@@ -1026,6 +1026,7 @@ body {
                     <option value="branch">支线</option>
                   </select>
                   <button class="btn btn-secondary" @click="deselectOutline">关闭</button>
+                  <button class="btn btn-danger" @click="deleteOutlineNode(selectedOutlineNode.id)" style="background:var(--red);color:#fff;border-color:var(--red)">删除</button>
                 </div>
                 <textarea class="outline-edit-textarea" v-model="selectedOutlineNode.content"
                   placeholder="输入节点内容（剧情点描述、关键事件、出场人物等）..."
@@ -1045,9 +1046,10 @@ body {
                 <div class="outline-edit-header">
                   <span class="outline-edit-type-badge">连线</span>
                   <span style="font-size:12px;color:var(--text-secondary)">
-                    {{ selectedOutlineEdge.fromTitle }} → {{ selectedOutlineEdge.toTitle }}
+                    {{ selectedOutlineEdgeTitles.from }} → {{ selectedOutlineEdgeTitles.to }}
                   </span>
                   <button class="btn btn-secondary" @click="deselectOutline">关闭</button>
+                  <button class="btn btn-danger" @click="deleteOutlineEdge(selectedOutlineEdge.id)" style="background:var(--red);color:#fff;border-color:var(--red)">删除</button>
                 </div>
                 <input class="outline-edit-input" v-model="selectedOutlineEdge.label"
                   placeholder="连线说明（如：三天后、因冲突引发、时间跳跃等）..."
@@ -1580,15 +1582,14 @@ createApp({
     });
     const selectedOutlineEdge = computed(() => {
       if (!selectedOutlineEdgeId.value) return null;
-      const edge = outlineEdges.value.find(e => e.id === selectedOutlineEdgeId.value);
-      if (!edge) return null;
-      const fromNode = outlineNodes.value.find(n => n.id === edge.from);
-      const toNode = outlineNodes.value.find(n => n.id === edge.to);
-      return {
-        ...edge,
-        fromTitle: fromNode ? fromNode.title : '?',
-        toTitle: toNode ? toNode.title : '?',
-      };
+      return outlineEdges.value.find(e => e.id === selectedOutlineEdgeId.value) || null;
+    });
+    const selectedOutlineEdgeTitles = computed(() => {
+      if (!selectedOutlineEdge.value) return { from: '?', to: '?' };
+      const e = selectedOutlineEdge.value;
+      const fromNode = outlineNodes.value.find(n => n.id === e.from);
+      const toNode = outlineNodes.value.find(n => n.id === e.to);
+      return { from: fromNode ? fromNode.title : '?', to: toNode ? toNode.title : '?' };
     });
     const outlineEdgeRenderList = computed(() => {
       const NODE_W = 180, NODE_H = 70;
@@ -3099,7 +3100,7 @@ createApp({
       outlineNodes, outlineEdges, selectedOutlineNodeId, selectedOutlineEdgeId,
       outlineCanvas, outlineHoveredNodeId, outlineLinkMode, outlineLinkFrom,
       outlineMousePos, outlineSvgWidth, outlineSvgHeight,
-      selectedOutlineNode, selectedOutlineEdge, outlineEdgeRenderList,
+      selectedOutlineNode, selectedOutlineEdge, selectedOutlineEdgeTitles, outlineEdgeRenderList,
       loadOutline, addOutlineNode, updateOutlineNode, deleteOutlineNode,
       updateOutlineEdge, deleteOutlineEdge, selectOutlineNode, selectOutlineEdge,
       deselectOutline, createOutlineEdge, startDragNode, onOutlineMouseMove,
