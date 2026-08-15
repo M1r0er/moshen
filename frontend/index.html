@@ -371,6 +371,11 @@ body {
 .tag-novel { background: rgba(63, 185, 80, 0.15); color: var(--green); }
 .tag-lore { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
 .tag-other { background: rgba(139, 148, 158, 0.15); color: var(--text-secondary); }
+
+/* 时间戳通用样式 */
+.timestamps { display: flex; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+.ts-item { font-size: 11px; color: var(--text-muted); }
+.conv-info { padding: 4px 0 2px; display: flex; gap: 12px; }
 .knowledge-main { flex: 1; overflow-y: auto; padding: 24px 32px; }
 .knowledge-add-section { max-width: 600px; margin-bottom: 24px; }
 .knowledge-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
@@ -615,7 +620,7 @@ body {
                 <select class="conv-select" :value="currentConversationId" @change="onConvSelectChange($event)">
                   <option value="">请选择对话...</option>
                   <option v-for="conv in conversations" :key="conv.id" :value="conv.id">
-                    {{ conv.title }} ({{ conv.message_count }}条)
+                    {{ conv.title }} ({{ conv.message_count }}条) · {{ formatTime(conv.updated_at) }}
                   </option>
                 </select>
                 <span class="conv-select-arrow">▼</span>
@@ -623,6 +628,10 @@ body {
               <button class="conv-btn new" @click="createConversation" title="新对话">+ 新对话</button>
               <button class="conv-btn" @click="startRenameConversation" title="重命名" v-if="currentConversationId">&#9998;</button>
               <button class="conv-btn del" @click="deleteConversation" title="删除" v-if="currentConversationId">&times;</button>
+            </div>
+            <div class="conv-info" v-if="currentConversationId && currentConvInfo">
+              <span class="ts-item" v-if="currentConvInfo.created_at">创建: {{ formatTime(currentConvInfo.created_at) }}</span>
+              <span class="ts-item" v-if="currentConvInfo.updated_at && currentConvInfo.updated_at !== currentConvInfo.created_at">修改: {{ formatTime(currentConvInfo.updated_at) }}</span>
             </div>
             <div class="messages-area" ref="messagesArea">
               <div v-if="messages.length === 0" class="empty-state">
@@ -814,6 +823,10 @@ body {
                   <textarea class="field-textarea" v-model="currentSettingNode.content"
                     style="min-height:300px" placeholder="输入设定内容..."></textarea>
                 </div>
+                <div class="timestamps" v-if="currentSettingNode.created_at || currentSettingNode.updated_at">
+                  <span v-if="currentSettingNode.created_at" class="ts-item">创建: {{ formatTime(currentSettingNode.created_at) }}</span>
+                  <span v-if="currentSettingNode.updated_at && currentSettingNode.updated_at !== currentSettingNode.created_at" class="ts-item">修改: {{ formatTime(currentSettingNode.updated_at) }}</span>
+                </div>
                 <div class="btn-row">
                   <button class="btn btn-primary" @click="updateSettingNode">保存修改</button>
                   <button class="btn btn-secondary" @click="optimizeCurrentNode" :disabled="optimizing">
@@ -848,6 +861,7 @@ body {
               <div class="knowledge-item-meta">
                 <span :class="'knowledge-item-tag tag-' + k.type">{{ typeLabel(k.type) }}</span>
                 <span>{{ k.source === 'local_file' ? '本地' : '搜索' }}</span>
+                <span v-if="k.updated_at" class="ts-item">{{ formatTime(k.updated_at) }}</span>
               </div>
             </div>
             <div v-if="knowledgeList.length === 0" style="padding:8px 4px;font-size:12px;color:var(--text-muted)">
@@ -903,6 +917,10 @@ body {
                   <button class="btn btn-secondary" @click="currentKnowledge = null">返回</button>
                   <button class="btn btn-danger" @click="deleteKnowledge(currentKnowledge.id)">删除</button>
                 </span>
+              </div>
+              <div class="timestamps" v-if="currentKnowledge.created_at || currentKnowledge.updated_at">
+                <span v-if="currentKnowledge.created_at" class="ts-item">创建: {{ formatTime(currentKnowledge.created_at) }}</span>
+                <span v-if="currentKnowledge.updated_at && currentKnowledge.updated_at !== currentKnowledge.created_at" class="ts-item">修改: {{ formatTime(currentKnowledge.updated_at) }}</span>
               </div>
               <div v-if="!editingKnowledge" class="knowledge-content">{{ currentKnowledge.content }}</div>
               <textarea v-else class="knowledge-content-edit" v-model="currentKnowledge.content"></textarea>
@@ -1281,6 +1299,11 @@ createApp({
     const chatFileInput = ref(null);
     const chatAttachments = ref([]);
     const isDragOver = ref(false);
+
+    const currentConvInfo = computed(() => {
+      if (!currentConversationId.value) return null;
+      return conversations.value.find(c => c.id === currentConversationId.value) || null;
+    });
 
     // Settings Writer
     const settingsTree = ref([]);
@@ -1800,6 +1823,16 @@ createApp({
       if (bytes < 1024) return bytes + 'B';
       if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
       return (bytes / (1024 * 1024)).toFixed(1) + 'MB';
+    }
+    function formatTime(ts) {
+      if (!ts) return '';
+      try {
+        const d = new Date(ts);
+        if (isNaN(d.getTime())) return ts;
+        const pad = (n) => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+          + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+      } catch { return ts; }
     }
 
     async function sendMessage() {
@@ -2499,7 +2532,7 @@ createApp({
       activeTab, tabs,
       messages, inputText, isThinking, messagesArea,
       // Conversations
-      conversations, currentConversationId, showConvRenameModal, convRenameInput,
+      conversations, currentConversationId, showConvRenameModal, convRenameInput, currentConvInfo,
       // Chat selectors
       selectedModel, selectedRole, availableModels, chatRoles, lastUsedModel,
       // Settings
@@ -2525,7 +2558,7 @@ createApp({
       openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
       sendMessage, renderMarkdown, loadChatModels,
       triggerFileInput, handleFileUpload, chatFileInput,
-      handleDrop, processFiles, removeAttachment, formatFileSize,
+      handleDrop, processFiles, removeAttachment, formatFileSize, formatTime,
       chatAttachments, isDragOver,
       loadConversations, loadConversationMessages, createConversation,
       onConvSelectChange, switchConversation, saveCurrentConversation, deleteConversation,

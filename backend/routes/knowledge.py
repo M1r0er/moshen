@@ -156,13 +156,15 @@ def create_metadata(
     tags: list[str] | None = None,
 ) -> dict:
     """构建知识条目元数据（保持固定字段顺序）"""
+    now = datetime.now().isoformat()
     return {
         "id": "",
         "title": title,
         "source": source,
         "source_detail": source_detail,
         "type": ktype,
-        "created_at": datetime.now().isoformat(),
+        "created_at": now,
+        "updated_at": now,
         "tags": tags or [],
     }
 
@@ -245,6 +247,7 @@ async def list_knowledge():
                 "source_detail": metadata.get("source_detail", ""),
                 "type": metadata.get("type", ""),
                 "created_at": metadata.get("created_at", ""),
+                "updated_at": metadata.get("updated_at", metadata.get("created_at", "")),
                 "tags": metadata.get("tags", []),
                 "filename": f.name,
             })
@@ -422,6 +425,7 @@ async def get_knowledge(kid: str):
         "source_detail": metadata.get("source_detail", ""),
         "type": metadata.get("type", ""),
         "created_at": metadata.get("created_at", ""),
+        "updated_at": metadata.get("updated_at", metadata.get("created_at", "")),
         "tags": metadata.get("tags", []),
         "filename": filepath.name,
         "content": body,
@@ -440,6 +444,9 @@ async def update_knowledge(kid: str, req: UpdateKnowledgeRequest):
     # 更新 title
     if req.title is not None:
         metadata["title"] = req.title
+
+    # 更新修改时间
+    metadata["updated_at"] = datetime.now().isoformat()
 
     # 重新组装并写入
     md_content = build_knowledge_md(metadata, req.content)
