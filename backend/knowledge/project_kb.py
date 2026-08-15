@@ -315,6 +315,22 @@ class ProjectKBManager:
         except UnicodeDecodeError:
             return raw.decode("gb18030", errors="replace")
 
+    @staticmethod
+    def _read_file_for_summary(filepath: Path) -> str | None:
+        """读取文件内容用于摘要，支持 .docx/.txt/.md 等"""
+        ext = filepath.suffix.lower()
+        if ext in (".docx", ".doc"):
+            try:
+                from core.file_parser import FileParser
+                return FileParser.read_docx(str(filepath))
+            except Exception:
+                return None
+        raw = filepath.read_bytes()
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            return raw.decode("gb18030", errors="replace")
+
     def get_project_summary(self, project_id: str) -> str:
         """获取项目知识库摘要（用于 LLM 上下文），包含知识库模板、设定树和上传文档"""
         project_dir = self.get_project_dir(project_id)
@@ -351,13 +367,13 @@ class ProjectKBManager:
             for f in upload_dir.iterdir():
                 if f.is_file() and not f.name.startswith("."):
                     try:
-                        content = f.read_text(encoding="utf-8")
-                        # 每个文件截取前 1500 字作为摘要
-                        summary = content[:1500]
-                        if len(content) > 1500:
-                            summary += "\n...(内容已截断)"
-                        file_summaries.append(f"#### {f.name}\n{summary}")
-                    except (UnicodeDecodeError, IOError):
+                        content = self._read_file_for_summary(f)
+                        if content:
+                            summary = content[:1500]
+                            if len(content) > 1500:
+                                summary += "\n...(内容已截断)"
+                            file_summaries.append(f"#### {f.name}\n{summary}")
+                    except Exception:
                         pass
             if file_summaries:
                 parts.append(f"### 上传文档\n" + "\n\n".join(file_summaries))
@@ -372,18 +388,15 @@ class ProjectKBManager:
                     if f.is_file() and not f.name.startswith(".") and f.suffix.lower() in (".txt", ".md", ".doc", ".docx"):
                         try:
                             rel_path = f.relative_to(ws)
-                            raw = f.read_bytes()
-                            try:
-                                content = raw.decode("utf-8")
-                            except UnicodeDecodeError:
-                                content = raw.decode("gb18030", errors="replace")
-                            summary = content[:1500]
-                            if len(content) > 1500:
-                                summary += "\n...(内容已截断)"
-                            ws_summaries.append(f"#### {rel_path}\n{summary}")
-                            if len(ws_summaries) >= 10:  # 最多10个文件
-                                break
-                        except (UnicodeDecodeError, IOError, PermissionError):
+                            content = self._read_file_for_summary(f)
+                            if content:
+                                summary = content[:1500]
+                                if len(content) > 1500:
+                                    summary += "\n...(内容已截断)"
+                                ws_summaries.append(f"#### {rel_path}\n{summary}")
+                                if len(ws_summaries) >= 10:
+                                    break
+                        except Exception:
                             pass
                 if ws_summaries:
                     parts.append(f"### 项目工作区文档 ({ws_path})\n" + "\n\n".join(ws_summaries))

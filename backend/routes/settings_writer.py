@@ -596,7 +596,7 @@ async def import_from_file(project_id: str, req: ImportFromFileRequest):
     if project_dir:
         filepath = project_dir / "uploads" / req.filename
         if filepath.exists():
-            content = filepath.read_text(encoding="utf-8")
+            content = kb._read_file_for_summary(filepath)
 
     if not content:
         raise HTTPException(404, "文件不存在")

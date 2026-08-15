@@ -24,7 +24,7 @@ from routes.settings_writer import router as settings_router
 from routes.conversation import router as conversation_router
 from routes.outline import router as outline_router
 
-app = FastAPI(title="墨参 MoShen", version="0.2.0", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.2.1", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -103,7 +103,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.2.0"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.2.1"}
 
 
 # ===== 前端静态文件 =====

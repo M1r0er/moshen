@@ -89,7 +89,7 @@ async def analyze_file(req: AnalyzeRequest):
         if project_dir:
             filepath = project_dir / "uploads" / req.filename
             if filepath.exists():
-                content = filepath.read_text(encoding="utf-8")
+                content = kb._read_file_for_summary(filepath)
     if not content:
         raise HTTPException(404, "文件不存在")
 
@@ -194,7 +194,7 @@ async def dissect_novel(req: DissectRequest):
     if not filepath.exists():
         raise HTTPException(404, "文件不存在")
 
-    content = filepath.read_text(encoding="utf-8")
+    content = kb._read_file_for_summary(filepath)
 
     analyzer = get_novel_analyzer()
 
