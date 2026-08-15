@@ -9,3 +9,4 @@ sse-starlette==2.1.0
 chardet==5.2.0
 aiofiles==24.1.0
 pywebview>=5.0
+python-docx>=1.1.0

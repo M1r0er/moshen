@@ -496,6 +496,43 @@ body {
 }
 .outline-empty-hint span { display: block; margin-top: 8px; font-size: 12px; }
 
+/* ===== Inspiration Page ===== */
+.inspiration-container { display: flex; height: 100%; }
+.inspiration-sidebar {
+  width: 280px; min-width: 280px; background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color); display: flex; flex-direction: column;
+}
+.inspiration-sidebar-header { padding: 16px; border-bottom: 1px solid var(--border-color); }
+.inspiration-sidebar-header-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.inspiration-path-box {
+  font-size: 12px; color: var(--text-secondary); word-break: break-all;
+  background: var(--bg-tertiary); border-radius: var(--radius-sm); padding: 6px 8px;
+  line-height: 1.4;
+}
+.inspiration-path-box.empty { color: var(--text-muted); font-style: italic; }
+.inspiration-file-list { flex: 1; overflow-y: auto; padding: 8px; }
+.inspiration-file-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s;
+}
+.inspiration-file-item:hover { background: var(--bg-hover); }
+.inspiration-file-item.active { background: var(--accent-dim); }
+.inspiration-file-icon { font-size: 16px; flex-shrink: 0; }
+.inspiration-file-name { font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inspiration-file-size { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+.inspiration-main { flex: 1; overflow-y: auto; padding: 24px 32px; }
+.inspiration-content {
+  background: var(--bg-secondary); border: 1px solid var(--border-color);
+  border-radius: var(--radius); padding: 24px; font-size: 14px; line-height: 1.8;
+  white-space: pre-wrap; word-break: break-word; max-width: 900px;
+}
+.inspiration-content-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 16px;
+}
+
 /* ===== Modals ===== */
 .modal-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -1150,6 +1187,81 @@ body {
           </div>
         </div>
 
+        <!-- ========== Inspiration Page ========== -->
+        <div v-if="activeTab === 'inspiration'" class="inspiration-container">
+          <!-- 侧边栏：路径设置 + 文件列表 -->
+          <div class="inspiration-sidebar">
+            <div class="inspiration-sidebar-header">
+              <div class="inspiration-sidebar-header-row">
+                <span style="font-size:14px;font-weight:600">灵感文件夹</span>
+                <button class="workspace-btn" @click="showInspirationModal = true" title="设置文件夹">⚙ 设置</button>
+              </div>
+              <div class="inspiration-path-box" v-if="inspirationPath" :title="inspirationPath">
+                📁 {{ inspirationPath }}
+              </div>
+              <div class="inspiration-path-box empty" v-else>
+                未设置（点击「设置」选择文件夹）
+              </div>
+            </div>
+            <div class="inspiration-file-list">
+              <div v-for="f in inspirationFiles" :key="f.relative_path"
+                   class="inspiration-file-item"
+                   :class="{ active: currentInspirationFile === f.relative_path }"
+                   @click="readInspirationFile(f.relative_path)">
+                <span class="inspiration-file-icon">{{ inspirationFileIcon(f.ext) }}</span>
+                <span class="inspiration-file-name">{{ f.name }}</span>
+                <span class="inspiration-file-size">{{ formatFileSize(f.size || 0) }}</span>
+              </div>
+              <div v-if="inspirationFiles.length === 0 && inspirationPath" style="padding:12px 4px;font-size:12px;color:var(--text-muted)">
+                文件夹为空或无支持的文件
+              </div>
+              <div v-if="!inspirationPath" style="padding:12px 4px;font-size:12px;color:var(--text-muted)">
+                请先设置灵感文件夹
+              </div>
+            </div>
+          </div>
+
+          <!-- 主区域：文件内容 -->
+          <div class="inspiration-main">
+            <div v-if="!currentInspirationFile" class="empty-state" style="width:100%">
+              <div class="empty-state-icon">💡</div>
+              <div class="empty-state-text" v-if="inspirationPath">选择左侧文件查看内容</div>
+              <div class="empty-state-text" v-else>请先设置灵感文件夹</div>
+              <div class="empty-state-hint" v-if="!inspirationPath">点击左侧「设置」按钮，选择存放本地文件的文件夹</div>
+            </div>
+            <template v-else>
+              <div class="inspiration-content-header">
+                <span style="font-size:16px;font-weight:600">{{ currentInspirationFile }}</span>
+                <span v-if="inspirationFileLoading" class="loading-spinner"></span>
+              </div>
+              <div class="inspiration-content" v-if="inspirationContent" v-html="renderMarkdown(inspirationContent)"></div>
+              <div v-else-if="!inspirationFileLoading" style="color:var(--text-muted);font-size:13px">
+                无法读取此文件
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- 灵感文件夹设置弹窗 -->
+        <div class="modal-overlay" v-if="showInspirationModal" @click.self="showInspirationModal = false">
+          <div class="modal">
+            <div class="modal-title">设置灵感文件夹</div>
+            <div class="modal-body">
+              <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted)">
+                选择一个本地文件夹作为「灵感」文件夹，用于存放你的参考文件。moshen会读取其中的 txt / md / docx 文件。该文件夹可以不在工作区内。
+              </div>
+              <input class="modal-input" v-model="inspirationInput" placeholder="例如: D:\我的小说\参考资料" @keydown.enter="confirmInspiration">
+              <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+                输入本地文件夹的完整路径，留空则清除设置。
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" @click="showInspirationModal = false">取消</button>
+              <button class="btn btn-primary" @click="confirmInspiration">确认</button>
+            </div>
+          </div>
+        </div>
+
         <!-- ========== Files Page ========== -->
         <div v-if="activeTab === 'files'" class="files-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
@@ -1505,6 +1617,7 @@ createApp({
       { key: 'settings', label: '设定', icon: '📝' },
       { key: 'outline', label: '大纲', icon: '🗺' },
       { key: 'knowledge', label: '知识库', icon: '📚' },
+      { key: 'inspiration', label: '灵感', icon: '💡' },
       { key: 'files', label: '文件', icon: '📁' },
     ];
 
@@ -1625,6 +1738,15 @@ createApp({
     // Files
     const fileList = ref([]);
     const fileInput = ref(null);
+
+    // Inspiration
+    const inspirationPath = ref('');
+    const inspirationFiles = ref([]);
+    const inspirationContent = ref('');
+    const currentInspirationFile = ref('');
+    const inspirationFileLoading = ref(false);
+    const showInspirationModal = ref(false);
+    const inspirationInput = ref('');
 
     // Config
     const showConfigModal = ref(false);
@@ -2871,6 +2993,71 @@ createApp({
       return map[t] || t;
     }
 
+    // ===== Inspiration =====
+    async function loadInspiration() {
+      try {
+        const data = await apiJSON('/api/workspace/inspiration');
+        inspirationPath.value = data.path || '';
+        inspirationFiles.value = data.files || [];
+        if (!data.path) {
+          currentInspirationFile.value = '';
+          inspirationContent.value = '';
+        }
+      } catch (e) {
+        inspirationPath.value = '';
+        inspirationFiles.value = [];
+      }
+    }
+
+    async function readInspirationFile(relativePath) {
+      currentInspirationFile.value = relativePath;
+      inspirationContent.value = '';
+      inspirationFileLoading.value = true;
+      try {
+        const data = await apiJSON('/api/workspace/inspiration/read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ relative_path: relativePath }),
+        });
+        inspirationContent.value = data.content || '';
+      } catch (e) {
+        showToast('读取失败: ' + e.message, 'error');
+      } finally {
+        inspirationFileLoading.value = false;
+      }
+    }
+
+    async function confirmInspiration() {
+      const path = inspirationInput.value.trim();
+      try {
+        const data = await apiJSON('/api/workspace/inspiration', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path }),
+        });
+        showInspirationModal.value = false;
+        await loadInspiration();
+        showToast(path ? '灵感文件夹已设置' : '灵感文件夹已清除', 'success');
+      } catch (e) {
+        showToast('设置失败: ' + e.message, 'error');
+      }
+    }
+
+    function inspirationFileIcon(ext) {
+      if (ext === '.docx' || ext === '.doc') return '📄';
+      if (ext === '.md' || ext === '.markdown') return '📝';
+      if (ext === '.txt') return '📃';
+      if (ext === '.csv') return '📊';
+      if (ext === '.json') return '🔧';
+      return '📄';
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
     // ===== Files =====
     async function loadFiles() {
       try {
@@ -3050,6 +3237,7 @@ createApp({
       if (tab === 'knowledge') loadKnowledge();
       if (tab === 'settings' && currentProjectId.value) loadSettings();
       if (tab === 'outline' && currentProjectId.value) loadOutline();
+      if (tab === 'inspiration') loadInspiration();
       if (tab === 'files' && currentProjectId.value) loadFiles();
     });
 
@@ -3104,6 +3292,11 @@ createApp({
       loadOutline, addOutlineNode, updateOutlineNode, deleteOutlineNode,
       updateOutlineEdge, deleteOutlineEdge, selectOutlineNode, selectOutlineEdge,
       deselectOutline, createOutlineEdge, startDragNode, onOutlineMouseMove,
+      // Inspiration
+      inspirationPath, inspirationFiles, inspirationContent, currentInspirationFile,
+      inspirationFileLoading, showInspirationModal, inspirationInput,
+      loadInspiration, readInspirationFile, confirmInspiration,
+      inspirationFileIcon, formatFileSize,
       uploadFile, openSettings, saveConfig, testConfig,
     };
   }

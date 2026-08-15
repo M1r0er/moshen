@@ -104,6 +104,23 @@ class DialogueManager:
         except Exception:
             pass
 
+        # 灵感文件夹文件列表
+        try:
+            from routes.workspace import get_inspiration_path
+            insp_path = get_inspiration_path()
+            if insp_path:
+                from pathlib import Path
+                insp_dir = Path(insp_path)
+                if insp_dir.exists() and insp_dir.is_dir():
+                    file_names = []
+                    for f in insp_dir.iterdir():
+                        if f.is_file() and not f.name.startswith(".") and f.suffix.lower() in (".txt", ".md", ".docx", ".doc", ".markdown", ".csv", ".json"):
+                            file_names.append(f.name)
+                    if file_names:
+                        parts.append(f"### 灵感文件夹（{insp_path}）\n用户在该文件夹中存有以下文件，如需查看内容请告知用户在灵感页打开：\n" + "\n".join(f"- {n}" for n in sorted(file_names)))
+        except Exception:
+            pass
+
         self.context_mgr.set_memory_layer("\n\n".join(parts))
 
     def _init_core_layer(self):

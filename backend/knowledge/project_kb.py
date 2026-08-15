@@ -301,7 +301,14 @@ class ProjectKBManager:
         if not filepath.exists() or not filepath.is_file():
             return None
 
-        # 尝试 UTF-8，回退 GB18030
+        ext = filepath.suffix.lower()
+        if ext == ".docx":
+            try:
+                from core.file_parser import FileParser
+                return FileParser.read_docx(str(filepath))
+            except Exception:
+                return None
+
         raw = filepath.read_bytes()
         try:
             return raw.decode("utf-8")
