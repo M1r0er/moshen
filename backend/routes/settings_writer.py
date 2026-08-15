@@ -210,6 +210,8 @@ def save_setting_entry(
 ) -> dict | None:
     """直接保存设定条目（供对话管理器调用，无需 HTTP 请求）
 
+    如果同名设定已存在，自动转为更新而非新建重复条目。
+
     Args:
         project_id: 项目ID
         title: 设定标题
@@ -229,6 +231,21 @@ def save_setting_entry(
 
     try:
         tree = load_tree(project_id)
+
+        # 重名检测：如果同名设定已存在，转为更新
+        existing = _find_node_by_title(tree["nodes"], title)
+        if existing:
+            existing["content"] = content
+            existing["category"] = cat_key
+            existing["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            save_tree(project_id, tree)
+            return {
+                "id": existing["id"],
+                "title": title,
+                "category": cat_key,
+                "category_label": CATEGORIES.get(cat_key, "其他"),
+                "updated": True,
+            }
 
         new_node = {
             "id": _gen_node_id(),
