@@ -415,6 +415,87 @@ body {
 .file-card-name { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
 .file-card-meta { font-size: 12px; color: var(--text-muted); }
 
+/* ===== Outline Page ===== */
+.outline-container { display: flex; flex-direction: column; height: 100%; }
+.outline-toolbar {
+  display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+  border-bottom: 1px solid var(--border-color); background: var(--bg-secondary);
+  flex-shrink: 0;
+}
+.outline-toolbar-info { font-size: 12px; color: var(--text-muted); margin-left: auto; }
+.outline-canvas-area {
+  flex: 1; overflow: auto; position: relative;
+  background: var(--bg-primary);
+  background-image: radial-gradient(circle, var(--border-color) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.outline-svg { display: block; min-width: 100%; min-height: 100%; }
+.outline-node-group { cursor: grab; }
+.outline-node-group:active { cursor: grabbing; }
+.outline-node-rect {
+  fill: var(--bg-tertiary); stroke: var(--border-color); stroke-width: 1.5;
+  rx: 8; ry: 8; transition: stroke 0.15s;
+}
+.outline-node-rect.selected { stroke: var(--accent); stroke-width: 2.5; }
+.outline-node-rect.branch { fill: rgba(210, 153, 34, 0.12); stroke: var(--orange); }
+.outline-node-rect.branch.selected { stroke: var(--orange); stroke-width: 2.5; }
+.outline-node-title {
+  fill: var(--text-primary); font-size: 13px; font-weight: 600;
+  text-anchor: middle; pointer-events: none; user-select: none;
+}
+.outline-node-type-tag {
+  fill: var(--text-muted); font-size: 10px;
+  text-anchor: middle; pointer-events: none; user-select: none;
+}
+.outline-node-delete {
+  fill: var(--red); font-size: 14px; cursor: pointer;
+  text-anchor: middle; dominant-baseline: central;
+}
+.outline-edge-path {
+  fill: none; stroke: var(--text-muted); stroke-width: 2;
+  marker-end: url(#arrowhead); cursor: pointer;
+}
+.outline-edge-path.selected { stroke: var(--accent); stroke-width: 3; }
+.outline-edge-label {
+  fill: var(--text-secondary); font-size: 11px;
+  text-anchor: middle; pointer-events: none; user-select: none;
+}
+.outline-edge-label-bg {
+  fill: var(--bg-primary); pointer-events: none;
+}
+.outline-edit-pane {
+  flex-shrink: 0; border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary); padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.outline-edit-header {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+}
+.outline-edit-type-badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  background: var(--accent-dim); color: var(--accent);
+}
+.outline-edit-type-badge.branch { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+.outline-edit-input {
+  flex: 1; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm); padding: 6px 10px; color: var(--text-primary);
+  font-size: 13px;
+}
+.outline-edit-input:focus { outline: none; border-color: var(--accent); }
+.outline-edit-textarea {
+  background: var(--bg-tertiary); border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm); padding: 8px 10px; color: var(--text-primary);
+  font-size: 13px; min-height: 60px; max-height: 120px; resize: vertical;
+  font-family: var(--font);
+}
+.outline-edit-textarea:focus { outline: none; border-color: var(--accent); }
+.outline-edit-row { display: flex; gap: 8px; align-items: center; }
+.outline-empty-hint {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; color: var(--text-muted); font-size: 14px;
+}
+.outline-empty-hint span { display: block; margin-top: 8px; font-size: 12px; }
+
 /* ===== Modals ===== */
 .modal-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
@@ -850,6 +931,145 @@ body {
           </template>
         </div>
 
+        <!-- ========== Outline Page ========== -->
+        <div v-if="activeTab === 'outline'" class="outline-container">
+          <div v-if="!currentProjectId" class="empty-state" style="width:100%">
+            <div class="empty-state-icon">🗺</div>
+            <div class="empty-state-text">请先选择项目</div>
+          </div>
+          <template v-else>
+            <!-- 工具栏 -->
+            <div class="outline-toolbar">
+              <button class="btn btn-primary" @click="addOutlineNode">+ 添加节点</button>
+              <button class="btn btn-secondary" @click="outlineLinkMode = !outlineLinkMode"
+                :style="outlineLinkMode ? 'border-color:var(--accent);color:var(--accent)' : ''">
+                {{ outlineLinkMode ? '取消连线' : '🔗 连线模式' }}
+              </button>
+              <button class="btn btn-secondary" @click="loadOutline">↻ 刷新</button>
+              <span class="outline-toolbar-info">{{ outlineNodes.length }} 个节点 · {{ outlineEdges.length }} 条连线</span>
+            </div>
+
+            <!-- 流程图画布 -->
+            <div class="outline-canvas-area" ref="outlineCanvas" @click.self="deselectOutline">
+              <div v-if="outlineNodes.length === 0" class="outline-empty-hint">
+                暂无大纲节点
+                <span>点击上方「添加节点」或与墨参对话让AI自动总结到大纲</span>
+              </div>
+              <svg class="outline-svg" :width="outlineSvgWidth" :height="outlineSvgHeight"
+                @click.self="deselectOutline"
+                @mousemove="onOutlineMouseMove($event)">
+                <defs>
+                  <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="var(--text-muted)" />
+                  </marker>
+                  <marker id="arrowhead-selected" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="var(--accent)" />
+                  </marker>
+                </defs>
+
+                <!-- 连线 -->
+                <g v-for="edge in outlineEdgeRenderList" :key="'edge-' + edge.id">
+                  <path :d="edge.path" class="outline-edge-path"
+                    :class="{ selected: selectedOutlineEdgeId === edge.id }"
+                    :style="{ markerEnd: selectedOutlineEdgeId === edge.id ? 'url(#arrowhead-selected)' : 'url(#arrowhead)' }"
+                    @click.stop="selectOutlineEdge(edge.id)" />
+                  <rect v-if="edge.label"
+                    :x="edge.labelX - edge.labelWidth / 2" :y="edge.labelY - 8"
+                    :width="edge.labelWidth" :height="16" class="outline-edge-label-bg" rx="3" />
+                  <text v-if="edge.label" :x="edge.labelX" :y="edge.labelY + 4"
+                    class="outline-edge-label">{{ edge.label }}</text>
+                </g>
+
+                <!-- 连线模式预览线 -->
+                <line v-if="outlineLinkMode && outlineLinkFrom"
+                  :x1="outlineLinkFrom.x" :y1="outlineLinkFrom.y"
+                  :x2="outlineMousePos.x" :y2="outlineMousePos.y"
+                  stroke="var(--accent)" stroke-width="2" stroke-dasharray="5,3" />
+
+                <!-- 节点 -->
+                <g v-for="node in outlineNodes" :key="'node-' + node.id"
+                   class="outline-node-group"
+                   @mousedown.stop="startDragNode($event, node)"
+                   @click.stop="selectOutlineNode(node.id)"
+                   @mouseenter="outlineHoveredNodeId = node.id"
+                   @mouseleave="outlineHoveredNodeId = null">
+                  <rect :x="node.x" :y="node.y" :width="180" :height="70"
+                    class="outline-node-rect"
+                    :class="{ selected: selectedOutlineNodeId === node.id, branch: node.type === 'branch' }" />
+                  <text :x="node.x + 90" :y="node.y + 28" class="outline-node-title">
+                    {{ node.title.length > 12 ? node.title.slice(0, 11) + '…' : node.title }}
+                  </text>
+                  <text :x="node.x + 90" :y="node.y + 48" class="outline-node-type-tag">
+                    {{ node.type === 'branch' ? '[支线]' : '[主线]' }}
+                  </text>
+                  <circle :cx="node.x + 170" :cy="node.y + 10" r="8"
+                    fill="var(--red)" style="cursor:pointer;opacity:0.7"
+                    @click.stop="deleteOutlineNode(node.id)" v-if="outlineHoveredNodeId === node.id" />
+                  <text :x="node.x + 170" :y="node.y + 14" class="outline-node-delete" style="pointer-events:none">×</text>
+                </g>
+              </svg>
+            </div>
+
+            <!-- 底部编辑窗格 -->
+            <div class="outline-edit-pane">
+              <!-- 节点编辑 -->
+              <template v-if="selectedOutlineNode">
+                <div class="outline-edit-header">
+                  <span class="outline-edit-type-badge" :class="{ branch: selectedOutlineNode.type === 'branch' }">
+                    {{ selectedOutlineNode.type === 'branch' ? '支线' : '主线' }}
+                  </span>
+                  <input class="outline-edit-input" v-model="selectedOutlineNode.title"
+                    placeholder="节点标题（剧情点名称）" @change="updateOutlineNode">
+                  <select class="outline-edit-input" style="max-width:100px" v-model="selectedOutlineNode.type"
+                    @change="updateOutlineNode">
+                    <option value="main">主线</option>
+                    <option value="branch">支线</option>
+                  </select>
+                  <button class="btn btn-secondary" @click="deselectOutline">关闭</button>
+                </div>
+                <textarea class="outline-edit-textarea" v-model="selectedOutlineNode.content"
+                  placeholder="输入节点内容（剧情点描述、关键事件、出场人物等）..."
+                  @change="updateOutlineNode"></textarea>
+                <div class="outline-edit-row">
+                  <span style="font-size:11px;color:var(--text-muted)" v-if="selectedOutlineNode.created_at">
+                    创建: {{ formatTime(selectedOutlineNode.created_at) }}
+                  </span>
+                  <span style="font-size:11px;color:var(--text-muted)" v-if="selectedOutlineNode.updated_at && selectedOutlineNode.updated_at !== selectedOutlineNode.created_at">
+                    修改: {{ formatTime(selectedOutlineNode.updated_at) }}
+                  </span>
+                </div>
+              </template>
+
+              <!-- 连线编辑 -->
+              <template v-else-if="selectedOutlineEdge">
+                <div class="outline-edit-header">
+                  <span class="outline-edit-type-badge">连线</span>
+                  <span style="font-size:12px;color:var(--text-secondary)">
+                    {{ selectedOutlineEdge.fromTitle }} → {{ selectedOutlineEdge.toTitle }}
+                  </span>
+                  <button class="btn btn-secondary" @click="deselectOutline">关闭</button>
+                </div>
+                <input class="outline-edit-input" v-model="selectedOutlineEdge.label"
+                  placeholder="连线说明（如：三天后、因冲突引发、时间跳跃等）..."
+                  @change="updateOutlineEdge">
+              </template>
+
+              <!-- 空状态提示 -->
+              <template v-else-if="outlineLinkMode">
+                <div style="font-size:13px;color:var(--accent);text-align:center;padding:4px">
+                  {{ outlineLinkFrom ? '点击目标节点完成连线' : '点击源节点开始连线' }}
+                </div>
+              </template>
+
+              <template v-else>
+                <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:4px">
+                  点击节点或连线进行编辑，或点击上方「添加节点」创建新剧情点
+                </div>
+              </template>
+            </div>
+          </template>
+        </div>
+
         <!-- ========== Knowledge Page ========== -->
         <div v-if="activeTab === 'knowledge'" class="knowledge-container">
           <div class="knowledge-sidebar">
@@ -1281,6 +1501,7 @@ createApp({
     const tabs = [
       { key: 'chat', label: '对话', icon: '💬' },
       { key: 'settings', label: '设定', icon: '📝' },
+      { key: 'outline', label: '大纲', icon: '🗺' },
       { key: 'knowledge', label: '知识库', icon: '📚' },
       { key: 'files', label: '文件', icon: '📁' },
     ];
@@ -1338,6 +1559,56 @@ createApp({
       system: { label: '力量体系', icon: '⚡', color: 'rgba(210,153,34,0.15)', text: 'var(--orange)' },
       other: { label: '其他', icon: '📝', color: 'rgba(139,148,158,0.15)', text: 'var(--text-secondary)' },
     };
+
+    // Outline
+    const outlineNodes = ref([]);
+    const outlineEdges = ref([]);
+    const selectedOutlineNodeId = ref(null);
+    const selectedOutlineEdgeId = ref(null);
+    const outlineCanvas = ref(null);
+    const outlineHoveredNodeId = ref(null);
+    const outlineLinkMode = ref(false);
+    const outlineLinkFrom = ref(null);
+    const outlineMousePos = ref({ x: 0, y: 0 });
+    const outlineSvgWidth = ref(2000);
+    const outlineSvgHeight = ref(1200);
+    let _outlineDragging = null;
+
+    const selectedOutlineNode = computed(() => {
+      if (!selectedOutlineNodeId.value) return null;
+      return outlineNodes.value.find(n => n.id === selectedOutlineNodeId.value) || null;
+    });
+    const selectedOutlineEdge = computed(() => {
+      if (!selectedOutlineEdgeId.value) return null;
+      const edge = outlineEdges.value.find(e => e.id === selectedOutlineEdgeId.value);
+      if (!edge) return null;
+      const fromNode = outlineNodes.value.find(n => n.id === edge.from);
+      const toNode = outlineNodes.value.find(n => n.id === edge.to);
+      return {
+        ...edge,
+        fromTitle: fromNode ? fromNode.title : '?',
+        toTitle: toNode ? toNode.title : '?',
+      };
+    });
+    const outlineEdgeRenderList = computed(() => {
+      const NODE_W = 180, NODE_H = 70;
+      return outlineEdges.value.map(edge => {
+        const from = outlineNodes.value.find(n => n.id === edge.from);
+        const to = outlineNodes.value.find(n => n.id === edge.to);
+        if (!from || !to) return null;
+        const x1 = from.x + NODE_W / 2;
+        const y1 = from.y + NODE_H;
+        const x2 = to.x + NODE_W / 2;
+        const y2 = to.y;
+        const dy = y2 - y1;
+        const midY = y1 + dy / 2;
+        const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+        const labelX = (x1 + x2) / 2;
+        const labelY = midY;
+        const labelWidth = edge.label ? Math.max(edge.label.length * 7 + 8, 20) : 0;
+        return { ...edge, path, labelX, labelY, labelWidth };
+      }).filter(Boolean);
+    });
 
     // Knowledge
     const knowledgeList = ref([]);
@@ -1444,6 +1715,7 @@ createApp({
       currentConversationId.value = '';
       conversations.value = [];
       await loadSettings();
+      await loadOutline();
       await loadFiles();
       // 加载项目工作区路径
       await loadProjectWorkspace();
@@ -1604,6 +1876,22 @@ createApp({
         /已记录到设定/,
         /存入设定页/,
         /已添加到设定/,
+      ];
+      for (const p of patterns) {
+        if (p.test(content)) return true;
+      }
+      return false;
+    }
+    function checkOutlineClaim(content) {
+      // 检测 AI 是否声称已存入大纲
+      const patterns = [
+        /已存入大纲/,
+        /已保存到大纲/,
+        /已加入大纲/,
+        /已记录到大纲/,
+        /存入大纲页/,
+        /已添加到大纲/,
+        /已更新大纲/,
       ];
       for (const p of patterns) {
         if (p.test(content)) return true;
@@ -1898,6 +2186,7 @@ createApp({
         let currentEvent = '';
         let kbSavedReceived = false;
         let settingSavedReceived = false;
+        let outlineSavedReceived = false;
         let assistantMsg = { role: 'assistant', content: '', streaming: true };
         messages.value.push(assistantMsg);
         isThinking.value = false;
@@ -1951,6 +2240,36 @@ createApp({
                   for (const title of data.titles) {
                     showToast('未找到设定「' + title + '」，无法更新（请检查标题是否一致）', 'warn');
                   }
+                } else if (currentEvent === 'outline_saved' && data.entries) {
+                  outlineSavedReceived = true;
+                  for (const entry of data.entries) {
+                    showToast('已存入大纲: ' + entry.title + (entry.updated ? '（已更新）' : ''), 'success');
+                  }
+                  if (currentProjectId.value) await loadOutline();
+                } else if (currentEvent === 'outline_updated' && data.entries) {
+                  outlineSavedReceived = true;
+                  for (const entry of data.entries) {
+                    showToast('已更新大纲节点: ' + entry.title, 'success');
+                  }
+                  if (currentProjectId.value) await loadOutline();
+                } else if (currentEvent === 'outline_update_failed' && data.titles) {
+                  for (const title of data.titles) {
+                    showToast('未找到大纲节点「' + title + '」，无法更新', 'warn');
+                  }
+                } else if (currentEvent === 'outline_linked' && data.entries) {
+                  outlineSavedReceived = true;
+                  for (const entry of data.entries) {
+                    showToast('已建立连线: ' + entry.from + ' → ' + entry.to, 'success');
+                  }
+                  if (currentProjectId.value) await loadOutline();
+                } else if (currentEvent === 'outline_link_failed' && data.pairs) {
+                  for (const pair of data.pairs) {
+                    showToast('连线失败: ' + pair + '（节点不存在）', 'warn');
+                  }
+                } else if (currentEvent === 'outline_clean' && data.clean_content) {
+                  assistantMsg.content = data.clean_content;
+                  await nextTick();
+                  scrollMessages();
                 } else if (currentEvent === 'done') {
                   assistantMsg.streaming = false;
                 } else if (data.content) {
@@ -1973,6 +2292,10 @@ createApp({
         // 检测 AI 是否声称已存入设定页但未使用标记格式
         if (checkSettingClaim(assistantMsg.content) && !settingSavedReceived) {
           showToast('AI声称已存入设定页但实际未保存，请手动检查设定页', 'warn');
+        }
+        // 检测 AI 是否声称已存入大纲但未使用标记格式
+        if (checkOutlineClaim(assistantMsg.content) && !outlineSavedReceived) {
+          showToast('AI声称已存入大纲但实际未保存，请手动检查大纲页', 'warn');
         }
       } catch (e) {
         isThinking.value = false;
@@ -2250,13 +2573,218 @@ createApp({
         const disposition = res.headers.get('Content-Disposition') || '';
         const filenameMatch = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         const filename = filenameMatch ? filenameMatch[1].replace(/['"]/g, '') : 'settings.' + format;
+
+        // 优先使用 File System Access API 让用户选择保存位置
+        if (window.showSaveFilePicker) {
+          const ext = format === 'docx' ? 'docx' : format === 'html' ? 'html' : format === 'md' ? 'md' : 'txt';
+          try {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: filename,
+              types: [{ description: '文件', accept: { 'application/octet-stream': ['.' + ext] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            showToast('导出成功: ' + handle.name, 'success');
+            return;
+          } catch (e) {
+            if (e.name === 'AbortError') return;
+          }
+        }
+
+        // 回退方案：使用浏览器下载
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = filename;
         a.click();
         URL.revokeObjectURL(a.href);
-        showToast('导出成功', 'success');
+        showToast('导出成功: ' + filename + '（已下载到浏览器默认下载目录）', 'success');
       } catch (e) { showToast('导出失败: ' + e.message, 'error'); }
+    }
+
+    // ===== Outline =====
+    async function loadOutline() {
+      if (!currentProjectId.value) { outlineNodes.value = []; outlineEdges.value = []; return; }
+      try {
+        const data = await apiJSON('/api/outline/' + currentProjectId.value);
+        outlineNodes.value = data.nodes || [];
+        outlineEdges.value = data.edges || [];
+        // 动态调整 SVG 尺寸
+        const maxX = Math.max(...outlineNodes.value.map(n => n.x + 200), 800);
+        const maxY = Math.max(...outlineNodes.value.map(n => n.y + 100), 600);
+        outlineSvgWidth.value = Math.max(maxX, 800);
+        outlineSvgHeight.value = Math.max(maxY, 600);
+      } catch (e) { outlineNodes.value = []; outlineEdges.value = []; }
+    }
+
+    async function addOutlineNode() {
+      if (!currentProjectId.value) return;
+      const title = '新剧情点 ' + (outlineNodes.value.length + 1);
+      const maxX = outlineNodes.value.length > 0
+        ? Math.max(...outlineNodes.value.map(n => n.x)) + 220
+        : 100;
+      const y = 150;
+      try {
+        const data = await apiJSON('/api/outline/' + currentProjectId.value + '/node', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content: '', node_type: 'main', x: maxX, y }),
+        });
+        if (data.success) {
+          outlineNodes.value.push(data.node);
+          selectedOutlineNodeId.value = data.node.id;
+          selectedOutlineEdgeId.value = null;
+          showToast('已添加节点', 'success');
+        }
+      } catch (e) { showToast('添加失败: ' + e.message, 'error'); }
+    }
+
+    async function updateOutlineNode() {
+      if (!currentProjectId.value || !selectedOutlineNodeId.value) return;
+      const node = selectedOutlineNode.value;
+      if (!node) return;
+      try {
+        await apiJSON('/api/outline/' + currentProjectId.value + '/node/' + node.id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: node.title, content: node.content, node_type: node.type }),
+        });
+      } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+
+    async function deleteOutlineNode(nodeId) {
+      if (!currentProjectId.value) return;
+      try {
+        await apiJSON('/api/outline/' + currentProjectId.value + '/node/' + nodeId, { method: 'DELETE' });
+        outlineNodes.value = outlineNodes.value.filter(n => n.id !== nodeId);
+        outlineEdges.value = outlineEdges.value.filter(e => e.from !== nodeId && e.to !== nodeId);
+        if (selectedOutlineNodeId.value === nodeId) selectedOutlineNodeId.value = null;
+        showToast('节点已删除', 'success');
+      } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    async function updateOutlineEdge() {
+      if (!currentProjectId.value || !selectedOutlineEdgeId.value) return;
+      const edge = outlineEdges.value.find(e => e.id === selectedOutlineEdgeId.value);
+      if (!edge) return;
+      try {
+        await apiJSON('/api/outline/' + currentProjectId.value + '/edge/' + edge.id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ label: edge.label }),
+        });
+      } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
+    }
+
+    async function deleteOutlineEdge(edgeId) {
+      if (!currentProjectId.value) return;
+      try {
+        await apiJSON('/api/outline/' + currentProjectId.value + '/edge/' + edgeId, { method: 'DELETE' });
+        outlineEdges.value = outlineEdges.value.filter(e => e.id !== edgeId);
+        if (selectedOutlineEdgeId.value === edgeId) selectedOutlineEdgeId.value = null;
+        showToast('连线已删除', 'success');
+      } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    function selectOutlineNode(nodeId) {
+      if (outlineLinkMode.value) {
+        if (!outlineLinkFrom.value) {
+          const node = outlineNodes.value.find(n => n.id === nodeId);
+          if (node) {
+            outlineLinkFrom.value = { id: nodeId, x: node.x + 90, y: node.y + 35 };
+          }
+        } else {
+          if (outlineLinkFrom.value.id !== nodeId) {
+            createOutlineEdge(outlineLinkFrom.value.id, nodeId);
+          }
+          outlineLinkFrom.value = null;
+          outlineLinkMode.value = false;
+        }
+      } else {
+        selectedOutlineNodeId.value = nodeId;
+        selectedOutlineEdgeId.value = null;
+      }
+    }
+
+    function selectOutlineEdge(edgeId) {
+      selectedOutlineEdgeId.value = edgeId;
+      selectedOutlineNodeId.value = null;
+    }
+
+    function deselectOutline() {
+      selectedOutlineNodeId.value = null;
+      selectedOutlineEdgeId.value = null;
+      if (outlineLinkMode.value) {
+        outlineLinkFrom.value = null;
+        outlineLinkMode.value = false;
+      }
+    }
+
+    async function createOutlineEdge(fromId, toId) {
+      if (!currentProjectId.value) return;
+      try {
+        const data = await apiJSON('/api/outline/' + currentProjectId.value + '/edge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from_node: fromId, to_node: toId, label: '' }),
+        });
+        if (data.success) {
+          outlineEdges.value.push(data.edge);
+          showToast('连线已创建', 'success');
+        }
+      } catch (e) { showToast('创建连线失败: ' + e.message, 'error'); }
+    }
+
+    function startDragNode(event, node) {
+      if (outlineLinkMode.value) return;
+      const svg = event.currentTarget.closest('svg');
+      const rect = svg.getBoundingClientRect();
+      const offsetX = event.clientX - rect.left - node.x + svg.parentElement.scrollLeft;
+      const offsetY = event.clientY - rect.top - node.y + svg.parentElement.scrollTop;
+      _outlineDragging = { nodeId: node.id, offsetX, offsetY, svg };
+
+      function onMove(e) {
+        if (!_outlineDragging) return;
+        const r = _outlineDragging.svg.getBoundingClientRect();
+        const x = e.clientX - r.left - _outlineDragging.offsetX + svg.parentElement.scrollLeft;
+        const y = e.clientY - r.top - _outlineDragging.offsetY + svg.parentElement.scrollTop;
+        const n = outlineNodes.value.find(nn => nn.id === _outlineDragging.nodeId);
+        if (n) {
+          n.x = Math.max(0, x);
+          n.y = Math.max(0, y);
+          outlineSvgWidth.value = Math.max(outlineSvgWidth.value, n.x + 250);
+          outlineSvgHeight.value = Math.max(outlineSvgHeight.value, n.y + 120);
+        }
+      }
+
+      function onUp() {
+        if (_outlineDragging) {
+          const n = outlineNodes.value.find(nn => nn.id === _outlineDragging.nodeId);
+          if (n && currentProjectId.value) {
+            apiJSON('/api/outline/' + currentProjectId.value + '/node/' + n.id, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ x: n.x, y: n.y }),
+            }).catch(() => {});
+          }
+        }
+        _outlineDragging = null;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
+    function onOutlineMouseMove(event) {
+      if (!outlineLinkMode.value || !outlineLinkFrom.value) return;
+      const svg = event.currentTarget;
+      const rect = svg.getBoundingClientRect();
+      outlineMousePos.value = {
+        x: event.clientX - rect.left + svg.parentElement.scrollLeft,
+        y: event.clientY - rect.top + svg.parentElement.scrollTop,
+      };
     }
 
     // ===== Knowledge =====
@@ -2520,6 +3048,7 @@ createApp({
       if (tab === 'chat' && currentProjectId.value && conversations.value.length === 0) loadConversations();
       if (tab === 'knowledge') loadKnowledge();
       if (tab === 'settings' && currentProjectId.value) loadSettings();
+      if (tab === 'outline' && currentProjectId.value) loadOutline();
       if (tab === 'files' && currentProjectId.value) loadFiles();
     });
 
@@ -2566,6 +3095,14 @@ createApp({
       optimizeSetting, loadSettings,
       loadKnowledge, handleFileUpload, handleFileDrop, searchKnowledge,
       viewKnowledge, toggleEditKnowledge, saveKnowledgeEdit, deleteKnowledge, typeLabel,
+      // Outline
+      outlineNodes, outlineEdges, selectedOutlineNodeId, selectedOutlineEdgeId,
+      outlineCanvas, outlineHoveredNodeId, outlineLinkMode, outlineLinkFrom,
+      outlineMousePos, outlineSvgWidth, outlineSvgHeight,
+      selectedOutlineNode, selectedOutlineEdge, outlineEdgeRenderList,
+      loadOutline, addOutlineNode, updateOutlineNode, deleteOutlineNode,
+      updateOutlineEdge, deleteOutlineEdge, selectOutlineNode, selectOutlineEdge,
+      deselectOutline, createOutlineEdge, startDragNode, onOutlineMouseMove,
       uploadFile, openSettings, saveConfig, testConfig,
     };
   }

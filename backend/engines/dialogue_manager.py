@@ -35,6 +35,25 @@ _SETTING_UPDATE_PATTERN = re.compile(
     re.DOTALL
 )
 
+# 大纲存写标记的正则：[[OUTLINE_SAVE:标题:类型]]内容[[/OUTLINE_SAVE]]
+# 可选前置节点和连线说明：[[OUTLINE_SAVE:标题:类型:前置标题:连线说明]]内容[[/OUTLINE_SAVE]]
+_OUTLINE_SAVE_PATTERN = re.compile(
+    r'\[\[OUTLINE_SAVE:([^:\]]+):([^\]:]+)(?::([^:\]]+))?(?::([^:\]]+))?\]\](.*?)\[\[/OUTLINE_SAVE\]\]',
+    re.DOTALL
+)
+
+# 大纲更新标记的正则：[[OUTLINE_UPDATE:标题]]新内容[[/OUTLINE_UPDATE]]
+_OUTLINE_UPDATE_PATTERN = re.compile(
+    r'\[\[OUTLINE_UPDATE:([^:\]]+)\]\](.*?)\[\[/OUTLINE_UPDATE\]\]',
+    re.DOTALL
+)
+
+# 大纲连线标记的正则：[[OUTLINE_LINK:源标题:目标标题]]连线说明[[/OUTLINE_LINK]]
+_OUTLINE_LINK_PATTERN = re.compile(
+    r'\[\[OUTLINE_LINK:([^:\]]+):([^:\]]+)\]\](.*?)\[\[/OUTLINE_LINK\]\]',
+    re.DOTALL
+)
+
 
 class DialogueManager:
     """对话管理器 - 系统的核心编排中心"""
@@ -73,6 +92,15 @@ class DialogueManager:
             settings_summary = get_settings_summary(self._current_project_id)
             if settings_summary:
                 parts.append(f"### 设定页\n{settings_summary}")
+        except Exception:
+            pass
+
+        # 大纲摘要
+        try:
+            from routes.outline import get_outline_summary
+            outline_summary = get_outline_summary(self._current_project_id)
+            if outline_summary:
+                parts.append(f"### 大纲\n{outline_summary}")
         except Exception:
             pass
 
@@ -294,6 +322,120 @@ class DialogueManager:
 
                     # 刷新项目上下文，使下一轮对话能看到更新后的设定
                     self._refresh_project_context()
+
+            # 大纲存写：检测 OUTLINE_SAVE 标记并自动保存到大纲页
+            outline_matches = _OUTLINE_SAVE_PATTERN.findall(full_response)
+            if outline_matches:
+                from routes.outline import save_outline_node
+
+                pid = project_id or self._current_project_id
+                if pid:
+                    saved_outlines = []
+                    for match in outline_matches:
+                        o_title = match[0].strip()
+                        o_type = match[1].strip()
+                        o_after = match[2].strip() if match[2] else None
+                        o_edge_label = match[3].strip() if match[3] else ""
+                        o_content = match[4].strip()
+
+                        node_type = "branch" if o_type in ("branch", "支线", "支") else "main"
+
+                        result = save_outline_node(
+                            project_id=pid,
+                            title=o_title,
+                            content=o_content,
+                            node_type=node_type,
+                            after_title=o_after,
+                            edge_label=o_edge_label,
+                        )
+                        if result:
+                            saved_outlines.append(result)
+
+                    if saved_outlines:
+                        yield self._sse("outline_saved", {"entries": saved_outlines})
+
+                        clean_response = _OUTLINE_SAVE_PATTERN.sub('', full_response)
+                        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                        yield self._sse("outline_clean", {"clean_content": clean_response})
+                        full_response = clean_response
+
+                        self._refresh_project_context()
+
+            # 大纲更新：检测 OUTLINE_UPDATE 标记并修改已有节点
+            outline_update_matches = _OUTLINE_UPDATE_PATTERN.findall(full_response)
+            if outline_update_matches:
+                from routes.outline import update_outline_node
+
+                pid = project_id or self._current_project_id
+                if pid:
+                    updated_outlines = []
+                    failed_outline_updates = []
+                    for match in outline_update_matches:
+                        ou_title = match[0].strip()
+                        ou_content = match[1].strip()
+
+                        result = update_outline_node(
+                            project_id=pid,
+                            title=ou_title,
+                            content=ou_content,
+                        )
+                        if result:
+                            updated_outlines.append(result)
+                        else:
+                            failed_outline_updates.append(ou_title)
+
+                    if updated_outlines:
+                        yield self._sse("outline_updated", {"entries": updated_outlines})
+
+                    if failed_outline_updates:
+                        yield self._sse("outline_update_failed", {"titles": failed_outline_updates})
+
+                    if updated_outlines or failed_outline_updates:
+                        clean_response = _OUTLINE_UPDATE_PATTERN.sub('', full_response)
+                        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                        yield self._sse("outline_clean", {"clean_content": clean_response})
+                        full_response = clean_response
+
+                        self._refresh_project_context()
+
+            # 大纲连线：检测 OUTLINE_LINK 标记并创建/更新连线
+            outline_link_matches = _OUTLINE_LINK_PATTERN.findall(full_response)
+            if outline_link_matches:
+                from routes.outline import save_outline_edge
+
+                pid = project_id or self._current_project_id
+                if pid:
+                    linked_outlines = []
+                    failed_links = []
+                    for match in outline_link_matches:
+                        ol_from = match[0].strip()
+                        ol_to = match[1].strip()
+                        ol_label = match[2].strip()
+
+                        result = save_outline_edge(
+                            project_id=pid,
+                            from_title=ol_from,
+                            to_title=ol_to,
+                            label=ol_label,
+                        )
+                        if result:
+                            linked_outlines.append(result)
+                        else:
+                            failed_links.append(f"{ol_from} → {ol_to}")
+
+                    if linked_outlines:
+                        yield self._sse("outline_linked", {"entries": linked_outlines})
+
+                    if failed_links:
+                        yield self._sse("outline_link_failed", {"pairs": failed_links})
+
+                    if linked_outlines or failed_links:
+                        clean_response = _OUTLINE_LINK_PATTERN.sub('', full_response)
+                        clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                        yield self._sse("outline_clean", {"clean_content": clean_response})
+                        full_response = clean_response
+
+                        self._refresh_project_context()
 
         except Exception as e:
             yield self._sse("error", {"message": str(e)})
