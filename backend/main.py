@@ -26,7 +26,7 @@ from routes.outline import router as outline_router
 from routes.writing import router as writing_router
 from routes.foreshadowing import router as foreshadowing_router
 
-app = FastAPI(title="墨参 MoShen", version="0.3.0", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.4.0", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -107,7 +107,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.3.0"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.4.0"}
 
 
 # ===== 前端静态文件 =====
