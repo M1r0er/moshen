@@ -653,6 +653,134 @@ body {
 .conv-btn:hover { color: var(--accent); border-color: var(--accent); }
 .conv-btn.del:hover { color: var(--red); border-color: var(--red); }
 .conv-btn.new { width: auto; padding: 0 10px; font-size: 12px; color: var(--accent); }
+
+/* ===== 写作页 ===== */
+.writing-container { height: 100%; display: flex; flex-direction: column; }
+.writing-layout { display: flex; height: 100%; gap: 0; }
+.writing-sidebar { width: 240px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; background: var(--bg-secondary); }
+.writing-sidebar-header { padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--border-color); }
+.writing-tree { flex: 1; overflow-y: auto; padding: 6px 0; }
+.writing-vol-item { margin-bottom: 2px; }
+.writing-vol-header { display: flex; align-items: center; gap: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+.writing-vol-header:hover { background: var(--bg-tertiary); }
+.vol-toggle { font-size: 10px; color: var(--text-muted); width: 12px; flex-shrink: 0; }
+.vol-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vol-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s; }
+.writing-vol-header:hover .vol-actions { opacity: 1; }
+.btn-icon-sm { width: 20px; height: 20px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+.btn-icon-sm:hover { background: var(--bg-tertiary); color: var(--accent); }
+.btn-icon-sm.del:hover { color: var(--red); }
+.writing-chapter-list { padding-left: 24px; }
+.writing-chapter-item { padding: 5px 12px 5px 8px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 6px; border-radius: 3px; margin: 1px 4px; }
+.writing-chapter-item:hover { background: var(--bg-tertiary); }
+.writing-chapter-item.active { background: var(--accent-bg); color: var(--accent); }
+.ch-num { color: var(--text-muted); flex-shrink: 0; font-size: 11px; }
+.writing-chapter-item.active .ch-num { color: var(--accent); opacity: 0.7; }
+.ch-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-words { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+.writing-empty-hint { padding: 20px 12px; text-align: center; color: var(--text-muted); font-size: 12px; }
+
+.writing-editor-area { flex: 1; display: flex; flex-direction: column; padding: 16px 24px; min-width: 0; }
+.writing-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.writing-input { border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); padding: 8px 12px; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.15s; }
+.writing-input:focus { border-color: var(--accent); }
+.vol-num { width: 80px; }
+.vol-title { flex: 1; font-size: 16px; font-weight: 600; }
+.ch-num { width: 80px; }
+.ch-title { flex: 1; font-size: 15px; }
+.writing-word-count { font-size: 12px; color: var(--text-muted); flex-shrink: 0; }
+
+.editor-toolbar { display: flex; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--border-color); margin-bottom: 10px; }
+.tool-btn { width: 32px; height: 28px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); border-radius: 4px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.tool-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tool-divider { width: 1px; background: var(--border-color); margin: 4px 6px; }
+
+.writing-editor {
+  flex: 1;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px 28px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.8;
+  outline: none;
+  overflow-y: auto;
+  resize: none;
+  min-height: 300px;
+}
+.writing-editor:focus { border-color: var(--accent); }
+.writing-editor.indent-on p,
+.writing-editor.indent-on div,
+.writing-editor.indent-on { text-indent: 2em; }
+.writing-editor:empty::before {
+  content: attr(placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.writing-bottom-bar { display: flex; gap: 10px; padding-top: 12px; flex-wrap: wrap; }
+
+.writing-empty-editor { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); }
+
+/* 伏笔检测结果项 */
+.fs-detect-item { padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 10px; }
+.fs-detect-name { font-weight: 600; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.fs-detect-tag { font-size: 11px; padding: 2px 6px; border-radius: 3px; background: var(--bg-tertiary); color: var(--text-muted); }
+.fs-detect-tag.new { background: var(--accent-bg); color: var(--accent); }
+.fs-detect-tag.recover { background: rgba(76, 175, 80, 0.15); color: #4caf50; }
+.fs-detect-content { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.5; }
+.fs-detect-chapter { font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+
+/* ===== 伏笔页 ===== */
+.fs-container { height: 100%; display: flex; flex-direction: column; }
+.fs-layout { display: flex; height: 100%; }
+.fs-sidebar { width: 260px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; background: var(--bg-secondary); }
+.fs-sidebar-header { padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 13px; border-bottom: 1px solid var(--border-color); }
+.fs-list { flex: 1; overflow-y: auto; padding: 6px; }
+.fs-list-item { padding: 10px 12px; border-radius: 6px; cursor: pointer; margin-bottom: 4px; border: 1px solid transparent; transition: all 0.15s; }
+.fs-list-item:hover { background: var(--bg-tertiary); }
+.fs-list-item.active { background: var(--accent-bg); border-color: var(--accent); }
+.fs-list-item.resolved { opacity: 0.6; }
+.fs-item-name { font-weight: 500; font-size: 13px; margin-bottom: 4px; }
+.fs-item-meta { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fs-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ff9800; flex-shrink: 0; }
+.fs-status-dot.resolved { background: #4caf50; }
+.fs-status-dot.active { background: #ff9800; }
+
+.fs-detail-area { flex: 1; display: flex; flex-direction: column; padding: 20px 24px; overflow-y: auto; }
+.fs-detail-header { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.fs-name-input { flex: 1; font-size: 16px; font-weight: 600; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); outline: none; }
+.fs-name-input:focus { border-color: var(--accent); }
+.fs-status-select { padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); outline: none; cursor: pointer; }
+.btn-danger { background: var(--red); color: white; border: none; }
+.btn-danger:hover { opacity: 0.9; }
+
+.fs-detail-info { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; font-size: 13px; color: var(--text-muted); }
+.fs-resolution-input { flex: 1; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-secondary); color: var(--text-primary); outline: none; font-size: 13px; }
+.fs-resolution-input:focus { border-color: var(--accent); }
+
+.fs-entries-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); margin-bottom: 12px; font-weight: 600; font-size: 13px; }
+.fs-entries-list { flex: 1; }
+.fs-entry-item { padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 10px; }
+.fs-entry-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 11px; color: var(--text-muted); }
+.fs-entry-chapter { color: var(--accent); }
+.fs-entry-time { flex: 1; }
+.fs-entry-content { font-size: 13px; line-height: 1.6; color: var(--text-secondary); white-space: pre-wrap; }
+
+.modal-textarea { width: 100%; min-height: 100px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-size: 14px; outline: none; resize: vertical; font-family: inherit; }
+.modal-textarea:focus { border-color: var(--accent); }
+.btn-icon { padding: 4px 10px; font-size: 12px; border: 1px solid var(--border-color); background: transparent; color: var(--text-muted); border-radius: 4px; cursor: pointer; }
+.btn-icon:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ===== 对话页滚动按钮 ===== */
+.chat-scroll-buttons { position: absolute; right: 16px; bottom: 80px; display: flex; flex-direction: column; gap: 6px; z-index: 10; }
+.chat-scroll-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+.chat-scroll-btn:hover { color: var(--accent); border-color: var(--accent); }
+.user-msg-anchor { position: relative; }
+.user-msg-anchor::before { content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; background: var(--accent); border-radius: 2px; opacity: 0.6; }
+
 </style>
 </head>
 <body>
@@ -746,18 +874,23 @@ body {
               <button class="conv-btn new" @click="createConversation" title="新对话">+ 新对话</button>
               <button class="conv-btn" @click="startRenameConversation" title="重命名" v-if="currentConversationId">&#9998;</button>
               <button class="conv-btn del" @click="deleteConversation" title="删除" v-if="currentConversationId">&times;</button>
+              <button class="conv-btn" @click="exportConversation" title="导出对话" v-if="currentConversationId">&#8615;</button>
+              <button class="conv-btn" @click="importConversation" title="导入对话">&#8614;</button>
+              <input ref="importFileInput" type="file" accept=".json" style="display:none" @change="onImportFileSelected">
             </div>
             <div class="conv-info" v-if="currentConversationId && currentConvInfo">
               <span class="ts-item" v-if="currentConvInfo.created_at">创建: {{ formatTime(currentConvInfo.created_at) }}</span>
               <span class="ts-item" v-if="currentConvInfo.updated_at && currentConvInfo.updated_at !== currentConvInfo.created_at">修改: {{ formatTime(currentConvInfo.updated_at) }}</span>
             </div>
-            <div class="messages-area" ref="messagesArea">
+            <div class="messages-area" ref="messagesArea" style="position:relative">
               <div v-if="messages.length === 0" class="empty-state">
                 <div class="empty-state-icon">✦</div>
                 <div class="empty-state-text">开始与墨参对话</div>
                 <div class="empty-state-hint">输入创作需求，获取灵感与建议</div>
               </div>
-              <div v-for="(msg, index) in messages" :key="index" class="message" :class="msg.role">
+              <div v-for="(msg, index) in messages" :key="index" class="message"
+                :class="[msg.role, { 'user-msg-anchor': msg.role === 'user' }]"
+                :id="'msg-' + index">
                 <div class="message-avatar">{{ msg.role === 'user' ? '我' : '墨' }}</div>
                 <div class="message-body">
                   <div class="message-name">{{ msg.role === 'user' ? '我' : '墨参' }}</div>
@@ -783,6 +916,11 @@ body {
                     <span class="thinking-dots"><span>●</span><span>●</span><span>●</span></span>
                   </div>
                 </div>
+              </div>
+              <!-- 滚动按钮 -->
+              <div class="chat-scroll-buttons" v-if="messages.length > 0">
+                <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部">↑</button>
+                <button class="chat-scroll-btn" @click="scrollToBottom" title="到底部">↓</button>
               </div>
             </div>
             <div class="chat-input-area">
@@ -1250,7 +1388,10 @@ body {
               <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted)">
                 选择一个本地文件夹作为「灵感」文件夹，用于存放你的参考文件。moshen会读取其中的 txt / md / docx 文件。该文件夹可以不在工作区内。
               </div>
-              <input class="modal-input" v-model="inspirationInput" placeholder="例如: D:\我的小说\参考资料" @keydown.enter="confirmInspiration">
+              <div style="display:flex;gap:8px;align-items:center">
+                <input class="modal-input" v-model="inspirationInput" placeholder="例如: D:\我的小说\参考资料" @keydown.enter="confirmInspiration" style="flex:1">
+                <button class="btn btn-secondary" @click="browseInspiration" style="white-space:nowrap">浏览</button>
+              </div>
               <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
                 输入本地文件夹的完整路径，留空则清除设置。
               </div>
@@ -1282,6 +1423,251 @@ body {
             </div>
             <div v-if="fileList.length === 0" style="color:var(--text-muted);font-size:13px">暂无文件</div>
           </template>
+        </div>
+
+        <!-- ===== 写作页 ===== -->
+        <div v-if="activeTab === 'writing'" class="writing-container">
+          <div v-if="!currentProjectId" class="empty-state" style="height:100%">
+            <div class="empty-state-icon">✍️</div>
+            <div class="empty-state-text">请先选择项目</div>
+          </div>
+          <template v-else>
+            <div class="writing-layout">
+              <!-- 左侧：卷/章导航 -->
+              <div class="writing-sidebar">
+                <div class="writing-sidebar-header">
+                  <span>目录</span>
+                  <button class="btn-icon" @click="addVolume" title="新建卷">+ 卷</button>
+                </div>
+                <div class="writing-tree">
+                  <div v-for="vol in writingIndex.volumes" :key="vol.id" class="writing-vol-item">
+                    <div class="writing-vol-header" @click="toggleVolume(vol.id)">
+                      <span class="vol-toggle">{{ expandedVols[vol.id] ? '▼' : '▶' }}</span>
+                      <span class="vol-title" @click.stop="editVolumeTitle(vol)">
+                        {{ vol.title || ('第' + vol.number + '卷') }}
+                      </span>
+                      <div class="vol-actions">
+                        <button class="btn-icon-sm" @click.stop="addChapterTo(vol.id)" title="新建章节">+</button>
+                        <button class="btn-icon-sm" @click.stop="deleteWritingVol(vol.id)" title="删除卷">×</button>
+                      </div>
+                    </div>
+                    <div v-if="expandedVols[vol.id]" class="writing-chapter-list">
+                      <div v-for="ch in vol.chapters" :key="ch.id"
+                        class="writing-chapter-item"
+                        :class="{ active: currentWritingChId === ch.id && currentWritingVolId === vol.id }"
+                        @click="openChapter(vol.id, ch.id)">
+                        <span class="ch-num">第{{ ch.number }}章</span>
+                        <span class="ch-title">{{ ch.title }}</span>
+                        <span class="ch-words">{{ ch.words }}字</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="writingIndex.volumes.length === 0" class="writing-empty-hint">
+                    还没有卷，点击上方「+ 卷」开始
+                  </div>
+                </div>
+              </div>
+
+              <!-- 右侧：编辑区 -->
+              <div class="writing-editor-area">
+                <template v-if="currentWritingChId">
+                  <!-- 卷名行 -->
+                  <div class="writing-row vol-row">
+                    <input v-model="currentVolNumber" type="number" min="1"
+                      class="writing-input vol-num" placeholder="卷几"
+                      @change="updateVolMeta">
+                    <input v-model="currentVolTitle" class="writing-input vol-title"
+                      placeholder="卷名（可不填）"
+                      @change="updateVolMeta">
+                  </div>
+
+                  <!-- 章节名行 -->
+                  <div class="writing-row ch-row">
+                    <input v-model="currentChNumber" type="number" min="1"
+                      class="writing-input ch-num" placeholder="章节数"
+                      @change="updateChMeta">
+                    <input v-model="currentChTitle" class="writing-input ch-title"
+                      placeholder="章节名（可不填）"
+                      @change="updateChMeta">
+                    <span class="writing-word-count">{{ currentWordCount }} 字</span>
+                  </div>
+
+                  <!-- 工具栏 -->
+                  <div class="editor-toolbar">
+                    <button class="tool-btn" @click="execFormat('bold')" title="粗体"><b>B</b></button>
+                    <button class="tool-btn" @click="execFormat('italic')" title="斜体"><i>I</i></button>
+                    <button class="tool-btn" @click="execFormat('underline')" title="下划线"><u>U</u></button>
+                    <span class="tool-divider"></span>
+                    <button class="tool-btn" @click="toggleIndent" title="首行缩进">⇥ 缩进</button>
+                  </div>
+
+                  <!-- 正文编辑区 -->
+                  <div ref="writingEditor" class="writing-editor" contenteditable="true"
+                    :class="{ 'indent-on': indentEnabled }"
+                    @input="onWritingInput"
+                    @keydown.tab.prevent="execFormat('insertText', '　　')"
+                    placeholder="开始写作..."></div>
+
+                  <!-- 底部按钮栏 -->
+                  <div class="writing-bottom-bar">
+                    <button class="btn btn-primary" @click="saveWritingChapter" :disabled="savingChapter">
+                      {{ savingChapter ? '保存中...' : '保存' }}
+                    </button>
+                    <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
+                      {{ detectingFs ? '检测中...' : '🔍 伏笔检测（单章）' }}
+                    </button>
+                    <button class="btn btn-secondary" @click="detectForeshadowing('full')" :disabled="detectingFs">
+                      {{ detectingFs ? '检测中...' : '🔍 伏笔检测（全文）' }}
+                    </button>
+                    <button class="btn btn-secondary" @click="recoverCheck" :disabled="checkingRecover">
+                      {{ checkingRecover ? '检测中...' : '♻️ 回收检测' }}
+                    </button>
+                  </div>
+                </template>
+                <div v-else class="writing-empty-editor">
+                  <div class="empty-state-icon">✍️</div>
+                  <div class="empty-state-text">选择或创建章节开始写作</div>
+                  <div class="empty-state-hint">左侧目录中点击「+ 卷」→「+」新建章节</div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- 伏笔检测结果弹窗 -->
+          <div class="modal-overlay" v-if="showFsDetectModal" @click.self="showFsDetectModal = false">
+            <div class="modal" style="max-width:600px">
+              <div class="modal-title">伏笔检测结果</div>
+              <div class="modal-body">
+                <div v-if="detectedForeshadowings.length === 0" style="color:var(--text-muted);text-align:center;padding:20px">
+                  未检测到新的伏笔
+                </div>
+                <div v-for="(item, idx) in detectedForeshadowings" :key="idx" class="fs-detect-item">
+                  <div class="fs-detect-name">
+                    <span>{{ item.name }}</span>
+                    <span class="fs-detect-tag" :class="item.is_new ? 'new' : 'old'">
+                      {{ item.is_new ? '新伏笔' : '已有伏笔' }}
+                    </span>
+                    <span v-if="item.is_resolution" class="fs-detect-tag recover">回收</span>
+                  </div>
+                  <div class="fs-detect-content">{{ item.content }}</div>
+                  <div class="fs-detect-chapter">{{ item.chapter }}</div>
+                  <button class="btn btn-primary btn-sm" @click="importDetectedFs(item)">添加到伏笔页</button>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showFsDetectModal = false">关闭</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 伏笔页 ===== -->
+        <div v-if="activeTab === 'foreshadowing'" class="fs-container">
+          <div v-if="!currentProjectId" class="empty-state" style="height:100%">
+            <div class="empty-state-icon">🪝</div>
+            <div class="empty-state-text">请先选择项目</div>
+          </div>
+          <template v-else>
+            <div class="fs-layout">
+              <!-- 左侧：伏笔列表 -->
+              <div class="fs-sidebar">
+                <div class="fs-sidebar-header">
+                  <span>伏笔列表</span>
+                  <button class="btn-icon" @click="addForeshadowing">+ 新增</button>
+                </div>
+                <div class="fs-list">
+                  <div v-for="fs in foreshadowingList" :key="fs.id"
+                    class="fs-list-item"
+                    :class="{ active: currentFsId === fs.id, resolved: fs.status === 'resolved' }"
+                    @click="selectForeshadowing(fs.id)">
+                    <div class="fs-item-name">{{ fs.name }}</div>
+                    <div class="fs-item-meta">
+                      <span class="fs-status-dot" :class="fs.status"></span>
+                      <span>{{ fs.entry_count }}次出现</span>
+                      <span v-if="fs.first_chapter">· {{ fs.first_chapter }}</span>
+                    </div>
+                  </div>
+                  <div v-if="foreshadowingList.length === 0" class="writing-empty-hint">
+                    暂无伏笔记录
+                  </div>
+                </div>
+              </div>
+
+              <!-- 右侧：伏笔详情 -->
+              <div class="fs-detail-area">
+                <template v-if="currentFsDetail">
+                  <div class="fs-detail-header">
+                    <input v-model="fsEditName" class="fs-name-input" placeholder="伏笔名"
+                      @change="updateFsName">
+                    <select v-model="fsEditStatus" class="fs-status-select" @change="updateFsStatus">
+                      <option value="active">未回收</option>
+                      <option value="resolved">已回收</option>
+                    </select>
+                    <button class="btn btn-danger btn-sm" @click="deleteForeshadowing">删除</button>
+                  </div>
+                  <div class="fs-detail-info">
+                    <label>回收章节：</label>
+                    <input v-model="fsEditResolution" class="fs-resolution-input"
+                      placeholder="如：第10章 真相大白" @change="updateFsResolution">
+                  </div>
+
+                  <div class="fs-entries-header">
+                    <span>出现记录（{{ currentFsDetail.entries?.length || 0 }}条）</span>
+                    <button class="btn-icon-sm" @click="addFsEntry">+ 添加</button>
+                  </div>
+                  <div class="fs-entries-list">
+                    <div v-for="entry in currentFsDetail.entries" :key="entry.id" class="fs-entry-item">
+                      <div class="fs-entry-meta">
+                        <span v-if="entry.chapter_title" class="fs-entry-chapter">{{ entry.chapter_title }}</span>
+                        <span class="fs-entry-time">{{ entry.created_at }}</span>
+                        <button class="btn-icon-sm del" @click="removeFsEntry(entry.id)">×</button>
+                      </div>
+                      <div class="fs-entry-content">{{ entry.content }}</div>
+                    </div>
+                    <div v-if="!currentFsDetail.entries || currentFsDetail.entries.length === 0"
+                      style="color:var(--text-muted);font-size:13px;padding:20px;text-align:center">
+                      暂无出现记录
+                    </div>
+                  </div>
+                </template>
+                <div v-else class="writing-empty-editor">
+                  <div class="empty-state-icon">🪝</div>
+                  <div class="empty-state-text">选择或创建伏笔</div>
+                  <div class="empty-state-hint">左侧列表中点击「+ 新增」添加伏笔</div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- 新建伏笔弹窗 -->
+          <div class="modal-overlay" v-if="showNewFsModal" @click.self="showNewFsModal = false">
+            <div class="modal" style="max-width:500px">
+              <div class="modal-title">新建伏笔</div>
+              <div class="modal-body">
+                <input class="modal-input" v-model="newFsName" placeholder="伏笔名">
+                <textarea v-model="newFsContent" class="modal-textarea" placeholder="伏笔内容（可不填）"></textarea>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showNewFsModal = false">取消</button>
+                <button class="btn btn-primary" @click="confirmNewFs">创建</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 添加伏笔记录弹窗 -->
+          <div class="modal-overlay" v-if="showAddEntryModal" @click.self="showAddEntryModal = false">
+            <div class="modal" style="max-width:500px">
+              <div class="modal-title">添加出现记录</div>
+              <div class="modal-body">
+                <textarea v-model="newEntryContent" class="modal-textarea" placeholder="出现的具体内容"></textarea>
+                <input class="modal-input" v-model="newEntryChapter" placeholder="出现章节（如：第3章 初遇）">
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-secondary" @click="showAddEntryModal = false">取消</button>
+                <button class="btn btn-primary" @click="confirmAddEntry">添加</button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -1500,10 +1886,36 @@ body {
           <div class="config-group-title">工作区</div>
           <div style="display:flex;gap:8px;align-items:center">
             <input class="modal-input" v-model="workspaceInput" placeholder="工作区文件夹路径" style="flex:1">
+            <button class="btn btn-secondary" @click="browseWorkspace" style="white-space:nowrap">浏览</button>
             <button class="btn btn-primary" @click="selectWorkspace" style="white-space:nowrap">切换</button>
           </div>
           <div style="font-size:12px;color:var(--text-muted);margin-top:6px">
             当前: {{ workspacePath || '未设置' }}
+          </div>
+        </div>
+        <div class="divider"></div>
+        <!-- 写作设置 -->
+        <div class="config-group">
+          <div class="config-group-title">写作设置</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div>
+              <div style="font-size:13px">自动章节编号模式</div>
+              <div style="font-size:12px;color:var(--text-muted)">新建章节时自动填入章节数</div>
+            </div>
+            <select v-model="writingPrefs.chapter_numbering_mode" class="fs-status-select" style="width:140px">
+              <option value="continue">全局连续编号</option>
+              <option value="per_volume">每卷从第一章开始</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:13px">自动伏笔检测</div>
+              <div style="font-size:12px;color:var(--text-muted)">保存章节时自动检测新伏笔和回收（消耗 token）</div>
+            </div>
+            <div class="toggle-switch" :class="{ on: writingPrefs.auto_foreshadowing_detect }"
+              @click="writingPrefs.auto_foreshadowing_detect = !writingPrefs.auto_foreshadowing_detect">
+              <div class="toggle-knob"></div>
+            </div>
           </div>
         </div>
         <div class="divider"></div>
@@ -1527,6 +1939,17 @@ body {
               <span class="config-status" :class="configData.default_api.is_configured ? 'ok' : 'miss'">
                 {{ configData.default_api.is_configured ? '已配置' : '未配置' }}
               </span>
+            </div>
+          </div>
+          <div class="config-row">
+            <div style="flex:1;display:flex;align-items:center;gap:8px">
+              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Temperature</label>
+              <input v-model="configData.default_api.temperature" type="number" min="0" max="2" step="0.1" style="width:80px">
+            </div>
+            <div style="flex:1;display:flex;align-items:center;gap:8px">
+              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Max Tokens</label>
+              <input v-model="configData.default_api.max_tokens" type="number" min="256" step="256" style="width:120px">
+              <span style="font-size:11px;color:var(--text-muted)">输出上限</span>
             </div>
           </div>
         </div>
@@ -1563,6 +1986,16 @@ body {
                 <span class="config-status" :class="configData.roles[key].is_configured ? 'ok' : 'miss'">
                   {{ configData.roles[key].is_configured ? '已配置' : '未配置' }}
                 </span>
+              </div>
+            </div>
+            <div class="config-row">
+              <div style="flex:1;display:flex;align-items:center;gap:8px">
+                <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Temperature</label>
+                <input v-model="configData.roles[key].temperature" type="number" min="0" max="2" step="0.1" style="width:80px">
+              </div>
+              <div style="flex:1;display:flex;align-items:center;gap:8px">
+                <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Max Tokens</label>
+                <input v-model="configData.roles[key].max_tokens" type="number" min="256" step="256" style="width:120px">
               </div>
             </div>
           </div>
@@ -1614,6 +2047,8 @@ createApp({
     const activeTab = ref('chat');
     const tabs = [
       { key: 'chat', label: '对话', icon: '💬' },
+      { key: 'writing', label: '写作', icon: '✍️' },
+      { key: 'foreshadowing', label: '伏笔', icon: '🪝' },
       { key: 'settings', label: '设定', icon: '📝' },
       { key: 'outline', label: '大纲', icon: '🗺' },
       { key: 'knowledge', label: '知识库', icon: '📚' },
@@ -1751,9 +2186,13 @@ createApp({
     // Config
     const showConfigModal = ref(false);
     const configData = ref({
-      default_api: { models: [''], base_url: '', api_key: '', is_configured: false },
+      default_api: { models: [''], base_url: '', api_key: '', temperature: 0.7, max_tokens: 8192, is_configured: false },
       independent_keys: false,
       roles: {},
+    });
+    const writingPrefs = ref({
+      chapter_numbering_mode: 'continue',
+      auto_foreshadowing_detect: false,
     });
     const modelRoles = {
       TEXT_MASTER: '文学性分析、文风诊断',
@@ -1795,6 +2234,44 @@ createApp({
       return res.json();
     }
 
+    // ===== 写作页 =====
+    const writingIndex = ref({ volumes: [] });
+    const expandedVols = reactive({});
+    const currentWritingVolId = ref('');
+    const currentWritingChId = ref('');
+    const currentVolNumber = ref(null);
+    const currentVolTitle = ref('');
+    const currentChNumber = ref(null);
+    const currentChTitle = ref('');
+    const writingEditor = ref(null);
+    const savingChapter = ref(false);
+    const detectingFs = ref(false);
+    const checkingRecover = ref(false);
+    const indentEnabled = ref(true);
+    const showFsDetectModal = ref(false);
+    const detectedForeshadowings = ref([]);
+    const chapterNumberingMode = ref('continue'); // continue | per_volume
+
+    const currentWordCount = computed(() => {
+      if (!writingEditor.value) return 0;
+      const text = writingEditor.value.innerText || '';
+      return text.replace(/\s/g, '').length;
+    });
+
+    // ===== 伏笔页 =====
+    const foreshadowingList = ref([]);
+    const currentFsId = ref('');
+    const currentFsDetail = ref(null);
+    const fsEditName = ref('');
+    const fsEditStatus = ref('active');
+    const fsEditResolution = ref('');
+    const showNewFsModal = ref(false);
+    const newFsName = ref('');
+    const newFsContent = ref('');
+    const showAddEntryModal = ref(false);
+    const newEntryContent = ref('');
+    const newEntryChapter = ref('');
+
     // ===== Workspace =====
     async function loadWorkspace() {
       try {
@@ -1815,6 +2292,15 @@ createApp({
         await loadProjects();
         await loadKnowledge();
       } catch (e) { showToast('路径无效: ' + e.message, 'error'); }
+    }
+
+    async function browseWorkspace() {
+      if (window.electronAPI && window.electronAPI.selectDirectory) {
+        const dir = await window.electronAPI.selectDirectory();
+        if (dir) workspaceInput.value = dir;
+      } else {
+        showToast('请在桌面应用中使用此功能', 'error');
+      }
     }
 
     // ===== Projects =====
@@ -2159,6 +2645,48 @@ createApp({
       } catch (e) { showToast('重命名失败', 'error'); }
     }
 
+    function exportConversation() {
+      if (!currentConversationId.value || !currentProjectId.value) return;
+      const url = '/api/conversations/' + currentProjectId.value + '/' + currentConversationId.value + '/export';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('对话已导出', 'success');
+    }
+
+    const importFileInput = ref(null);
+    function importConversation() {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      importFileInput.value?.click();
+    }
+
+    async function onImportFileSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const resp = await fetch('/api/conversations/' + currentProjectId.value + '/import', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.detail || '导入失败');
+        await loadConversations();
+        if (data.conversation) {
+          currentConversationId.value = data.conversation.id;
+          await loadConversationMessages();
+        }
+        showToast('对话已导入', 'success');
+      } catch (err) {
+        showToast('导入失败: ' + err.message, 'error');
+      }
+      e.target.value = '';
+    }
+
     // ===== Chat =====
     async function loadChatModels() {
       try {
@@ -2427,6 +2955,12 @@ createApp({
     }
     function scrollMessages() {
       if (messagesArea.value) messagesArea.value.scrollTop = messagesArea.value.scrollHeight;
+    }
+    function scrollToTop() {
+      if (messagesArea.value) messagesArea.value.scrollTop = 0;
+    }
+    function scrollToBottom() {
+      scrollMessages();
     }
 
     // ===== Markdown Renderer =====
@@ -2910,6 +3444,387 @@ createApp({
       };
     }
 
+    // ===== 写作页函数 =====
+    async function loadWritingIndex() {
+      if (!currentProjectId.value) return;
+      try {
+        const data = await apiJSON('/api/writing/' + currentProjectId.value);
+        writingIndex.value = data;
+        // 默认展开所有卷
+        if (data.volumes) {
+          for (const v of data.volumes) {
+            expandedVols[v.id] = true;
+          }
+        }
+      } catch (e) { showToast('加载写作索引失败', 'error'); }
+    }
+
+    function toggleVolume(volId) {
+      expandedVols[volId] = !expandedVols[volId];
+    }
+
+    async function addVolume() {
+      if (!currentProjectId.value) return;
+      try {
+        const vol = await apiJSON('/api/writing/' + currentProjectId.value + '/volumes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: '' }),
+        });
+        expandedVols[vol.id] = true;
+        await loadWritingIndex();
+        showToast('已创建新卷', 'success');
+      } catch (e) { showToast('创建卷失败', 'error'); }
+    }
+
+    async function deleteWritingVol(volId) {
+      if (!confirm('确定删除该卷及所有章节？此操作不可撤销。')) return;
+      try {
+        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId, {
+          method: 'DELETE',
+        });
+        if (currentWritingVolId.value === volId) {
+          currentWritingVolId.value = '';
+          currentWritingChId.value = '';
+        }
+        await loadWritingIndex();
+        showToast('已删除', 'success');
+      } catch (e) { showToast('删除失败', 'error'); }
+    }
+
+    function editVolumeTitle(vol) {
+      const newTitle = prompt('输入卷名', vol.title || '');
+      if (newTitle === null) return;
+      apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + vol.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle }),
+      }).then(() => {
+        loadWritingIndex();
+      }).catch(() => showToast('更新失败', 'error'));
+    }
+
+    async function addChapterTo(volId) {
+      if (!currentProjectId.value) return;
+      try {
+        // 先保存当前章节
+        if (currentWritingChId.value) {
+          await _saveCurrentChapterSilent();
+        }
+        const ch = await apiJSON('/api/writing/' + currentProjectId.value + '/chapters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vol_id: volId,
+            numbering_mode: chapterNumberingMode.value,
+          }),
+        });
+        await loadWritingIndex();
+        openChapter(volId, ch.id);
+      } catch (e) { showToast('创建章节失败', 'error'); }
+    }
+
+    async function openChapter(volId, chId) {
+      // 先保存当前章节
+      if (currentWritingChId.value && currentWritingChId.value !== chId) {
+        await _saveCurrentChapterSilent();
+      }
+      currentWritingVolId.value = volId;
+      currentWritingChId.value = chId;
+      try {
+        const data = await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId + '/chapters/' + chId);
+        if (writingEditor.value) {
+          writingEditor.value.innerHTML = data.content || '';
+        }
+        // 填充卷/章信息
+        const vol = writingIndex.value.volumes.find(v => v.id === volId);
+        if (vol) {
+          currentVolNumber.value = vol.number;
+          currentVolTitle.value = vol.title;
+          const ch = vol.chapters.find(c => c.id === chId);
+          if (ch) {
+            currentChNumber.value = ch.number;
+            currentChTitle.value = ch.title;
+          }
+        }
+      } catch (e) { showToast('加载章节失败', 'error'); }
+    }
+
+    async function _saveCurrentChapterSilent() {
+      if (!currentWritingChId.value || !writingEditor.value) return;
+      try {
+        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + currentWritingVolId.value + '/chapters/' + currentWritingChId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: writingEditor.value.innerHTML,
+            title: currentChTitle.value,
+          }),
+        });
+      } catch (e) { /* 静默失败 */ }
+    }
+
+    async function saveWritingChapter() {
+      if (!currentWritingChId.value) return;
+      savingChapter.value = true;
+      try {
+        const result = await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + currentWritingVolId.value + '/chapters/' + currentWritingChId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: writingEditor.value.innerHTML,
+            title: currentChTitle.value,
+          }),
+        });
+        await loadWritingIndex();
+        showToast('已保存 · ' + (result.chapter?.words || 0) + '字', 'success');
+      } catch (e) { showToast('保存失败', 'error'); }
+      savingChapter.value = false;
+    }
+
+    function onWritingInput() {
+      // 实时字数统计已通过 computed 实现
+    }
+
+    function execFormat(cmd, value = null) {
+      if (!writingEditor.value) return;
+      writingEditor.value.focus();
+      if (cmd === 'insertText') {
+        document.execCommand('insertText', false, value);
+      } else {
+        document.execCommand(cmd, false, value);
+      }
+    }
+
+    function toggleIndent() {
+      indentEnabled.value = !indentEnabled.value;
+      showToast(indentEnabled.value ? '已开启首行缩进' : '已关闭首行缩进', 'info');
+    }
+
+    async function updateVolMeta() {
+      if (!currentWritingVolId.value) return;
+      try {
+        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + currentWritingVolId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: currentVolNumber.value,
+            title: currentVolTitle.value,
+          }),
+        });
+        await loadWritingIndex();
+      } catch (e) { showToast('更新卷信息失败', 'error'); }
+    }
+
+    async function updateChMeta() {
+      if (!currentWritingChId.value) return;
+      try {
+        const result = await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + currentWritingVolId.value + '/chapters/' + currentWritingChId.value + '/meta', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: currentChNumber.value,
+            title: currentChTitle.value,
+          }),
+        });
+        // 如果 ID 变了（因为编号变了），更新当前选中
+        if (result.chapter && result.chapter.id !== currentWritingChId.value) {
+          currentWritingChId.value = result.chapter.id;
+        }
+        await loadWritingIndex();
+      } catch (e) { showToast('更新章节信息失败', 'error'); }
+    }
+
+    async function detectForeshadowing(scope) {
+      if (scope === 'single' && !currentWritingChId.value) {
+        showToast('请先选择章节', 'error');
+        return;
+      }
+      detectingFs.value = true;
+      try {
+        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/detect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scope: scope,
+            ch_id: currentWritingChId.value,
+            vol_id: currentWritingVolId.value,
+          }),
+        });
+        detectedForeshadowings.value = data.found || [];
+        showFsDetectModal.value = true;
+      } catch (e) { showToast('检测失败: ' + e.message, 'error'); }
+      detectingFs.value = false;
+    }
+
+    async function recoverCheck() {
+      if (!currentWritingChId.value) {
+        showToast('请先选择章节', 'error');
+        return;
+      }
+      checkingRecover.value = true;
+      try {
+        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/recover-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            scope: 'single',
+            ch_id: currentWritingChId.value,
+          }),
+        });
+        detectedForeshadowings.value = (data.results || []).map(r => ({
+          ...r,
+          is_new: false,
+          is_resolution: true,
+        }));
+        showFsDetectModal.value = true;
+      } catch (e) { showToast('检测失败: ' + e.message, 'error'); }
+      checkingRecover.value = false;
+    }
+
+    async function importDetectedFs(item) {
+      try {
+        await apiJSON('/api/foreshadowing/' + currentProjectId.value, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: item.name,
+            content: item.content,
+            chapter_title: item.chapter,
+          }),
+        });
+        showToast('已添加到伏笔页', 'success');
+        loadForeshadowingList();
+      } catch (e) { showToast('添加失败', 'error'); }
+    }
+
+    // ===== 伏笔页函数 =====
+    async function loadForeshadowingList() {
+      if (!currentProjectId.value) return;
+      try {
+        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value);
+        foreshadowingList.value = data.foreshadowings || [];
+      } catch (e) { showToast('加载伏笔列表失败', 'error'); }
+    }
+
+    async function selectForeshadowing(fId) {
+      currentFsId.value = fId;
+      try {
+        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + fId);
+        currentFsDetail.value = data;
+        fsEditName.value = data.name || '';
+        fsEditStatus.value = data.status || 'active';
+        fsEditResolution.value = data.resolution_chapter || '';
+      } catch (e) { showToast('加载伏笔详情失败', 'error'); }
+    }
+
+    function addForeshadowing() {
+      newFsName.value = '';
+      newFsContent.value = '';
+      showNewFsModal.value = true;
+    }
+
+    async function confirmNewFs() {
+      if (!newFsName.value.trim()) { showToast('伏笔名不能为空', 'error'); return; }
+      try {
+        const fs = await apiJSON('/api/foreshadowing/' + currentProjectId.value, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: newFsName.value.trim(),
+            content: newFsContent.value,
+          }),
+        });
+        showNewFsModal.value = false;
+        await loadForeshadowingList();
+        selectForeshadowing(fs.id);
+        showToast('已创建', 'success');
+      } catch (e) { showToast('创建失败', 'error'); }
+    }
+
+    async function updateFsName() {
+      if (!currentFsId.value) return;
+      try {
+        await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + currentFsId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: fsEditName.value }),
+        });
+        await loadForeshadowingList();
+      } catch (e) { showToast('更新失败', 'error'); }
+    }
+
+    async function updateFsStatus() {
+      if (!currentFsId.value) return;
+      try {
+        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + currentFsId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: fsEditStatus.value }),
+        });
+        currentFsDetail.value = data;
+        await loadForeshadowingList();
+      } catch (e) { showToast('更新失败', 'error'); }
+    }
+
+    async function updateFsResolution() {
+      if (!currentFsId.value) return;
+      try {
+        await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + currentFsId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resolution_chapter: fsEditResolution.value }),
+        });
+        await loadForeshadowingList();
+      } catch (e) { showToast('更新失败', 'error'); }
+    }
+
+    async function deleteForeshadowing() {
+      if (!confirm('确定删除这个伏笔？')) return;
+      try {
+        await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + currentFsId.value, {
+          method: 'DELETE',
+        });
+        currentFsId.value = '';
+        currentFsDetail.value = null;
+        await loadForeshadowingList();
+        showToast('已删除', 'success');
+      } catch (e) { showToast('删除失败', 'error'); }
+    }
+
+    function addFsEntry() {
+      newEntryContent.value = '';
+      newEntryChapter.value = '';
+      showAddEntryModal.value = true;
+    }
+
+    async function confirmAddEntry() {
+      if (!newEntryContent.value.trim()) { showToast('内容不能为空', 'error'); return; }
+      try {
+        await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + currentFsId.value + '/entries', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: newEntryContent.value,
+            chapter_title: newEntryChapter.value,
+          }),
+        });
+        showAddEntryModal.value = false;
+        await selectForeshadowing(currentFsId.value);
+        showToast('已添加', 'success');
+      } catch (e) { showToast('添加失败', 'error'); }
+    }
+
+    async function removeFsEntry(entryId) {
+      if (!confirm('删除这条记录？')) return;
+      try {
+        await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/' + currentFsId.value + '/entries/' + entryId, {
+          method: 'DELETE',
+        });
+        await selectForeshadowing(currentFsId.value);
+      } catch (e) { showToast('删除失败', 'error'); }
+    }
+
     // ===== Knowledge =====
     async function loadKnowledge() {
       try {
@@ -3043,6 +3958,15 @@ createApp({
       }
     }
 
+    async function browseInspiration() {
+      if (window.electronAPI && window.electronAPI.selectDirectory) {
+        const dir = await window.electronAPI.selectDirectory();
+        if (dir) inspirationInput.value = dir;
+      } else {
+        showToast('请在桌面应用中使用此功能', 'error');
+      }
+    }
+
     function inspirationFileIcon(ext) {
       if (ext === '.docx' || ext === '.doc') return '📄';
       if (ext === '.md' || ext === '.markdown') return '📝';
@@ -3089,7 +4013,7 @@ createApp({
         }
         const rolesData = data.roles || {};
         for (const key of Object.keys(modelRoles)) {
-          if (!rolesData[key]) rolesData[key] = { models: [''], base_url: '', api_key: '', is_configured: false };
+          if (!rolesData[key]) rolesData[key] = { models: [''], base_url: '', api_key: '', temperature: 0.7, max_tokens: 8192, is_configured: false };
           if (!rolesData[key].models || rolesData[key].models.length === 0) {
             rolesData[key].models = rolesData[key].model ? [rolesData[key].model] : [''];
           }
@@ -3099,6 +4023,11 @@ createApp({
           independent_keys: data.independent_keys || false,
           roles: rolesData,
         };
+        // 加载写作偏好
+        try {
+          const wp = await apiJSON('/api/workspace/prefs/writing');
+          writingPrefs.value = { ...writingPrefs.value, ...wp };
+        } catch (_) {}
         showConfigModal.value = true;
       } catch (e) { showToast('加载配置失败', 'error'); }
     }
@@ -3124,6 +4053,15 @@ createApp({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cleanData),
         });
+        // 保存写作偏好
+        try {
+          await apiJSON('/api/workspace/prefs/writing', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(writingPrefs.value),
+          });
+          chapterNumberingMode.value = writingPrefs.value.chapter_numbering_mode;
+        } catch (_) {}
         showToast('配置已保存', 'success');
         showConfigModal.value = false;
         await checkHealth();
@@ -3179,6 +4117,12 @@ createApp({
       await loadProjects();
       await loadKnowledge();
       await loadChatModels();
+      // 加载写作偏好
+      try {
+        const wp = await apiJSON('/api/workspace/prefs/writing');
+        writingPrefs.value = { ...writingPrefs.value, ...wp };
+        chapterNumberingMode.value = wp.chapter_numbering_mode || 'continue';
+      } catch (_) {}
       setInterval(checkHealth, 30000);
 
       // ===== 全局拖拽阻止（PyWebView 修复）=====
@@ -3239,6 +4183,8 @@ createApp({
       if (tab === 'outline' && currentProjectId.value) loadOutline();
       if (tab === 'inspiration') loadInspiration();
       if (tab === 'files' && currentProjectId.value) loadFiles();
+      if (tab === 'writing' && currentProjectId.value) loadWritingIndex();
+      if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
     });
 
     return {
@@ -3268,19 +4214,20 @@ createApp({
       knowledgeList, currentKnowledge, knowledgeMode, searchQuery, searchType,
       analyzing, isDragging, editingKnowledge, knowledgeFileInput,
       fileList, fileInput,
-      showConfigModal, configData, modelRoles, testingConfig,
+      showConfigModal, configData, writingPrefs, modelRoles, testingConfig,
       toastMsg, toastType,
-      showToast, selectWorkspace, loadProjects, selectProject, createProject,
+      showToast, selectWorkspace, browseWorkspace, loadProjects, selectProject, createProject,
       startRename, confirmRename, deleteProject,
       loadProjectWorkspace, openProjectWsModal, confirmProjectWs, clearProjectWs,
       openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
-      sendMessage, renderMarkdown, loadChatModels,
+      sendMessage, renderMarkdown, loadChatModels, scrollToTop, scrollToBottom,
       triggerFileInput, handleFileUpload, chatFileInput,
       handleDrop, processFiles, removeAttachment, formatFileSize, formatTime,
       chatAttachments, isDragOver,
       loadConversations, loadConversationMessages, createConversation,
       onConvSelectChange, switchConversation, saveCurrentConversation, deleteConversation,
       startRenameConversation, confirmRenameConversation,
+      exportConversation, importConversation, importFileInput, onImportFileSelected,
       optimizeSetting, loadSettings,
       loadKnowledge, handleFileUpload, handleFileDrop, searchKnowledge,
       viewKnowledge, toggleEditKnowledge, saveKnowledgeEdit, deleteKnowledge, typeLabel,
@@ -3292,10 +4239,28 @@ createApp({
       loadOutline, addOutlineNode, updateOutlineNode, deleteOutlineNode,
       updateOutlineEdge, deleteOutlineEdge, selectOutlineNode, selectOutlineEdge,
       deselectOutline, createOutlineEdge, startDragNode, onOutlineMouseMove,
+      // Writing
+      writingIndex, expandedVols, currentWritingVolId, currentWritingChId,
+      currentVolNumber, currentVolTitle, currentChNumber, currentChTitle,
+      writingEditor, savingChapter, detectingFs, checkingRecover,
+      indentEnabled, showFsDetectModal, detectedForeshadowings, currentWordCount,
+      chapterNumberingMode,
+      loadWritingIndex, toggleVolume, addVolume, deleteWritingVol, editVolumeTitle,
+      addChapterTo, openChapter, saveWritingChapter, onWritingInput,
+      execFormat, toggleIndent, updateVolMeta, updateChMeta,
+      detectForeshadowing, recoverCheck, importDetectedFs,
+      // Foreshadowing
+      foreshadowingList, currentFsId, currentFsDetail,
+      fsEditName, fsEditStatus, fsEditResolution,
+      showNewFsModal, newFsName, newFsContent,
+      showAddEntryModal, newEntryContent, newEntryChapter,
+      loadForeshadowingList, selectForeshadowing, addForeshadowing, confirmNewFs,
+      updateFsName, updateFsStatus, updateFsResolution, deleteForeshadowing,
+      addFsEntry, confirmAddEntry, removeFsEntry,
       // Inspiration
       inspirationPath, inspirationFiles, inspirationContent, currentInspirationFile,
       inspirationFileLoading, showInspirationModal, inspirationInput,
-      loadInspiration, readInspirationFile, confirmInspiration,
+      loadInspiration, readInspirationFile, confirmInspiration, browseInspiration,
       inspirationFileIcon, formatFileSize,
       uploadFile, openSettings, saveConfig, testConfig,
     };

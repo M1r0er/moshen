@@ -2,7 +2,10 @@
 墨参 · 对话管理路由
 支持一个项目下多个独立对话（多线并行）
 """
-from fastapi import APIRouter, HTTPException
+import json
+from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
+import io
 from pydantic import BaseModel
 from knowledge.project_kb import get_project_kb_manager
 
@@ -80,3 +83,39 @@ async def rename_conversation(project_id: str, conv_id: str, req: RenameConversa
     if not result:
         raise HTTPException(404, "对话不存在")
     return {"success": True, "title": result["title"]}
+
+
+@router.get("/{project_id}/{conv_id}/export")
+async def export_conversation(project_id: str, conv_id: str):
+    """导出对话为 JSON 文件下载"""
+    conv = kb.get_conversation(project_id, conv_id)
+    if not conv:
+        raise HTTPException(404, "对话不存在")
+
+    json_str = json.dumps(conv, ensure_ascii=False, indent=2)
+    safe_title = "".join(c for c in conv.get("title", "对话") if c not in r'\/:*?"<>|')
+    filename = f"{safe_title}.json"
+
+    return StreamingResponse(
+        io.BytesIO(json_str.encode("utf-8")),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename*=UTF-8\'\'{filename}'},
+    )
+
+
+@router.post("/{project_id}/import")
+async def import_conversation(project_id: str, file: UploadFile = File(...)):
+    """导入对话 JSON 文件"""
+    raw = await file.read()
+    try:
+        conv_data = json.loads(raw.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise HTTPException(400, "无效的 JSON 文件")
+
+    if not isinstance(conv_data, dict) or "messages" not in conv_data:
+        raise HTTPException(400, "文件格式不正确：缺少 messages 字段")
+
+    conv = kb.import_conversation(project_id, conv_data)
+    if not conv:
+        raise HTTPException(404, "项目不存在")
+    return {"success": True, "conversation": conv}

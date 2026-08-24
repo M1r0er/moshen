@@ -118,6 +118,8 @@ class ConfigManager:
             models=self._parse_models(models_str),
             base_url=os.getenv("DEFAULT_API_BASE_URL", ""),
             api_key=os.getenv("DEFAULT_API_KEY", ""),
+            temperature=float(os.getenv("DEFAULT_API_TEMPERATURE", "0.7")),
+            max_tokens=int(os.getenv("DEFAULT_API_MAX_TOKENS", "8192")),
         )
 
         # 加载独立开关
@@ -146,6 +148,7 @@ class ConfigManager:
         # 清除环境变量缓存
         keys_to_clear = [
             "DEFAULT_API_MODELS", "DEFAULT_API_MODEL", "DEFAULT_API_BASE_URL", "DEFAULT_API_KEY",
+            "DEFAULT_API_TEMPERATURE", "DEFAULT_API_MAX_TOKENS",
             "INDEPENDENT_API_KEYS",
         ]
         for role in MODEL_ROLES:
@@ -279,6 +282,8 @@ class ConfigManager:
                 "model": self._default_api.model,
                 "base_url": self._default_api.base_url,
                 "api_key": self._default_api.api_key,
+                "temperature": self._default_api.temperature,
+                "max_tokens": self._default_api.max_tokens,
                 "is_configured": self._default_api.is_configured(),
             },
             "independent_keys": self._independent_keys,
@@ -289,6 +294,8 @@ class ConfigManager:
                     "model": cfg.model,
                     "base_url": cfg.base_url,
                     "api_key": cfg.api_key,
+                    "temperature": cfg.temperature,
+                    "max_tokens": cfg.max_tokens,
                     "is_configured": cfg.is_configured(),
                     "description": MODEL_ROLES[role],
                 }
@@ -323,6 +330,12 @@ class ConfigManager:
         lines.append(f"DEFAULT_API_MODELS={','.join(default_models)}")
         lines.append(f"DEFAULT_API_BASE_URL={default_api.get('base_url', '')}")
         lines.append(f"DEFAULT_API_KEY={default_api.get('api_key', '')}")
+        default_temp = default_api.get("temperature")
+        if default_temp is not None:
+            lines.append(f"DEFAULT_API_TEMPERATURE={default_temp}")
+        default_max = default_api.get("max_tokens")
+        if default_max is not None:
+            lines.append(f"DEFAULT_API_MAX_TOKENS={default_max}")
         lines.append("")
 
         # 独立开关
@@ -341,6 +354,12 @@ class ConfigManager:
             lines.append(f"{role}_MODELS={','.join(role_models)}")
             lines.append(f"{role}_BASE_URL={role_data.get('base_url', '')}")
             lines.append(f"{role}_API_KEY={role_data.get('api_key', '')}")
+            role_temp = role_data.get("temperature")
+            if role_temp is not None:
+                lines.append(f"{role}_TEMPERATURE={role_temp}")
+            role_max = role_data.get("max_tokens")
+            if role_max is not None:
+                lines.append(f"{role}_MAX_TOKENS={role_max}")
             lines.append("")
 
         with open(self.env_path, "w", encoding="utf-8") as f:

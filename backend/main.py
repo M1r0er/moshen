@@ -23,8 +23,10 @@ from routes.knowledge import router as knowledge_router
 from routes.settings_writer import router as settings_router
 from routes.conversation import router as conversation_router
 from routes.outline import router as outline_router
+from routes.writing import router as writing_router
+from routes.foreshadowing import router as foreshadowing_router
 
-app = FastAPI(title="墨参 MoShen", version="0.2.1", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.3.0", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -44,6 +46,8 @@ app.include_router(knowledge_router)
 app.include_router(settings_router)
 app.include_router(conversation_router)
 app.include_router(outline_router)
+app.include_router(writing_router)
+app.include_router(foreshadowing_router)
 
 
 # ===== 配置管理路由 =====
@@ -103,7 +107,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.2.1"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.3.0"}
 
 
 # ===== 前端静态文件 =====

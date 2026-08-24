@@ -258,3 +258,35 @@ async def read_inspiration_file(req: InspirationReadRequest):
         raise HTTPException(404, "文件不存在或无法读取")
 
     return {"relative_path": req.relative_path, "content": content, "name": filepath.name}
+
+
+# ===== 写作偏好设置 =====
+
+class WritingPrefsRequest(BaseModel):
+    chapter_numbering_mode: str | None = None  # continue | per_volume
+    auto_foreshadowing_detect: bool | None = None
+
+
+@router.get("/prefs/writing")
+async def get_writing_prefs():
+    """获取写作偏好设置"""
+    data = _read_config()
+    prefs = data.get("writing_prefs", {})
+    return {
+        "chapter_numbering_mode": prefs.get("chapter_numbering_mode", "continue"),
+        "auto_foreshadowing_detect": prefs.get("auto_foreshadowing_detect", False),
+    }
+
+
+@router.put("/prefs/writing")
+async def set_writing_prefs(req: WritingPrefsRequest):
+    """更新写作偏好设置"""
+    data = _read_config()
+    prefs = data.get("writing_prefs", {})
+    if req.chapter_numbering_mode is not None:
+        prefs["chapter_numbering_mode"] = req.chapter_numbering_mode
+    if req.auto_foreshadowing_detect is not None:
+        prefs["auto_foreshadowing_detect"] = req.auto_foreshadowing_detect
+    data["writing_prefs"] = prefs
+    _save_config(data)
+    return {"success": True, "prefs": prefs}

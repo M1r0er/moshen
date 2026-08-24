@@ -2,7 +2,7 @@
  * 墨参 MoShen · Electron 主进程
  * 负责启动 Python 后端服务、创建桌面窗口、管理应用生命周期
  */
-const { app, BrowserWindow, shell, globalShortcut } = require('electron');
+const { app, BrowserWindow, shell, globalShortcut, dialog, ipcMain } = require('electron');
 const path = require('path');
 const net = require('net');
 const { spawn } = require('child_process');
@@ -180,6 +180,19 @@ function showErrorPage(title, detail) {
 }
 
 /**
+ * IPC：文件夹选择对话框
+ */
+ipcMain.handle('dialog:selectDirectory', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory'],
+    title: '选择文件夹',
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+/**
  * 创建主窗口
  */
 async function createWindow() {
@@ -200,6 +213,7 @@ async function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.js'),
     },
   });
 

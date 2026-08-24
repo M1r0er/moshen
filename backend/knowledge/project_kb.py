@@ -538,6 +538,292 @@ class ProjectKBManager:
             return []
         return meta.get("chapters", [])
 
+    # ===== 写作系统 =====
+
+    def _get_writing_dir(self, project_id: str) -> Path | None:
+        """获取写作目录"""
+        project_dir = self.get_project_dir(project_id)
+        if not project_dir:
+            return None
+        wdir = project_dir / "writing"
+        wdir.mkdir(exist_ok=True)
+        return wdir
+
+    def _get_writing_index_path(self, project_id: str) -> Path | None:
+        wdir = self._get_writing_dir(project_id)
+        if not wdir:
+            return None
+        return wdir / "writing.json"
+
+    def _load_writing_index(self, project_id: str) -> dict:
+        """加载写作索引（卷+章的元数据）"""
+        idx_path = self._get_writing_index_path(project_id)
+        if not idx_path or not idx_path.exists():
+            return {"version": 1, "volumes": []}
+        try:
+            return json.loads(idx_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return {"version": 1, "volumes": []}
+
+    def _save_writing_index(self, project_id: str, data: dict) -> bool:
+        idx_path = self._get_writing_index_path(project_id)
+        if not idx_path:
+            return False
+        idx_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+
+    def get_writing_index(self, project_id: str) -> dict:
+        """获取写作索引（全部卷+章元数据）"""
+        return self._load_writing_index(project_id)
+
+    def create_volume(self, project_id: str, number: int | None = None, title: str = "") -> dict | None:
+        """创建新卷"""
+        data = self._load_writing_index(project_id)
+        vols = data.get("volumes", [])
+        if number is None:
+            number = len(vols) + 1
+        vol_id = f"vol_{number:03d}"
+        # 检查是否已存在
+        for v in vols:
+            if v.get("number") == number:
+                return v
+        vol = {
+            "id": vol_id,
+            "number": number,
+            "title": title or f"第{number}卷",
+            "chapters": [],
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        vols.append(vol)
+        vols.sort(key=lambda v: v.get("number", 0))
+        data["volumes"] = vols
+        self._save_writing_index(project_id, data)
+        return vol
+
+    def update_volume(self, project_id: str, vol_id: str, number: int | None = None, title: str | None = None) -> dict | None:
+        """更新卷信息"""
+        data = self._load_writing_index(project_id)
+        for v in data.get("volumes", []):
+            if v["id"] == vol_id:
+                if number is not None:
+                    v["number"] = number
+                    v["id"] = f"vol_{number:03d}"
+                if title is not None:
+                    v["title"] = title
+                v["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                self._save_writing_index(project_id, data)
+                return v
+        return None
+
+    def delete_volume(self, project_id: str, vol_id: str) -> bool:
+        """删除卷（连同所有章节）"""
+        data = self._load_writing_index(project_id)
+        vols = data.get("volumes", [])
+        target = None
+        for v in vols:
+            if v["id"] == vol_id:
+                target = v
+                break
+        if not target:
+            return False
+        # 删除章节文件目录
+        wdir = self._get_writing_dir(project_id)
+        if wdir:
+            vol_dir = wdir / vol_id
+            if vol_dir.exists():
+                import shutil
+                shutil.rmtree(vol_dir, ignore_errors=True)
+        # 从索引移除
+        data["volumes"] = [v for v in vols if v["id"] != vol_id]
+        self._save_writing_index(project_id, data)
+        return True
+
+    def create_chapter(self, project_id: str, vol_id: str,
+                       number: int | None = None, title: str = "",
+                       numbering_mode: str = "continue") -> dict | None:
+        """创建新章节
+
+        Args:
+            numbering_mode: "continue" 全局连续编号, "per_volume" 每卷从1开始
+        """
+        data = self._load_writing_index(project_id)
+        vol = None
+        for v in data.get("volumes", []):
+            if v["id"] == vol_id:
+                vol = v
+                break
+        if not vol:
+            return None
+
+        if number is None:
+            if numbering_mode == "per_volume":
+                # 本卷最大章号 +1
+                existing = [c.get("number", 0) for c in vol.get("chapters", [])]
+                number = max(existing) + 1 if existing else 1
+            else:
+                # 全局最大章号 +1
+                all_nums = []
+                for vv in data.get("volumes", []):
+                    all_nums.extend([c.get("number", 0) for c in vv.get("chapters", [])])
+                number = max(all_nums) + 1 if all_nums else 1
+
+        ch_id = f"ch_{number:04d}"
+        # 避免重号
+        existing_ids = [c.get("id") for c in vol.get("chapters", [])]
+        if ch_id in existing_ids:
+            # 找一个不重复的
+            base = number
+            while ch_id in existing_ids:
+                base += 1
+                ch_id = f"ch_{base:04d}"
+            number = base
+
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        chapter = {
+            "id": ch_id,
+            "number": number,
+            "title": title or f"第{number}章",
+            "words": 0,
+            "created_at": now,
+            "updated_at": now,
+        }
+        vol.setdefault("chapters", []).append(chapter)
+        vol["chapters"].sort(key=lambda c: c.get("number", 0))
+        vol["updated_at"] = now
+        self._save_writing_index(project_id, data)
+
+        # 创建空文件
+        wdir = self._get_writing_dir(project_id)
+        if wdir:
+            ch_dir = wdir / vol_id
+            ch_dir.mkdir(exist_ok=True)
+            ch_file = ch_dir / f"{ch_id}.html"
+            ch_file.write_text("", encoding="utf-8")
+
+        return chapter
+
+    def get_chapter_content(self, project_id: str, vol_id: str, ch_id: str) -> str | None:
+        """读取章节正文内容（HTML）"""
+        wdir = self._get_writing_dir(project_id)
+        if not wdir:
+            return None
+        ch_file = wdir / vol_id / f"{ch_id}.html"
+        if not ch_file.exists():
+            return ""
+        try:
+            return ch_file.read_text(encoding="utf-8")
+        except IOError:
+            return ""
+
+    def save_chapter_content(self, project_id: str, vol_id: str, ch_id: str,
+                             content: str, title: str | None = None) -> dict | None:
+        """保存章节内容"""
+        wdir = self._get_writing_dir(project_id)
+        if not wdir:
+            return None
+        ch_file = wdir / vol_id / f"{ch_id}.html"
+        ch_file.parent.mkdir(exist_ok=True)
+        ch_file.write_text(content, encoding="utf-8")
+
+        # 计算字数（去除 HTML 标签）
+        import re
+        plain = re.sub(r"<[^>]+>", "", content)
+        words = len(plain)
+
+        # 更新索引
+        data = self._load_writing_index(project_id)
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        for v in data.get("volumes", []):
+            if v["id"] == vol_id:
+                for c in v.get("chapters", []):
+                    if c["id"] == ch_id:
+                        c["words"] = words
+                        c["updated_at"] = now
+                        if title is not None:
+                            c["title"] = title
+                v["updated_at"] = now
+        self._save_writing_index(project_id, data)
+
+        # 返回更新后的章节信息
+        for v in data.get("volumes", []):
+            if v["id"] == vol_id:
+                for c in v.get("chapters", []):
+                    if c["id"] == ch_id:
+                        return c
+        return None
+
+    def update_chapter(self, project_id: str, vol_id: str, ch_id: str,
+                       number: int | None = None, title: str | None = None) -> dict | None:
+        """更新章节元数据（标题/编号）"""
+        data = self._load_writing_index(project_id)
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        for v in data.get("volumes", []):
+            if v["id"] == vol_id:
+                for c in v.get("chapters", []):
+                    if c["id"] == ch_id:
+                        if number is not None:
+                            old_id = c["id"]
+                            c["number"] = number
+                            new_id = f"ch_{number:04d}"
+                            c["id"] = new_id
+                            # 重命名文件
+                            wdir = self._get_writing_dir(project_id)
+                            if wdir:
+                                old_file = wdir / vol_id / f"{old_id}.html"
+                                new_file = wdir / vol_id / f"{new_id}.html"
+                                if old_file.exists():
+                                    old_file.rename(new_file)
+                        if title is not None:
+                            c["title"] = title
+                        c["updated_at"] = now
+                        v["updated_at"] = now
+                        v["chapters"].sort(key=lambda cc: cc.get("number", 0))
+                        self._save_writing_index(project_id, data)
+                        return c
+        return None
+
+    def delete_chapter(self, project_id: str, vol_id: str, ch_id: str) -> bool:
+        """删除章节"""
+        data = self._load_writing_index(project_id)
+        for v in data.get("volumes", []):
+            if v["id"] == vol_id:
+                before = len(v.get("chapters", []))
+                v["chapters"] = [c for c in v.get("chapters", []) if c["id"] != ch_id]
+                if len(v["chapters"]) == before:
+                    return False
+                v["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                self._save_writing_index(project_id, data)
+                # 删除文件
+                wdir = self._get_writing_dir(project_id)
+                if wdir:
+                    ch_file = wdir / vol_id / f"{ch_id}.html"
+                    if ch_file.exists():
+                        ch_file.unlink()
+                return True
+        return False
+
+    def get_all_chapters_text(self, project_id: str) -> list[dict]:
+        """获取所有章节的纯文本内容（用于全文伏笔检测）"""
+        data = self._load_writing_index(project_id)
+        result = []
+        import re
+        for v in data.get("volumes", []):
+            for c in v.get("chapters", []):
+                content = self.get_chapter_content(project_id, v["id"], c["id"]) or ""
+                plain = re.sub(r"<[^>]+>", "", content)
+                result.append({
+                    "vol_id": v["id"],
+                    "vol_number": v.get("number"),
+                    "vol_title": v.get("title"),
+                    "ch_id": c["id"],
+                    "ch_number": c.get("number"),
+                    "ch_title": c.get("title"),
+                    "content": plain,
+                    "words": c.get("words", 0),
+                })
+        return result
+
     def save_diagnosis_report(self, project_id: str, report: str) -> str:
         """保存诊断报告"""
         project_dir = self.get_project_dir(project_id)
@@ -751,6 +1037,175 @@ class ProjectKBManager:
         data["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
         filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         return data
+
+    def import_conversation(self, project_id: str, conv_data: dict) -> dict | None:
+        """导入会话（从导出的 JSON 创建新会话，生成新 ID 避免冲突）"""
+        conv_dir = self._get_conversations_dir(project_id)
+        if not conv_dir:
+            return None
+
+        import hashlib
+        conv_id = f"conv_{int(time.time())}_{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        conv = {
+            "id": conv_id,
+            "title": conv_data.get("title", "导入的对话"),
+            "messages": conv_data.get("messages", []),
+            "created_at": conv_data.get("created_at", now),
+            "updated_at": now,
+        }
+        filepath = conv_dir / f"{conv_id}.json"
+        filepath.write_text(json.dumps(conv, ensure_ascii=False, indent=2), encoding="utf-8")
+        return conv
+
+    # ===== 伏笔系统 =====
+
+    def _get_foreshadowing_path(self, project_id: str) -> Path | None:
+        project_dir = self.get_project_dir(project_id)
+        if not project_dir:
+            return None
+        fdir = project_dir / "foreshadowing"
+        fdir.mkdir(exist_ok=True)
+        return fdir / "foreshadowing.json"
+
+    def _load_foreshadowing(self, project_id: str) -> dict:
+        fpath = self._get_foreshadowing_path(project_id)
+        if not fpath or not fpath.exists():
+            return {"version": 1, "foreshadowings": []}
+        try:
+            return json.loads(fpath.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, IOError):
+            return {"version": 1, "foreshadowings": []}
+
+    def _save_foreshadowing(self, project_id: str, data: dict) -> bool:
+        fpath = self._get_foreshadowing_path(project_id)
+        if not fpath:
+            return False
+        fpath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return True
+
+    def list_foreshadowings(self, project_id: str) -> list[dict]:
+        """列出所有伏笔（摘要，不含 entries 详情）"""
+        data = self._load_foreshadowing(project_id)
+        result = []
+        for f in data.get("foreshadowings", []):
+            entries = f.get("entries", [])
+            result.append({
+                "id": f["id"],
+                "name": f.get("name", ""),
+                "status": f.get("status", "active"),  # active | resolved
+                "entry_count": len(entries),
+                "first_chapter": entries[0].get("chapter_title", "") if entries else "",
+                "last_chapter": entries[-1].get("chapter_title", "") if entries else "",
+                "resolution_chapter": f.get("resolution_chapter", ""),
+                "created_at": f.get("created_at", ""),
+                "updated_at": f.get("updated_at", ""),
+            })
+        # 未回收的在前，按更新时间倒序
+        result.sort(key=lambda x: (0 if x["status"] == "active" else 1, x["updated_at"]), reverse=True)
+        result.sort(key=lambda x: 0 if x["status"] == "active" else 1)
+        return result
+
+    def get_foreshadowing(self, project_id: str, f_id: str) -> dict | None:
+        """获取单个伏笔详情（含所有 entries）"""
+        data = self._load_foreshadowing(project_id)
+        for f in data.get("foreshadowings", []):
+            if f["id"] == f_id:
+                return f
+        return None
+
+    def create_foreshadowing(self, project_id: str, name: str,
+                             content: str = "", chapter_id: str = "",
+                             chapter_title: str = "") -> dict | None:
+        """创建新伏笔（首条 entry）"""
+        data = self._load_foreshadowing(project_id)
+        import hashlib
+        f_id = f"fs_{int(time.time())}_{hashlib.md5(name.encode()).hexdigest()[:6]}"
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        entry_id = f"e_{int(time.time()*1000)}"
+        fs = {
+            "id": f_id,
+            "name": name,
+            "status": "active",
+            "resolution_chapter": "",
+            "entries": [{
+                "id": entry_id,
+                "content": content,
+                "chapter_id": chapter_id,
+                "chapter_title": chapter_title,
+                "created_at": now,
+            }],
+            "created_at": now,
+            "updated_at": now,
+        }
+        data.setdefault("foreshadowings", []).append(fs)
+        self._save_foreshadowing(project_id, data)
+        return fs
+
+    def update_foreshadowing(self, project_id: str, f_id: str,
+                             name: str | None = None,
+                             status: str | None = None,
+                             resolution_chapter: str | None = None) -> dict | None:
+        """更新伏笔基本信息"""
+        data = self._load_foreshadowing(project_id)
+        for f in data.get("foreshadowings", []):
+            if f["id"] == f_id:
+                if name is not None:
+                    f["name"] = name
+                if status is not None:
+                    f["status"] = status
+                if resolution_chapter is not None:
+                    f["resolution_chapter"] = resolution_chapter
+                f["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                self._save_foreshadowing(project_id, data)
+                return f
+        return None
+
+    def delete_foreshadowing(self, project_id: str, f_id: str) -> bool:
+        """删除伏笔"""
+        data = self._load_foreshadowing(project_id)
+        before = len(data.get("foreshadowings", []))
+        data["foreshadowings"] = [f for f in data.get("foreshadowings", []) if f["id"] != f_id]
+        if len(data["foreshadowings"]) == before:
+            return False
+        self._save_foreshadowing(project_id, data)
+        return True
+
+    def add_entry(self, project_id: str, f_id: str,
+                  content: str, chapter_id: str = "",
+                  chapter_title: str = "") -> dict | None:
+        """给伏笔添加一条出现记录"""
+        data = self._load_foreshadowing(project_id)
+        for f in data.get("foreshadowings", []):
+            if f["id"] == f_id:
+                entry_id = f"e_{int(time.time()*1000)}"
+                now = time.strftime("%Y-%m-%d %H:%M:%S")
+                entry = {
+                    "id": entry_id,
+                    "content": content,
+                    "chapter_id": chapter_id,
+                    "chapter_title": chapter_title,
+                    "created_at": now,
+                }
+                f.setdefault("entries", []).append(entry)
+                f["updated_at"] = now
+                self._save_foreshadowing(project_id, data)
+                return entry
+        return None
+
+    def remove_entry(self, project_id: str, f_id: str, entry_id: str) -> bool:
+        """删除伏笔的一条出现记录"""
+        data = self._load_foreshadowing(project_id)
+        for f in data.get("foreshadowings", []):
+            if f["id"] == f_id:
+                before = len(f.get("entries", []))
+                f["entries"] = [e for e in f.get("entries", []) if e["id"] != entry_id]
+                if len(f["entries"]) == before:
+                    return False
+                f["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                self._save_foreshadowing(project_id, data)
+                return True
+        return False
 
 
 # 全局单例
