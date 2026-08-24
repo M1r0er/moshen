@@ -2,10 +2,7 @@
 墨参 · 文件管理路由
 文件上传、分析、拆书（可选）
 """
-import os
-import time
-from pathlib import Path
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from core.file_parser import FileParser
@@ -21,35 +18,12 @@ async def upload_file(project_id: str, file: UploadFile = File(...)):
     if not kb.get_project(project_id):
         raise HTTPException(404, "项目不存在")
 
-    # 读取文件内容
     raw = await file.read()
-    ext = Path(file.filename).suffix.lower()
-
-    # 解析文件内容
-    if ext == ".docx":
-        # docx 需要特殊处理
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-            tmp.write(raw)
-            tmp_path = tmp.name
-        try:
-            content = FileParser.read_docx(tmp_path)
-        finally:
-            os.unlink(tmp_path)
-    else:
-        # txt/md 自动检测编码
-        import chardet
-        detected = chardet.detect(raw)
-        encoding = detected.get("encoding", "utf-8")
-        if encoding and encoding.lower() in ("gb2312", "gbk"):
-            encoding = "gb18030"
-        try:
-            content = raw.decode(encoding or "utf-8", errors="replace")
-        except (UnicodeDecodeError, LookupError):
-            content = raw.decode("utf-8", errors="replace")
+    # 解析文件内容（docx 临时文件 + chardet 编码检测已统一封装至 FileParser）
+    content = FileParser.parse_upload_file(raw, file.filename)
 
     # 保存到项目
-    saved_path = kb.save_uploaded_file(project_id, file.filename, content)
+    kb.save_uploaded_file(project_id, file.filename, content)
 
     # 尝试识别章节
     chapters = FileParser.split_chapters(content)
@@ -81,15 +55,14 @@ async def analyze_file(req: AnalyzeRequest):
     from core.llm_provider import get_llm_provider
     from knowledge.rules_kb import RulesKB
 
-    # 读取文件
+    # 读取文件（优先知识库模板，其次 uploads 目录）
     content = kb.read_kb_file(req.project_id, req.filename)
     if content is None:
-        # 尝试从 uploads 读取
         project_dir = kb.get_project_dir(req.project_id)
         if project_dir:
             filepath = project_dir / "uploads" / req.filename
             if filepath.exists():
-                content = kb._read_file_for_summary(filepath)
+                content = kb.read_file_summary(filepath)
     if not content:
         raise HTTPException(404, "文件不存在")
 
@@ -194,7 +167,7 @@ async def dissect_novel(req: DissectRequest):
     if not filepath.exists():
         raise HTTPException(404, "文件不存在")
 
-    content = kb._read_file_for_summary(filepath)
+    content = kb.read_file_summary(filepath)
 
     analyzer = get_novel_analyzer()
 

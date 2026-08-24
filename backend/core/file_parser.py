@@ -12,16 +12,65 @@ class FileParser:
     """文件解析器"""
 
     @staticmethod
-    def detect_encoding(file_path: str) -> str:
-        """检测文件编码"""
-        with open(file_path, "rb") as f:
-            raw = f.read(65536)
+    def detect_encoding(raw: bytes) -> str:
+        """检测字节流的编码（接受 bytes 而非文件路径，避免重复读取）
+
+        兼容旧调用：传入文件路径字符串时仍按旧逻辑读取文件前 65536 字节。
+        """
+        if isinstance(raw, str) and os.path.exists(raw):
+            # 旧路径调用兼容
+            with open(raw, "rb") as f:
+                raw = f.read(65536)
+        elif isinstance(raw, str):
+            # 字符串但不是路径：直接返回 utf-8
+            return "utf-8"
         result = chardet.detect(raw)
         encoding = result.get("encoding", "utf-8")
         # 常见编码映射修正
         if encoding and encoding.lower() in ("gb2312", "gbk"):
             encoding = "gb18030"
         return encoding or "utf-8"
+
+    @staticmethod
+    def decode_bytes(raw: bytes) -> str:
+        """统一字节流解码逻辑：chardet 检测 → gb18030 修正 → utf-8 兜底
+
+        原 routes/files.py 与 routes/knowledge.py 各自重复此逻辑，统一至此。
+        """
+        detected = chardet.detect(raw)
+        encoding = detected.get("encoding", "utf-8")
+        if encoding and encoding.lower() in ("gb2312", "gbk"):
+            encoding = "gb18030"
+        try:
+            return raw.decode(encoding or "utf-8", errors="replace")
+        except (UnicodeDecodeError, LookupError):
+            return raw.decode("utf-8", errors="replace")
+
+    @staticmethod
+    def parse_upload_file(raw: bytes, filename: str) -> str:
+        """解析上传文件的原始字节流，返回文本内容
+
+        统一封装原 routes/files.py 的 upload_file 与 routes/knowledge.py 的
+        parse_uploaded_file 中重复的 docx 临时文件 + chardet 编码检测逻辑。
+
+        Args:
+            raw: 文件原始字节
+            filename: 文件名（用于判断扩展名）
+
+        Returns:
+            解析后的文本内容
+        """
+        ext = Path(filename).suffix.lower()
+        if ext == ".docx":
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                tmp.write(raw)
+                tmp_path = tmp.name
+            try:
+                return FileParser.read_docx(tmp_path)
+            finally:
+                os.unlink(tmp_path)
+        return FileParser.decode_bytes(raw)
 
     @staticmethod
     def read_text(file_path: str, encoding: str | None = None) -> str:

@@ -14,6 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from core.llm_provider import get_llm_provider
+from core.utils import gen_id, now_str, sanitize_path_name
 from routes.workspace import get_workspace_path, read_text_safe, write_text_safe
 from knowledge.project_kb import get_project_kb_manager
 
@@ -40,10 +41,8 @@ def get_settings_dir(project_id: str) -> Path:
 
 
 def sanitize_name(name: str) -> str:
-    """校验名称，防止路径遍历"""
-    if not name or "/" in name or "\\" in name or ".." in name:
-        raise HTTPException(400, "无效的名称")
-    return name
+    """校验名称，防止路径遍历（委托至 core.utils.sanitize_path_name）"""
+    return sanitize_path_name(name, "无效的名称")
 
 
 def ensure_settings_dir(settings_dir: Path) -> Path:
@@ -112,14 +111,10 @@ def _migrate_from_flat_files(settings_dir: Path) -> dict:
                 "category": cat,
                 "content": content,
                 "children": [],
-                "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "created_at": now_str(),
+                "updated_at": now_str(),
             })
     return {"version": 1, "nodes": nodes}
-
-
-def _gen_node_id() -> str:
-    return f"node_{int(time.time()*1000)}_{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
 
 
 def _find_node(nodes: list, node_id: str) -> dict | None:
@@ -237,7 +232,7 @@ def save_setting_entry(
         if existing:
             existing["content"] = content
             existing["category"] = cat_key
-            existing["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            existing["updated_at"] = now_str()
             save_tree(project_id, tree)
             return {
                 "id": existing["id"],
@@ -248,13 +243,13 @@ def save_setting_entry(
             }
 
         new_node = {
-            "id": _gen_node_id(),
+            "id": gen_id("node_"),
             "title": title,
             "category": cat_key,
             "content": content,
             "children": [],
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": now_str(),
+            "updated_at": now_str(),
         }
 
         if parent_title:
@@ -367,7 +362,7 @@ def update_setting_entry(
         if new_category:
             cat_key = _CATEGORY_CN_MAP.get(new_category.strip().lower(), "other")
             node["category"] = cat_key
-        node["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        node["updated_at"] = now_str()
 
         save_tree(project_id, tree)
         return {
@@ -488,13 +483,13 @@ async def create_node(project_id: str, req: CreateNodeRequest):
     tree = load_tree(project_id)
 
     new_node = {
-        "id": _gen_node_id(),
+        "id": gen_id("node_"),
         "title": req.title.strip(),
         "category": req.category if req.category in CATEGORIES else "other",
         "content": req.content,
         "children": [],
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now_str(),
+        "updated_at": now_str(),
     }
 
     if req.parent_id:
@@ -525,7 +520,7 @@ async def update_node(project_id: str, node_id: str, req: UpdateNodeRequest):
         node["content"] = req.content
     if req.category is not None:
         node["category"] = req.category if req.category in CATEGORIES else "other"
-    node["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    node["updated_at"] = now_str()
 
     save_tree(project_id, tree)
     return {"success": True, "node": node}
@@ -596,7 +591,7 @@ async def import_from_file(project_id: str, req: ImportFromFileRequest):
     if project_dir:
         filepath = project_dir / "uploads" / req.filename
         if filepath.exists():
-            content = kb._read_file_for_summary(filepath)
+            content = kb.read_file_summary(filepath)
 
     if not content:
         raise HTTPException(404, "文件不存在")
@@ -635,13 +630,13 @@ async def import_from_file(project_id: str, req: ImportFromFileRequest):
     # 用文件名作为标题
     title = Path(req.filename).stem
     new_node = {
-        "id": _gen_node_id(),
+        "id": gen_id("node_"),
         "title": f"{title}（AI提取）",
         "category": req.category if req.category in CATEGORIES else "other",
         "content": result,
         "children": [],
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now_str(),
+        "updated_at": now_str(),
     }
 
     if req.parent_id:
@@ -673,27 +668,35 @@ def _flatten_tree(nodes: list, level: int = 1) -> list[dict]:
     return result
 
 
+def _iter_by_category(tree: dict):
+    """按类别分组迭代设定项（生成器）
+
+    原 4 个导出函数（txt/md/html/docx）各自重复实现“展平 + 按 category 分组 +
+    按 CATEGORIES 顺序遍历非空类别”的逻辑，统一至此。
+
+    Yields:
+        (cat_key, cat_label, items) 三元组，仅产出非空类别，顺序遵循 CATEGORIES。
+    """
+    flat = _flatten_tree(tree["nodes"])
+    by_category: dict[str, list] = {}
+    for item in flat:
+        by_category.setdefault(item["category"], []).append(item)
+
+    for cat_key, cat_label in CATEGORIES.items():
+        items = by_category.get(cat_key, [])
+        if items:
+            yield cat_key, cat_label, items
+
+
 def _export_txt(tree: dict) -> bytes:
     """导出为 TXT"""
     lines = []
     lines.append("墨参 · 设定导出")
-    lines.append(f"导出时间：{time.strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"导出时间：{now_str()}")
     lines.append("=" * 60)
     lines.append("")
 
-    flat = _flatten_tree(tree["nodes"])
-    # 按类别分组
-    by_category = {}
-    for item in flat:
-        cat = item["category"]
-        if cat not in by_category:
-            by_category[cat] = []
-        by_category[cat].append(item)
-
-    for cat_key, cat_label in CATEGORIES.items():
-        items = by_category.get(cat_key, [])
-        if not items:
-            continue
+    for _cat_key, cat_label, items in _iter_by_category(tree):
         lines.append(f"【{cat_label}】")
         lines.append("-" * 40)
         for item in items:
@@ -713,21 +716,10 @@ def _export_md(tree: dict) -> bytes:
     """导出为 Markdown"""
     lines = []
     lines.append("# 设定导出")
-    lines.append(f"> 导出时间：{time.strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"> 导出时间：{now_str()}")
     lines.append("")
 
-    flat = _flatten_tree(tree["nodes"])
-    by_category = {}
-    for item in flat:
-        cat = item["category"]
-        if cat not in by_category:
-            by_category[cat] = []
-        by_category[cat].append(item)
-
-    for cat_key, cat_label in CATEGORIES.items():
-        items = by_category.get(cat_key, [])
-        if not items:
-            continue
+    for _cat_key, cat_label, items in _iter_by_category(tree):
         lines.append(f"## {cat_label}")
         lines.append("")
         for item in items:
@@ -744,14 +736,6 @@ def _export_md(tree: dict) -> bytes:
 
 def _export_html(tree: dict) -> bytes:
     """导出为 HTML"""
-    flat = _flatten_tree(tree["nodes"])
-    by_category = {}
-    for item in flat:
-        cat = item["category"]
-        if cat not in by_category:
-            by_category[cat] = []
-        by_category[cat].append(item)
-
     html_parts = [
         "<!DOCTYPE html>",
         '<html lang="zh-CN">',
@@ -774,13 +758,10 @@ def _export_html(tree: dict) -> bytes:
         "</head>",
         "<body>",
         "<h1>设定导出</h1>",
-        f'<p class="meta">导出时间：{time.strftime("%Y-%m-%d %H:%M:%S")}</p>',
+        f'<p class="meta">导出时间：{now_str()}</p>',
     ]
 
-    for cat_key, cat_label in CATEGORIES.items():
-        items = by_category.get(cat_key, [])
-        if not items:
-            continue
+    for _cat_key, cat_label, items in _iter_by_category(tree):
         html_parts.append(f'<div class="category">{cat_label}</div>')
         for item in items:
             tag = f"h{min(item['level'] + 2, 6)}"
@@ -808,23 +789,11 @@ def _export_docx(tree: dict) -> bytes:
 
     # 导出时间
     meta_para = doc.add_paragraph()
-    meta_run = meta_para.add_run(f"导出时间：{time.strftime('%Y-%m-%d %H:%M:%S')}")
+    meta_run = meta_para.add_run(f"导出时间：{now_str()}")
     meta_run.font.size = Pt(10)
     meta_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
-    flat = _flatten_tree(tree["nodes"])
-    by_category = {}
-    for item in flat:
-        cat = item["category"]
-        if cat not in by_category:
-            by_category[cat] = []
-        by_category[cat].append(item)
-
-    for cat_key, cat_label in CATEGORIES.items():
-        items = by_category.get(cat_key, [])
-        if not items:
-            continue
-
+    for _cat_key, cat_label, items in _iter_by_category(tree):
         doc.add_heading(cat_label, level=1)
 
         for item in items:
@@ -902,7 +871,7 @@ async def list_settings_legacy(project_id: str):
         files.append({
             "filename": f"{item['title']}.md",
             "size": len(item["content"]),
-            "modified": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "modified": now_str(),
         })
     return {"files": files}
 
@@ -918,13 +887,13 @@ async def save_setting_legacy(project_id: str, req: dict):
 
     tree = load_tree(project_id)
     new_node = {
-        "id": _gen_node_id(),
+        "id": gen_id("node_"),
         "title": filename,
         "category": "other",
         "content": content,
         "children": [],
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now_str(),
+        "updated_at": now_str(),
     }
     tree["nodes"].append(new_node)
     save_tree(project_id, tree)

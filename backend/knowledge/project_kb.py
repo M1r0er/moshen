@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from core.resource_path import get_workspace_dir
+from core.utils import now_str
 
 
 def _read_user_workspace() -> Path:
@@ -177,8 +178,8 @@ class ProjectKBManager:
             "project_id": project_id,
             "name": name,
             "description": description,
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": now_str(),
+            "updated_at": now_str(),
             "chapters": [],
             "total_words": 0,
             "workspace_path": "",  # 项目独立工作区路径（可选）
@@ -245,7 +246,7 @@ class ProjectKBManager:
             return None
 
         meta["workspace_path"] = path
-        meta["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        meta["updated_at"] = now_str()
         (project_dir / "project.json").write_text(
             json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
         )
@@ -316,8 +317,12 @@ class ProjectKBManager:
             return raw.decode("gb18030", errors="replace")
 
     @staticmethod
-    def _read_file_for_summary(filepath: Path) -> str | None:
-        """读取文件内容用于摘要，支持 .docx/.txt/.md 等"""
+    def read_file_summary(filepath: Path) -> str | None:
+        """读取文件内容用于摘要，支持 .docx/.txt/.md 等
+
+        公开方法，供 routes/files.py、routes/settings_writer.py 等外部模块复用，
+        避免各自重复实现 docx/编码检测逻辑。
+        """
         ext = filepath.suffix.lower()
         if ext in (".docx", ".doc"):
             try:
@@ -367,7 +372,7 @@ class ProjectKBManager:
             for f in upload_dir.iterdir():
                 if f.is_file() and not f.name.startswith("."):
                     try:
-                        content = self._read_file_for_summary(f)
+                        content = self.read_file_summary(f)
                         if content:
                             summary = content[:1500]
                             if len(content) > 1500:
@@ -388,7 +393,7 @@ class ProjectKBManager:
                     if f.is_file() and not f.name.startswith(".") and f.suffix.lower() in (".txt", ".md", ".doc", ".docx"):
                         try:
                             rel_path = f.relative_to(ws)
-                            content = self._read_file_for_summary(f)
+                            content = self.read_file_summary(f)
                             if content:
                                 summary = content[:1500]
                                 if len(content) > 1500:
@@ -524,7 +529,7 @@ class ProjectKBManager:
                     "words": len(content),
                 })
             meta["total_words"] = sum(c.get("words", 0) for c in meta["chapters"])
-            meta["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            meta["updated_at"] = now_str()
             (project_dir / "project.json").write_text(
                 json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
             )
@@ -592,8 +597,8 @@ class ProjectKBManager:
             "number": number,
             "title": title or f"第{number}卷",
             "chapters": [],
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "created_at": now_str(),
+            "updated_at": now_str(),
         }
         vols.append(vol)
         vols.sort(key=lambda v: v.get("number", 0))
@@ -611,7 +616,7 @@ class ProjectKBManager:
                     v["id"] = f"vol_{number:03d}"
                 if title is not None:
                     v["title"] = title
-                v["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                v["updated_at"] = now_str()
                 self._save_writing_index(project_id, data)
                 return v
         return None
@@ -679,7 +684,7 @@ class ProjectKBManager:
                 ch_id = f"ch_{base:04d}"
             number = base
 
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now = now_str()
         chapter = {
             "id": ch_id,
             "number": number,
@@ -733,7 +738,7 @@ class ProjectKBManager:
 
         # 更新索引
         data = self._load_writing_index(project_id)
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now = now_str()
         for v in data.get("volumes", []):
             if v["id"] == vol_id:
                 for c in v.get("chapters", []):
@@ -757,7 +762,7 @@ class ProjectKBManager:
                        number: int | None = None, title: str | None = None) -> dict | None:
         """更新章节元数据（标题/编号）"""
         data = self._load_writing_index(project_id)
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now = now_str()
         for v in data.get("volumes", []):
             if v["id"] == vol_id:
                 for c in v.get("chapters", []):
@@ -792,7 +797,7 @@ class ProjectKBManager:
                 v["chapters"] = [c for c in v.get("chapters", []) if c["id"] != ch_id]
                 if len(v["chapters"]) == before:
                     return False
-                v["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                v["updated_at"] = now_str()
                 self._save_writing_index(project_id, data)
                 # 删除文件
                 wdir = self._get_writing_dir(project_id)
@@ -879,7 +884,7 @@ class ProjectKBManager:
         """更新项目时间戳"""
         meta = self.get_project(project_id)
         if meta:
-            meta["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            meta["updated_at"] = now_str()
             project_dir = self.get_project_dir(project_id)
             if project_dir:
                 (project_dir / "project.json").write_text(
@@ -894,7 +899,7 @@ class ProjectKBManager:
         if not meta:
             return None
         meta["name"] = new_name.strip()
-        meta["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        meta["updated_at"] = now_str()
         project_dir = self.get_project_dir(project_id)
         if project_dir:
             (project_dir / "project.json").write_text(
@@ -930,7 +935,7 @@ class ProjectKBManager:
 
         import hashlib
         conv_id = f"conv_{int(time.time())}_{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now = now_str()
         conv = {
             "id": conv_id,
             "title": title or "新对话",
@@ -1001,7 +1006,7 @@ class ProjectKBManager:
         data["messages"] = messages
         if title is not None:
             data["title"] = title
-        data["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        data["updated_at"] = now_str()
 
         filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         return data
@@ -1034,7 +1039,7 @@ class ProjectKBManager:
             return None
 
         data["title"] = title.strip() or "未命名"
-        data["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+        data["updated_at"] = now_str()
         filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         return data
 
@@ -1046,7 +1051,7 @@ class ProjectKBManager:
 
         import hashlib
         conv_id = f"conv_{int(time.time())}_{hashlib.md5(str(time.time()).encode()).hexdigest()[:6]}"
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now = now_str()
         conv = {
             "id": conv_id,
             "title": conv_data.get("title", "导入的对话"),
@@ -1121,7 +1126,7 @@ class ProjectKBManager:
         data = self._load_foreshadowing(project_id)
         import hashlib
         f_id = f"fs_{int(time.time())}_{hashlib.md5(name.encode()).hexdigest()[:6]}"
-        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        now = now_str()
         entry_id = f"e_{int(time.time()*1000)}"
         fs = {
             "id": f_id,
@@ -1156,7 +1161,7 @@ class ProjectKBManager:
                     f["status"] = status
                 if resolution_chapter is not None:
                     f["resolution_chapter"] = resolution_chapter
-                f["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                f["updated_at"] = now_str()
                 self._save_foreshadowing(project_id, data)
                 return f
         return None
@@ -1179,7 +1184,7 @@ class ProjectKBManager:
         for f in data.get("foreshadowings", []):
             if f["id"] == f_id:
                 entry_id = f"e_{int(time.time()*1000)}"
-                now = time.strftime("%Y-%m-%d %H:%M:%S")
+                now = now_str()
                 entry = {
                     "id": entry_id,
                     "content": content,
@@ -1202,7 +1207,7 @@ class ProjectKBManager:
                 f["entries"] = [e for e in f.get("entries", []) if e["id"] != entry_id]
                 if len(f["entries"]) == before:
                     return False
-                f["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+                f["updated_at"] = now_str()
                 self._save_foreshadowing(project_id, data)
                 return True
         return False

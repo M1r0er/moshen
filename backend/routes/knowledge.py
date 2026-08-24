@@ -4,16 +4,15 @@
 系统调用 LLM 分析后整理为 MD 文件存放在工作区的 knowledge/ 目录。
 每个知识条目是一个 .md 文件，带有 YAML frontmatter。
 """
-import os
-import re
 import uuid
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
-from core.llm_provider import get_llm_provider
 from core.file_parser import FileParser
+from core.utils import sanitize_path_name
+from core.llm_provider import get_llm_provider
 from routes.workspace import get_workspace_path, read_text_safe, write_text_safe
 
 router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
@@ -30,9 +29,7 @@ def get_knowledge_dir() -> Path:
 
 def sanitize_id(kid: str) -> str:
     """校验并清理 ID，防止路径遍历"""
-    if not kid or "/" in kid or "\\" in kid or ".." in kid:
-        raise HTTPException(400, "无效的知识条目 ID")
-    return kid
+    return sanitize_path_name(kid, "无效的知识条目 ID")
 
 
 def parse_frontmatter(content: str) -> tuple[dict, str]:
@@ -122,30 +119,12 @@ def read_knowledge_file(kid: str) -> tuple[dict, str, Path] | None:
 
 
 async def parse_uploaded_file(file: UploadFile) -> str:
-    """解析上传的文件内容，支持 .txt / .md / .docx"""
-    raw = await file.read()
-    ext = Path(file.filename).suffix.lower()
+    """解析上传的文件内容，支持 .txt / .md / .docx
 
-    if ext == ".docx":
-        import tempfile
-        with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-            tmp.write(raw)
-            tmp_path = tmp.name
-        try:
-            return FileParser.read_docx(tmp_path)
-        finally:
-            os.unlink(tmp_path)
-    else:
-        # txt/md 自动检测编码
-        import chardet
-        detected = chardet.detect(raw)
-        encoding = detected.get("encoding", "utf-8")
-        if encoding and encoding.lower() in ("gb2312", "gbk"):
-            encoding = "gb18030"
-        try:
-            return raw.decode(encoding or "utf-8", errors="replace")
-        except (UnicodeDecodeError, LookupError):
-            return raw.decode("utf-8", errors="replace")
+    转发至 FileParser.parse_upload_file，避免与 routes/files.py 重复实现。
+    """
+    raw = await file.read()
+    return FileParser.parse_upload_file(raw, file.filename)
 
 
 def create_metadata(
@@ -169,6 +148,59 @@ def create_metadata(
     }
 
 
+def _persist_knowledge(
+    title: str,
+    content: str,
+    source: str,
+    source_detail: str,
+    ktype: str,
+    raw_content: str | None = None,
+) -> dict:
+    """统一的知识条目持久化流程
+
+    被 save_knowledge_entry / upload_local_knowledge / search_knowledge /
+    save_from_chat / refresh_knowledge 共用，消除"uuid → create_metadata →
+    build_knowledge_md → write_text_safe → 返回 dict"模板的 5 处重复。
+
+    Args:
+        title: 条目标题（建议先 extract_title_from_content 提取）
+        content: 条目正文（Markdown）
+        source: 来源标识（chat / local_file / web_search）
+        source_detail: 来源详情
+        ktype: 条目类型
+        raw_content: 原始内容（可选，仅 local_file 用于后续刷新）
+
+    Returns:
+        包含 id/title/filename/source/... 的 dict
+    """
+    kid = uuid.uuid4().hex[:12]
+    metadata = create_metadata(
+        title=title,
+        source=source,
+        source_detail=source_detail,
+        ktype=ktype,
+    )
+    metadata["id"] = kid
+
+    kd = get_knowledge_dir()
+    md_content = build_knowledge_md(metadata, content)
+    write_text_safe(kd / f"{kid}.md", md_content)
+
+    # 保存原始内容用于后续刷新
+    if raw_content is not None:
+        write_text_safe(kd / f"{kid}.raw", raw_content)
+
+    return {
+        "id": kid,
+        "title": title,
+        "filename": f"{kid}.md",
+        "source": source,
+        "source_detail": source_detail,
+        "type": ktype,
+        "content": content,
+    }
+
+
 def save_knowledge_entry(title: str, content: str, ktype: str = "other") -> dict:
     """直接保存知识条目（供对话管理器调用，无需 HTTP 请求）
 
@@ -186,27 +218,13 @@ def save_knowledge_entry(title: str, content: str, ktype: str = "other") -> dict
         return None
 
     extracted_title = extract_title_from_content(content, title)
-    kid = uuid.uuid4().hex[:12]
-    metadata = create_metadata(
+    return _persist_knowledge(
         title=extracted_title,
+        content=content,
         source="chat",
         source_detail="AI自动整理",
         ktype=ktype,
     )
-    metadata["id"] = kid
-
-    kd = get_knowledge_dir()
-    md_content = build_knowledge_md(metadata, content)
-    write_text_safe(kd / f"{kid}.md", md_content)
-
-    return {
-        "id": kid,
-        "title": extracted_title,
-        "filename": f"{kid}.md",
-        "source": "chat",
-        "source_detail": "AI自动整理",
-        "type": ktype,
-    }
 
 
 # ===== 请求模型 =====
@@ -288,36 +306,15 @@ async def upload_local_knowledge(
     except Exception as e:
         raise HTTPException(500, f"LLM 分析失败: {e}")
 
-    # 提取标题
     title = extract_title_from_content(result, Path(file.filename).stem)
-
-    # 生成知识条目
-    kid = uuid.uuid4().hex[:12]
-    metadata = create_metadata(
+    return _persist_knowledge(
         title=title,
+        content=result,
         source="local_file",
         source_detail=file.filename,
         ktype=type,
+        raw_content=content,
     )
-    metadata["id"] = kid
-
-    # 保存 MD 文件
-    kd = get_knowledge_dir()
-    md_content = build_knowledge_md(metadata, result)
-    write_text_safe(kd / f"{kid}.md", md_content)
-
-    # 保存原始内容用于后续刷新
-    write_text_safe(kd / f"{kid}.raw", content)
-
-    return {
-        "id": kid,
-        "title": title,
-        "filename": f"{kid}.md",
-        "source": "local_file",
-        "source_detail": file.filename,
-        "type": type,
-        "content": result,
-    }
 
 
 @router.post("/search")
@@ -341,33 +338,14 @@ async def search_knowledge(req: SearchRequest):
     except Exception as e:
         raise HTTPException(500, f"LLM 分析失败: {e}")
 
-    # 提取标题
     title = extract_title_from_content(result, req.query)
-
-    # 生成知识条目
-    kid = uuid.uuid4().hex[:12]
-    metadata = create_metadata(
+    return _persist_knowledge(
         title=title,
+        content=result,
         source="web_search",
         source_detail=req.query,
         ktype=req.type,
     )
-    metadata["id"] = kid
-
-    # 保存 MD 文件
-    kd = get_knowledge_dir()
-    md_content = build_knowledge_md(metadata, result)
-    write_text_safe(kd / f"{kid}.md", md_content)
-
-    return {
-        "id": kid,
-        "title": title,
-        "filename": f"{kid}.md",
-        "source": "web_search",
-        "source_detail": req.query,
-        "type": req.type,
-        "content": result,
-    }
 
 
 @router.post("/from-chat")
@@ -380,34 +358,14 @@ async def save_from_chat(req: SaveFromChatRequest):
 
     title = req.title.strip()
     content = req.content.strip()
-
-    # 提取标题（如果内容中有 H1，优先使用）
     extracted_title = extract_title_from_content(content, title)
-
-    # 生成知识条目
-    kid = uuid.uuid4().hex[:12]
-    metadata = create_metadata(
+    return _persist_knowledge(
         title=extracted_title,
+        content=content,
         source="chat",
         source_detail="对话保存",
         ktype=req.type,
     )
-    metadata["id"] = kid
-
-    # 保存 MD 文件
-    kd = get_knowledge_dir()
-    md_content = build_knowledge_md(metadata, content)
-    write_text_safe(kd / f"{kid}.md", md_content)
-
-    return {
-        "id": kid,
-        "title": extracted_title,
-        "filename": f"{kid}.md",
-        "source": "chat",
-        "source_detail": "对话保存",
-        "type": req.type,
-        "content": content,
-    }
 
 
 @router.get("/{kid}")

@@ -8,6 +8,7 @@ import time
 from typing import Optional
 from core.llm_provider import get_llm_provider
 from core.prompt_loader import get_prompt_loader
+from core.utils import parse_json_response
 
 
 class NovelAnalyzer:
@@ -107,25 +108,16 @@ class NovelAnalyzer:
             messages, role="KNOWLEDGE_BUILDER", temperature=0.3, max_tokens=2048
         )
 
-        # 解析 JSON
-        result = result.strip()
-        if result.startswith("```json"):
-            result = result[7:]
-        if result.startswith("```"):
-            result = result[3:]
-        if result.endswith("```"):
-            result = result[:-3]
-        result = result.strip()
-
-        try:
-            return json.loads(result)
-        except json.JSONDecodeError:
-            return {
-                "chapter": chapter_num,
-                "title": title,
-                "chapter_outline": result[:500],
-                "parse_error": True,
-            }
+        # 解析 JSON（复用 core.utils.parse_json_response）
+        data = parse_json_response(result)
+        if isinstance(data, dict):
+            return data
+        return {
+            "chapter": chapter_num,
+            "title": title,
+            "chapter_outline": (result or "")[:500],
+            "parse_error": True,
+        }
 
     async def extract_story_arcs(
         self, chapter_cards: list[dict], window_size: int = 8
@@ -187,8 +179,8 @@ class NovelAnalyzer:
             )
 
             # 解析并追加
-            parsed = self._parse_json_safe(result)
-            if parsed and "arcs" in parsed:
+            parsed = parse_json_response(result)
+            if isinstance(parsed, dict) and "arcs" in parsed:
                 arcs.extend(parsed["arcs"])
 
             await self._async_sleep(0.5)
@@ -243,25 +235,10 @@ class NovelAnalyzer:
             messages, role="KNOWLEDGE_BUILDER", temperature=0.4, max_tokens=4096
         )
 
-        parsed = self._parse_json_safe(result)
-        if parsed and "patterns" in parsed:
+        parsed = parse_json_response(result)
+        if isinstance(parsed, dict) and "patterns" in parsed:
             return parsed["patterns"]
         return []
-
-    def _parse_json_safe(self, text: str) -> dict | None:
-        """安全解析 JSON"""
-        text = text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return None
 
     async def _async_sleep(self, seconds: float):
         """异步休眠"""

@@ -3,10 +3,10 @@
 三级行动体系：L1建议 / L2质询 / L3否决
 在每次助手回复后评估是否需要追加干预内容
 """
-import json
 from typing import Optional
 from core.llm_provider import get_llm_provider
 from core.prompt_loader import get_prompt_loader
+from core.utils import parse_json_response
 
 
 class InterventionEngine:
@@ -118,24 +118,11 @@ class InterventionEngine:
 ```"""
 
     def _parse_result(self, result: str) -> dict:
-        """解析 LLM 返回的 JSON 结果"""
-        # 尝试提取 JSON
-        result = result.strip()
-        if result.startswith("```json"):
-            result = result[7:]
-        if result.startswith("```"):
-            result = result[3:]
-        if result.endswith("```"):
-            result = result[:-3]
-        result = result.strip()
-
-        try:
-            data = json.loads(result)
-            if "need_intervention" not in data:
-                return {"need_intervention": False, "level": None, "content": None}
-            return data
-        except json.JSONDecodeError:
+        """解析 LLM 返回的 JSON 结果（复用 core.utils.parse_json_response）"""
+        data = parse_json_response(result)
+        if not isinstance(data, dict) or "need_intervention" not in data:
             return {"need_intervention": False, "level": None, "content": None}
+        return data
 
 
 # 全局单例

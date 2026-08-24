@@ -4,12 +4,11 @@
 数据存储在项目的 outline.json 文件中。
 """
 import json
-import time
-import uuid
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from core.utils import gen_id, now_str, sanitize_path_name
 from routes.workspace import get_workspace_path
 
 router = APIRouter(prefix="/api/outline", tags=["outline"])
@@ -19,10 +18,8 @@ NODE_H = 70
 
 
 def sanitize_name(name: str) -> str:
-    """校验名称，防止路径遍历"""
-    if not name or "/" in name or "\\" in name or ".." in name:
-        raise HTTPException(400, "无效的项目ID")
-    return name
+    """校验名称，防止路径遍历（委托至 core.utils.sanitize_path_name）"""
+    return sanitize_path_name(name, "无效的项目ID")
 
 
 def _outline_path(project_id: str) -> Path:
@@ -47,10 +44,6 @@ def save_outline(project_id: str, data: dict) -> None:
     p = _outline_path(project_id)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _gen_id() -> str:
-    return uuid.uuid4().hex[:10]
 
 
 # ===== 请求模型 =====
@@ -95,15 +88,16 @@ async def get_outline(project_id: str):
 async def create_node(project_id: str, req: CreateNodeRequest):
     """创建节点"""
     data = load_outline(project_id)
+    now = now_str()
     node = {
-        "id": _gen_id(),
+        "id": gen_id(),
         "title": req.title.strip(),
         "content": req.content.strip(),
         "type": req.node_type,
         "x": req.x,
         "y": req.y,
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now,
+        "updated_at": now,
     }
     data["nodes"].append(node)
     save_outline(project_id, data)
@@ -126,7 +120,7 @@ async def update_node(project_id: str, node_id: str, req: UpdateNodeRequest):
                 n["x"] = req.x
             if req.y is not None:
                 n["y"] = req.y
-            n["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            n["updated_at"] = now_str()
             save_outline(project_id, data)
             return {"success": True, "node": n}
     raise HTTPException(404, "节点不存在")
@@ -150,13 +144,14 @@ async def create_edge(project_id: str, req: CreateEdgeRequest):
     node_ids = {n["id"] for n in data["nodes"]}
     if req.from_node not in node_ids or req.to_node not in node_ids:
         raise HTTPException(400, "源节点或目标节点不存在")
+    now = now_str()
     edge = {
-        "id": _gen_id(),
+        "id": gen_id(),
         "from": req.from_node,
         "to": req.to_node,
         "label": req.label.strip(),
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now,
+        "updated_at": now,
     }
     data["edges"].append(edge)
     save_outline(project_id, data)
@@ -175,7 +170,7 @@ async def update_edge(project_id: str, edge_id: str, req: UpdateEdgeRequest):
                 e["from"] = req.from_node
             if req.to_node is not None:
                 e["to"] = req.to_node
-            e["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            e["updated_at"] = now_str()
             save_outline(project_id, data)
             return {"success": True, "edge": e}
     raise HTTPException(404, "连线不存在")
@@ -218,27 +213,28 @@ def save_outline_node(
         return None
 
     data = load_outline(project_id)
+    now = now_str()
 
     # 重名检测：如果同名节点已存在，转为更新
     for n in data["nodes"]:
         if n["title"] == title:
             n["content"] = content.strip()
             n["type"] = node_type
-            n["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            n["updated_at"] = now
             save_outline(project_id, data)
             return {"id": n["id"], "title": title, "updated": True}
 
     # 计算新节点位置
     max_x = max((n["x"] for n in data["nodes"]), default=0)
     node = {
-        "id": _gen_id(),
+        "id": gen_id(),
         "title": title,
         "content": content.strip(),
         "type": node_type,
         "x": max_x + 250 if data["nodes"] else 100,
         "y": 200 if node_type == "main" else 350,
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now,
+        "updated_at": now,
     }
     data["nodes"].append(node)
 
@@ -248,12 +244,12 @@ def save_outline_node(
         for n in data["nodes"]:
             if n["title"] == after_title and n["id"] != node["id"]:
                 edge = {
-                    "id": _gen_id(),
+                    "id": gen_id(),
                     "from": n["id"],
                     "to": node["id"],
                     "label": edge_label.strip(),
-                    "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "created_at": now,
+                    "updated_at": now,
                 }
                 data["edges"].append(edge)
                 break
@@ -280,7 +276,7 @@ def update_outline_node(
                 n["title"] = new_title.strip()
             if content is not None:
                 n["content"] = content.strip()
-            n["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            n["updated_at"] = now_str()
             save_outline(project_id, data)
             return {"id": n["id"], "title": n["title"], "updated": True}
     return None
@@ -313,17 +309,18 @@ def save_outline_edge(
     for e in data["edges"]:
         if e["from"] == from_id and e["to"] == to_id:
             e["label"] = label.strip()
-            e["updated_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+            e["updated_at"] = now_str()
             save_outline(project_id, data)
             return {"id": e["id"], "from": from_title, "to": to_title, "updated": True}
 
+    now = now_str()
     edge = {
-        "id": _gen_id(),
+        "id": gen_id(),
         "from": from_id,
         "to": to_id,
         "label": label.strip(),
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "created_at": now,
+        "updated_at": now,
     }
     data["edges"].append(edge)
     save_outline(project_id, data)

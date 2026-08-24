@@ -6,8 +6,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from knowledge.project_kb import get_project_kb_manager
 from core.llm_provider import get_llm_provider
-import json
-import re
+from core.utils import parse_json_response
 
 router = APIRouter(prefix="/api/foreshadowing", tags=["foreshadowing"])
 kb = get_project_kb_manager()
@@ -120,7 +119,6 @@ def _build_detect_prompt(chapters: list[dict], existing_names: list[str],
     text = "\n\n".join(chapter_texts)
     existing = "、".join(existing_names) if existing_names else "（暂无）"
 
-    scope_desc = "本章末尾" if scope == "single" else "全部章节"
     focus = "请特别注意章节末尾部分，很多伏笔会在章尾留下。" if scope == "single" else "请通读全部内容，全面梳理。"
 
     system = "你是专业的小说编辑，擅长识别和梳理故事中的伏笔（钩子）。请分析给定的小说内容，找出其中埋下的伏笔。"
@@ -148,6 +146,40 @@ def _build_detect_prompt(chapters: list[dict], existing_names: list[str],
     ]
 
 
+def _select_chapters(all_chapters: list[dict], req: DetectRequest) -> list[dict]:
+    """根据 scope 选择章节（单章/全文）—— detect 与 recover-check 共用
+
+    单章模式下若未找到目标章节则抛 404。
+    """
+    if req.scope == "single":
+        target = [c for c in all_chapters if c["ch_id"] == req.ch_id]
+        if not target:
+            raise HTTPException(404, "章节不存在")
+        return target
+    return all_chapters
+
+
+async def _call_llm_for_json(messages: list[dict], temperature: float, max_tokens: int) -> list | dict:
+    """调用 LLM 并解析 JSON 数组/对象结果
+
+    统一封装 detect 与 recover-check 中重复的"调用 LLM → 去 markdown fence →
+    json.loads → 失败抛 500"流程。
+    """
+    try:
+        result = await llm.generate(
+            messages, role="STRUCTURE_ANALYST",
+            temperature=temperature, max_tokens=max_tokens,
+        )
+        parsed = parse_json_response(result)
+        if parsed is None:
+            raise HTTPException(500, f"LLM 返回内容无法解析为 JSON: {result[:200]}")
+        return parsed
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"检测失败: {str(e)}")
+
+
 @router.post("/{project_id}/detect")
 async def detect_foreshadowing(project_id: str, req: DetectRequest):
     """AI 检测伏笔
@@ -159,36 +191,14 @@ async def detect_foreshadowing(project_id: str, req: DetectRequest):
     if not all_chapters:
         return {"found": [], "message": "还没有章节内容"}
 
-    if req.scope == "single":
-        # 单章模式：找到指定章节
-        target = [c for c in all_chapters if c["ch_id"] == req.ch_id]
-        if not target:
-            raise HTTPException(404, "章节不存在")
-        chapters_to_check = target
-    else:
-        # 全文模式
-        chapters_to_check = all_chapters
+    chapters_to_check = _select_chapters(all_chapters, req)
 
     # 已有伏笔名
     existing = [f["name"] for f in kb.list_foreshadowings(project_id)]
 
     messages = _build_detect_prompt(chapters_to_check, existing, req.scope)
-
-    try:
-        result = await llm.generate(
-            messages, role="STRUCTURE_ANALYST",
-            temperature=0.3, max_tokens=4096,
-        )
-        # 解析 JSON
-        json_str = result.strip()
-        # 去掉可能的 markdown 代码块标记
-        if json_str.startswith("```"):
-            json_str = re.sub(r"^```(?:json)?\s*", "", json_str)
-            json_str = re.sub(r"\s*```$", "", json_str)
-        found = json.loads(json_str)
-        return {"found": found}
-    except Exception as e:
-        raise HTTPException(500, f"检测失败: {str(e)}")
+    found = await _call_llm_for_json(messages, temperature=0.3, max_tokens=4096)
+    return {"found": found}
 
 
 @router.post("/{project_id}/recover-check")
@@ -202,13 +212,7 @@ async def recovery_check(project_id: str, req: DetectRequest):
     if not all_chapters:
         return {"results": [], "message": "还没有章节内容"}
 
-    if req.scope == "single":
-        target = [c for c in all_chapters if c["ch_id"] == req.ch_id]
-        if not target:
-            raise HTTPException(404, "章节不存在")
-        chapters_to_check = target
-    else:
-        chapters_to_check = all_chapters
+    chapters_to_check = _select_chapters(all_chapters, req)
 
     # 构建提示词
     fs_list = "\n".join([f"- {f['name']}（出现{f['entry_count']}次，状态：{'未回收' if f['status']=='active' else '已回收'}）" for f in existing])
@@ -235,16 +239,5 @@ async def recovery_check(project_id: str, req: DetectRequest):
 """}
     ]
 
-    try:
-        result = await llm.generate(
-            messages, role="STRUCTURE_ANALYST",
-            temperature=0.2, max_tokens=2048,
-        )
-        json_str = result.strip()
-        if json_str.startswith("```"):
-            json_str = re.sub(r"^```(?:json)?\s*", "", json_str)
-            json_str = re.sub(r"\s*```$", "", json_str)
-        recovered = json.loads(json_str)
-        return {"results": recovered}
-    except Exception as e:
-        raise HTTPException(500, f"检测失败: {str(e)}")
+    recovered = await _call_llm_for_json(messages, temperature=0.2, max_tokens=2048)
+    return {"results": recovered}
