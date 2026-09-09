@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>墨参 MoShen · 小说写作助手</title>
 <script src="/static/vue.global.js"></script>
+<script src="/static/vendor/three.min.js"></script>
 <style>
 :root {
   /* Ink & void palette */
@@ -201,7 +202,8 @@ body {
 }
 .project-ws-path.empty { color: var(--text-muted); font-style: italic; background: none; border: 1px dashed var(--border-color); }
 
-.sidebar-footer { padding: 14px; border-top: 1px solid var(--border-color); }
+.sidebar-footer { padding: 14px; border-top: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 8px; }
+.sidebar-version { text-align: center; font-size: 11px; color: var(--text-muted); letter-spacing: 0.5px; }
 .settings-btn {
   width: 100%; padding: 9px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color);
   color: var(--text-secondary); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500;
@@ -213,16 +215,19 @@ body {
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .tab-bar {
   height: var(--tab-h); min-height: var(--tab-h);
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 6px; flex-wrap: nowrap;
   padding: 0 18px; border-bottom: 1px solid var(--border-color);
   background: rgba(17, 19, 26, 0.85);
   backdrop-filter: blur(12px);
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
 }
+.tab-bar::-webkit-scrollbar { display: none; }
 .tab-item {
   padding: 7px 16px; border-radius: var(--radius-sm); cursor: pointer;
   font-size: 13px; color: var(--text-secondary); transition: all 0.18s ease;
   display: flex; align-items: center; gap: 7px;
   border: 1px solid transparent;
+  white-space: nowrap; flex-shrink: 0;
 }
 .tab-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
 .tab-item.active {
@@ -232,7 +237,7 @@ body {
   box-shadow: 0 0 14px rgba(124, 92, 252, 0.14);
 }
 .tab-spacer { flex: 1; }
-.tab-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); }
+.tab-status { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; }
 .status-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
 .status-dot.disconnected { background: var(--red); box-shadow: 0 0 8px var(--red); }
@@ -709,18 +714,38 @@ body {
 .modal-body { margin-bottom: 22px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 12px; }
 .modal-input {
-  width: 100%; padding: 11px 15px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color);
+  width: 100%; padding: 11px 15px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
   color: var(--text-primary); border-radius: var(--radius-sm); font-size: 14.5px;
   transition: all 0.2s ease;
 }
 .modal-input:focus { outline: none; border-color: var(--accent); background: rgba(124, 92, 252, 0.05); box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.12); }
 
 /* ===== Config Modal ===== */
+/* 所有模态框内的输入控件统一暗色主题，避免白底 */
+.modal input:not([type="checkbox"]):not([type="radio"]),
+.modal textarea,
+.modal select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+.modal input:not([type="checkbox"]):not([type="radio"]):focus,
+.modal textarea:focus,
+.modal select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.12);
+}
+.modal input::placeholder, .modal textarea::placeholder { color: var(--text-disabled); }
 .config-group { margin-bottom: 18px; }
 .config-group-title { font-size: 13.5px; font-weight: 700; color: var(--accent-hover); margin-bottom: 10px; }
 .config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
-.config-row input { padding: 7px 11px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; font-size: 12.5px; transition: all 0.18s; }
-.config-row input:focus { outline: none; border-color: var(--accent); background: rgba(124, 92, 252, 0.05); box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.12); }
+.config-row input { padding: 7px 11px; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; font-size: 12.5px; transition: all 0.18s; }
+.config-row input:focus { outline: none; border-color: var(--accent); background: rgba(124, 92, 252, 0.08); box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.12); }
+.api-field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 11px; }
+.api-field-label { font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.4px; }
+.api-field input { width: 100%; padding: 8px 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); border-radius: 6px; font-size: 13px; transition: all 0.18s; }
+.api-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.12); }
 .config-status { font-size: 11px; padding: 2px 9px; border-radius: 4px; font-weight: 600; }
 .config-status.ok { background: rgba(63, 185, 80, 0.15); color: var(--green); }
 .config-status.miss { background: rgba(248, 81, 73, 0.15); color: var(--red); }
@@ -906,6 +931,39 @@ body {
 
 /* ===== 伏笔页 ===== */
 .fs-container { height: 100%; display: flex; flex-direction: column; }
+
+/* ===== 星图页 ===== */
+.rel-container { height: 100%; display: flex; flex-direction: column; }
+.rel-tabs { display: flex; gap: 4px; padding: 12px 16px; border-bottom: 1px solid var(--border-color); background: rgba(17,19,26,0.75); }
+.rel-tabs button { padding: 8px 16px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); border-radius: 8px; cursor: pointer; font-size: 14px; }
+.rel-tabs button.active { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+.rel-subview { flex: 1; overflow: auto; padding: 20px; }
+.rel-analyze-form { max-width: 700px; display: flex; flex-direction: column; gap: 16px; }
+.rel-analyze-form .form-row { display: flex; flex-direction: column; gap: 6px; }
+.rel-analyze-form select, .rel-analyze-form textarea { padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-color); font-size: 14px; }
+.rel-progress { margin-top: 16px; padding: 12px; background: var(--bg-secondary); border-radius: 8px; max-height: 200px; overflow-y: auto; font-size: 13px; }
+.rel-progress-msg { padding: 2px 0; color: var(--text-muted); }
+.rel-overview { margin-top: 24px; }
+.rel-overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 12px; }
+.rel-overview-item { padding: 16px; background: var(--bg-secondary); border-radius: 10px; text-align: center; }
+.rel-overview-type { display: block; font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+.rel-overview-count { color: var(--text-muted); font-size: 13px; }
+.rel-type-bar { display: flex; gap: 6px; padding: 12px 0; }
+.rel-type-bar button { padding: 6px 14px; border: 1px solid var(--border-color); background: transparent; color: var(--text-color); border-radius: 16px; cursor: pointer; font-size: 13px; }
+.rel-type-bar button.active { background: var(--accent-color); color: #fff; border-color: var(--accent-color); }
+.rel-3d-canvas { width: 100%; height: 500px; border-radius: 12px; overflow: hidden; background: #0a0a1a; }
+.rel-entity-panel { margin-top: 16px; padding: 16px; background: var(--bg-secondary); border-radius: 10px; max-height: 400px; overflow-y: auto; }
+.rel-entity-md { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
+.rel-archive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.rel-archive-item { padding: 12px; background: var(--bg-secondary); border-radius: 10px; cursor: pointer; border: 1px solid transparent; transition: all 0.2s; }
+.rel-archive-item:hover { border-color: var(--accent-color); }
+.rel-archive-item.active { border-color: var(--accent-color); background: rgba(74,158,255,0.1); }
+.rel-archive-item strong { display: block; margin-bottom: 4px; }
+.rel-archive-summary { font-size: 12px; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rel-portrait-box { display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:12px; }
+.rel-portrait-img { max-width:200px; max-height:200px; border-radius:var(--radius-sm); border:1px solid var(--border-color); }
+.rel-entity-detail { margin-top: 20px; padding: 20px; background: var(--bg-secondary); border-radius: 10px; max-height: 500px; overflow-y: auto; }
+
 .fs-layout { display: flex; height: 100%; }
 .fs-sidebar { width: 260px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; background: rgba(17, 19, 26, 0.75); }
 .fs-sidebar-header { padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 13.5px; border-bottom: 1px solid var(--border-color); }
@@ -926,6 +984,8 @@ body {
 .fs-name-input:focus { border-color: var(--accent); background: rgba(124, 92, 252, 0.05); box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.12); }
 .fs-status-select { padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 7px; background: rgba(255,255,255,0.04); color: var(--text-primary); outline: none; cursor: pointer; transition: all 0.18s; }
 .fs-status-select:focus { border-color: var(--accent); }
+.fs-status-select option { background: var(--bg-primary); color: var(--text-primary); }
+select option { background: var(--bg-primary); color: var(--text-primary); }
 .btn-danger { background: var(--red); color: white; border: none; }
 .btn-danger:hover { filter: brightness(1.12); transform: translateY(-1px); }
 
@@ -1005,6 +1065,7 @@ body {
 
       <div class="sidebar-footer">
         <button class="settings-btn" @click="openSettings">⚙ 设置</button>
+        <div class="sidebar-version">v0.5.0</div>
       </div>
     </aside>
 
@@ -1102,7 +1163,7 @@ body {
                   <label>模型</label>
                   <select v-model="selectedModel">
                     <option value="auto">auto（自动）</option>
-                    <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+                    <option v-for="m in availableModels" :key="m" :value="m">{{ m }}{{ modelToChannel[m] ? ' — ' + modelToChannel[m] : '' }}</option>
                   </select>
                 </div>
                 <div class="chat-selector" v-if="chatRoles.independent">
@@ -1842,6 +1903,108 @@ body {
             </div>
           </div>
         </div>
+
+        <!-- ========== Relations (星图) Page ========== -->
+        <div v-if="activeTab === 'relations'" class="rel-container">
+          <div class="rel-tabs">
+            <button :class="{ active: relSubView === 'analyze' }" @click="relSubView = 'analyze'">🔍 分析</button>
+            <button :class="{ active: relSubView === 'graph' }" @click="relSubView = 'graph'; relLoadGraphData(relCurrentType)">🌌 关系图</button>
+            <button :class="{ active: relSubView === 'archive' }" @click="relSubView = 'archive'; relLoadArchive(relArchiveType)">📖 档案库</button>
+          </div>
+
+          <!-- 分析子页 -->
+          <div v-if="relSubView === 'analyze'" class="rel-subview">
+            <div v-if="!currentProjectId" class="empty-state"><div class="empty-state-icon">🌌</div><p>请先选择项目</p></div>
+            <div v-else class="rel-analyze-form">
+              <div class="form-row">
+                <label>分析档位</label>
+                <select v-model="relPreset">
+                  <option value="fast">快速</option>
+                  <option value="standard">标准</option>
+                  <option value="deep">深度</option>
+                </select>
+              </div>
+              <div class="form-row">
+                <label>文本来源</label>
+                <select v-model="relSource">
+                  <option value="chapters">写作模块章节</option>
+                  <option value="text">粘贴文本</option>
+                </select>
+              </div>
+              <div v-if="relSource === 'text'" class="form-row">
+                <label>小说文本</label>
+                <textarea v-model="relTextInput" placeholder="粘贴小说文本…" rows="12"></textarea>
+              </div>
+              <button class="btn btn-primary" :disabled="relAnalyzing" @click="relStartAnalyze">
+                {{ relAnalyzing ? '分析中…' : '开始分析' }}
+              </button>
+
+              <div v-if="relProgressMsgs.length" class="rel-progress">
+                <div v-for="(m, i) in relProgressMsgs" :key="i" class="rel-progress-msg">{{ m }}</div>
+              </div>
+
+              <div v-if="relOverview.length" class="rel-overview">
+                <h4>分析概览</h4>
+                <div class="rel-overview-grid">
+                  <div v-for="t in relOverview" :key="t.type" class="rel-overview-item">
+                    <span class="rel-overview-type">{{ t.type }}</span>
+                    <span class="rel-overview-count">{{ t.entity_count }} 条目</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 肖像批量生成 -->
+              <div v-if="relOverview.length" style="margin-top:12px">
+                <button class="btn btn-secondary" :disabled="relGeneratingPortraits" @click="relGenerateAllPortraits" style="font-size:13px">
+                  {{ relGeneratingPortraits ? '肖像生成中…' : '🎨 生成角色肖像' }}
+                </button>
+                <span v-if="relPortraitResult" style="margin-left:12px;font-size:12px;color:var(--text-muted)">
+                  新增 {{ relPortraitResult.drawn }} 张，跳过 {{ relPortraitResult.skipped }} 张，失败 {{ relPortraitResult.failed }} 张
+                </span>
+              </div>
+            </div>
+          </div>
+          <div v-if="relSubView === 'graph'" class="rel-subview">
+            <div class="rel-type-bar">
+              <button v-for="t in RELATION_TYPES" :key="t" :class="{ active: relCurrentType === t }"
+                      @click="relLoadGraphData(t)">{{ t }}</button>
+            </div>
+            <div id="rel-3d-canvas" class="rel-3d-canvas"></div>
+            <div v-if="relEntityContent" class="rel-entity-panel">
+              <pre class="rel-entity-md">{{ relEntityContent }}</pre>
+            </div>
+          </div>
+
+          <!-- 档案库子页 -->
+          <div v-if="relSubView === 'archive'" class="rel-subview">
+            <div class="rel-type-bar">
+              <button v-for="t in RELATION_TYPES" :key="t" :class="{ active: relArchiveType === t }"
+                      @click="relLoadArchive(t)">{{ t }}</button>
+            </div>
+            <div class="rel-archive-list">
+              <div v-for="e in relArchiveEntities" :key="e.id"
+                   :class="{ active: relSelectedEntity === e.id }"
+                   class="rel-archive-item" @click="relLoadEntity(e.id)">
+                <strong>{{ e.id }}</strong>
+                <span class="rel-archive-summary">{{ e.summary }}</span>
+              </div>
+            </div>
+            <div v-if="relEntityContent" class="rel-entity-detail">
+              <div v-if="relPortraitUrl" class="rel-portrait-box">
+                <img :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
+                <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
+                  {{ relPortraitLoading ? '重绘中…' : '🔄 重绘肖像' }}
+                </button>
+              </div>
+              <div v-else-if="relArchiveType === '角色'" style="margin-bottom:12px">
+                <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px">
+                  {{ relPortraitLoading ? '生成中…' : '🎨 生成肖像' }}
+                </button>
+              </div>
+              <pre class="rel-entity-md">{{ relEntityContent }}</pre>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   </div>
@@ -2051,7 +2214,7 @@ body {
 
   <!-- ========== Config Modal ========== -->
   <div class="modal-overlay" v-if="showConfigModal" @click.self="showConfigModal = false">
-    <div class="modal" style="max-width:680px">
+    <div class="modal" style="width:min(92vw,880px);max-width:880px">
       <div class="modal-title">设置</div>
       <div class="modal-body" style="max-height:62vh;overflow-y:auto">
         <!-- 工作区设置 -->
@@ -2093,36 +2256,64 @@ body {
         </div>
         <div class="divider"></div>
         <!-- 默认 API -->
+        <!-- 多 API 管理 -->
         <div class="config-group">
-          <div class="config-group-title">默认 API</div>
-          <div class="config-row">
-            <div class="model-list" style="flex:1">
-              <div v-for="(m, i) in configData.default_api.models" :key="i" class="model-list-item">
-                <input v-model="configData.default_api.models[i]" :placeholder="'模型名称 ' + (i+1) + '（如 gpt-4o）'">
-                <button class="model-del-btn" v-if="configData.default_api.models.length > 1" @click="configData.default_api.models.splice(i, 1)">&times;</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div class="config-group-title" style="margin:0">已保存的 API</div>
+            <button class="model-add-btn" @click="addApiChannel" style="margin:0">+ 添加 API</button>
+          </div>
+          <div v-if="!configData.api_channels.length" style="font-size:12px;color:var(--text-muted);padding:8px 0">
+            暂无。添加 API 后，在对话界面切换模型即自动切换到对应 API。可标记一个渠道为「默认」用于 auto 模式。
+          </div>
+          <div v-for="(ch, idx) in configData.api_channels" :key="ch.id || idx" style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+              <span style="font-size:12px;color:var(--text-muted);font-weight:600">API {{ idx + 1 }}</span>
+              <span v-if="ch.is_default" style="font-size:12px;color:var(--accent-hover);font-weight:600;white-space:nowrap">⭐ 默认</span>
+              <div style="flex:1"></div>
+              <button class="model-del-btn" @click="configData.api_channels.splice(idx, 1)" title="删除此 API">&times;</button>
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">API 名称</label>
+              <input v-model="ch.name" placeholder="如 DeepSeek">
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">Base URL</label>
+              <input v-model="ch.base_url" placeholder="如 https://api.deepseek.com/v1">
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">API Key</label>
+              <input v-model="ch.api_key" type="password" placeholder="sk-...">
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">模型名称</label>
+              <div class="model-list">
+                <div v-for="(m, i) in ch.models" :key="i" class="model-list-item">
+                  <input v-model="ch.models[i]" :placeholder="'模型 ' + (i+1)">
+                  <button class="model-del-btn" v-if="ch.models.length > 1" @click="ch.models.splice(i, 1)">&times;</button>
+                </div>
+                <button class="model-add-btn" @click="ch.models.push('')">+ 模型</button>
               </div>
-              <button class="model-add-btn" @click="configData.default_api.models.push('')">+ 添加模型</button>
-              <div class="model-hint">第一个为默认模型；auto 模式会根据任务复杂度自动选择</div>
             </div>
-            <input v-model="configData.default_api.base_url" placeholder="API Base URL（如 https://api.openai.com/v1）" style="flex:1">
-          </div>
-          <div class="config-row">
-            <input v-model="configData.default_api.api_key" placeholder="API Key" type="password">
-            <div style="display:flex;align-items:center">
-              <span class="config-status" :class="configData.default_api.is_configured ? 'ok' : 'miss'">
-                {{ configData.default_api.is_configured ? '已配置' : '未配置' }}
-              </span>
+            <div class="api-field">
+              <label class="api-field-label">温度 / 最大 Tokens</label>
+              <div style="display:flex;gap:14px;align-items:center">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <label style="font-size:11px;color:var(--text-muted)">T</label>
+                  <input v-model="ch.temperature" type="number" min="0" max="2" step="0.1" style="width:76px">
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <label style="font-size:11px;color:var(--text-muted)">Max</label>
+                  <input v-model="ch.max_tokens" type="number" min="256" step="256" style="width:110px">
+                </div>
+              </div>
             </div>
-          </div>
-          <div class="config-row">
-            <div style="flex:1;display:flex;align-items:center;gap:8px">
-              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Temperature</label>
-              <input v-model="configData.default_api.temperature" type="number" min="0" max="2" step="0.1" style="width:80px">
-            </div>
-            <div style="flex:1;display:flex;align-items:center;gap:8px">
-              <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Max Tokens</label>
-              <input v-model="configData.default_api.max_tokens" type="number" min="256" step="256" style="width:120px">
-              <span style="font-size:11px;color:var(--text-muted)">输出上限</span>
+            <div style="display:flex;gap:8px;align-items:center">
+              <button class="btn btn-secondary" style="font-size:12px;padding:5px 12px"
+                @click="setDefaultChannel(ch)"
+                :class="{ 'btn-primary': ch.is_default }">
+                {{ ch.is_default ? '✓ 已设为默认' : '设为默认' }}
+              </button>
+              <span style="font-size:11px;color:var(--text-muted)" v-if="ch.is_default">auto 模式将使用此渠道的模型</span>
             </div>
           </div>
         </div>
@@ -2142,33 +2333,46 @@ body {
         <!-- 四角色配置 -->
         <div v-if="configData.independent_keys">
           <div v-for="(role, key) in modelRoles" :key="key" class="config-group">
-            <div class="config-group-title">{{ key }} <span style="font-size:11px;color:var(--text-muted);font-weight:400">{{ role }}</span></div>
-            <div class="config-row">
-              <div class="model-list" style="flex:1">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+              <div class="config-group-title" style="margin:0">{{ key }} <span style="font-size:11px;color:var(--text-muted);font-weight:400">{{ role }}</span></div>
+              <div style="flex:1"></div>
+              <span class="config-status" :class="configData.roles[key].is_configured ? 'ok' : 'miss'">
+                {{ configData.roles[key].is_configured ? '已配置' : '未配置' }}
+              </span>
+              <select v-if="configData.api_channels.length" @change="e => { applyChannelToRoleById(key, e.target.value); e.target.value=''; }" style="font-size:11px;padding:3px 6px">
+                <option value="">切换 API…</option>
+                <option v-for="ch in configData.api_channels" :key="ch.id || ch.name" :value="ch.id || ch.name">{{ ch.name }}</option>
+              </select>
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">模型名称</label>
+              <div class="model-list">
                 <div v-for="(m, i) in configData.roles[key].models" :key="i" class="model-list-item">
                   <input v-model="configData.roles[key].models[i]" :placeholder="'模型名称 ' + (i+1)">
                   <button class="model-del-btn" v-if="configData.roles[key].models.length > 1" @click="configData.roles[key].models.splice(i, 1)">&times;</button>
                 </div>
                 <button class="model-add-btn" @click="configData.roles[key].models.push('')">+ 添加模型</button>
               </div>
-              <input v-model="configData.roles[key].base_url" placeholder="API Base URL" style="flex:1">
             </div>
-            <div class="config-row">
+            <div class="api-field">
+              <label class="api-field-label">Base URL</label>
+              <input v-model="configData.roles[key].base_url" placeholder="API Base URL">
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">API Key</label>
               <input v-model="configData.roles[key].api_key" placeholder="API Key" type="password">
-              <div style="display:flex;align-items:center">
-                <span class="config-status" :class="configData.roles[key].is_configured ? 'ok' : 'miss'">
-                  {{ configData.roles[key].is_configured ? '已配置' : '未配置' }}
-                </span>
-              </div>
             </div>
-            <div class="config-row">
-              <div style="flex:1;display:flex;align-items:center;gap:8px">
-                <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Temperature</label>
-                <input v-model="configData.roles[key].temperature" type="number" min="0" max="2" step="0.1" style="width:80px">
-              </div>
-              <div style="flex:1;display:flex;align-items:center;gap:8px">
-                <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">Max Tokens</label>
-                <input v-model="configData.roles[key].max_tokens" type="number" min="256" step="256" style="width:120px">
+            <div class="api-field">
+              <label class="api-field-label">温度 / 最大 Tokens</label>
+              <div style="display:flex;gap:14px;align-items:center">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <label style="font-size:11px;color:var(--text-muted)">T</label>
+                  <input v-model="configData.roles[key].temperature" type="number" min="0" max="2" step="0.1" style="width:76px">
+                </div>
+                <div style="display:flex;align-items:center;gap:6px">
+                  <label style="font-size:11px;color:var(--text-muted)">Max</label>
+                  <input v-model="configData.roles[key].max_tokens" type="number" min="256" step="256" style="width:110px">
+                </div>
               </div>
             </div>
           </div>
@@ -2177,6 +2381,35 @@ body {
           四角色配置已禁用，统一使用默认 API（不同职能仍使用不同提示词）
         </div>
       </div>
+
+      <!-- 图像生成 API 配置 -->
+      <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <label style="font-weight:600;font-size:14px">🎨 图像生成 API（肖像绘制）</label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);margin-left:auto;cursor:pointer">
+            <input type="checkbox" v-model="configData.image_config.enabled"> 启用
+          </label>
+        </div>
+        <div v-if="configData.image_config.enabled" style="display:flex;flex-direction:column;gap:8px">
+          <div class="config-row">
+            <input v-model="configData.image_config.base_url" placeholder="Base URL (如 https://api.openai.com/v1)" style="flex:1">
+          </div>
+          <div class="config-row">
+            <input v-model="configData.image_config.api_key" type="password" placeholder="API Key" style="flex:1">
+          </div>
+          <div class="config-row">
+            <input v-model="configData.image_config.model" placeholder="模型名（可留空）" style="flex:1">
+            <input v-model="configData.image_config.size" placeholder="尺寸（1024x1024）" style="width:140px">
+            <select v-model="configData.image_config.quality" style="width:100px">
+              <option value="auto">自动</option>
+              <option value="standard">标准</option>
+              <option value="hd">高清</option>
+            </select>
+          </div>
+          <p style="font-size:11px;color:var(--text-muted);margin:0">用于星图功能的人物肖像绘制。需兼容 OpenAI /images/generations 接口。</p>
+        </div>
+      </div>
+
       <div class="modal-footer">
         <button class="btn btn-secondary" @click="testConfig" :disabled="testingConfig">
           {{ testingConfig ? '测试中...' : '测试连接' }}
@@ -2222,6 +2455,7 @@ createApp({
       { key: 'chat', label: '对话', icon: '💬' },
       { key: 'writing', label: '写作', icon: '✍️' },
       { key: 'foreshadowing', label: '伏笔', icon: '🪝' },
+      { key: 'relations', label: '星图', icon: '🌌' },
       { key: 'settings', label: '设定', icon: '📝' },
       { key: 'outline', label: '大纲', icon: '🗺' },
       { key: 'knowledge', label: '知识库', icon: '📚' },
@@ -2362,6 +2596,8 @@ createApp({
       default_api: { models: [''], base_url: '', api_key: '', temperature: 0.7, max_tokens: 8192, is_configured: false },
       independent_keys: false,
       roles: {},
+      image_config: { enabled: false, base_url: '', api_key: '', model: '', size: '1024x1024', quality: 'auto' },
+      api_channels: [],
     });
     const writingPrefs = ref({
       chapter_numbering_mode: 'continue',
@@ -2379,6 +2615,7 @@ createApp({
     const selectedModel = ref('auto');
     const selectedRole = ref('auto');
     const availableModels = ref([]);
+    const modelToChannel = ref({}); // 模型名 → 所属渠道名称
     const chatRoles = ref({ independent: false, roles: {} });
     const lastUsedModel = ref('');
 
@@ -2444,6 +2681,26 @@ createApp({
     const showAddEntryModal = ref(false);
     const newEntryContent = ref('');
     const newEntryChapter = ref('');
+
+    // ===== Relations (星图) =====
+    const relSubView = ref('analyze'); // analyze | graph | archive
+    const relPreset = ref('standard'); // fast | standard | deep
+    const relSource = ref('chapters'); // chapters | text
+    const relTextInput = ref('');
+    const relAnalyzing = ref(false);
+    const relProgressMsgs = ref([]);
+    const relOverview = ref([]);
+    const relCurrentType = ref('角色');
+    const relGraphData = ref({ entities: [], relations: [], timeline: [] });
+    const relArchiveType = ref('角色');
+    const relArchiveEntities = ref([]);
+    const relSelectedEntity = ref(null);
+    const relEntityContent = ref('');
+    const relPortraitUrl = ref('');
+    const relPortraitLoading = ref(false);
+    const relGeneratingPortraits = ref(false);
+    const relPortraitResult = ref(null);
+    let relEventSource = null;
 
     // ===== Workspace =====
     async function loadWorkspace() {
@@ -2865,6 +3122,7 @@ createApp({
       try {
         const data = await apiJSON('/api/chat/models');
         availableModels.value = data.default_models || [];
+        modelToChannel.value = data.model_to_channel || {};
         chatRoles.value = {
           independent: data.independent_keys || false,
           roles: data.roles || {},
@@ -4081,6 +4339,326 @@ createApp({
       return map[t] || t;
     }
 
+    // ===== Relations (星图) =====
+    const RELATION_TYPES = ['角色', '世界', '势力', '地点', '事件', '道具'];
+
+    async function relLoadOverview() {
+      if (!currentProjectId.value) return;
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/overview');
+        relOverview.value = data.types || [];
+      } catch (e) { /* ignore */ }
+    }
+
+    async function relStartAnalyze() {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      relAnalyzing.value = true;
+      relProgressMsgs.value = [];
+      try {
+        const body = {
+          preset: relPreset.value,
+          source: relSource.value,
+          text: relTextInput.value,
+        };
+        await apiJSON('/api/relations/' + currentProjectId.value + '/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        relConnectProgress();
+      } catch (e) {
+        relAnalyzing.value = false;
+        showToast('启动分析失败: ' + (e.message || e), 'error');
+      }
+    }
+
+    function relConnectProgress() {
+      if (relEventSource) relEventSource.close();
+      const url = '/api/relations/' + currentProjectId.value + '/progress';
+      relEventSource = new EventSource(url);
+      relEventSource.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          relProgressMsgs.value.push(msg);
+          if (msg === '分析完成') {
+            relAnalyzing.value = false;
+            relEventSource.close();
+            relLoadOverview();
+          }
+        } catch (_) { /* ignore */ }
+      };
+      relEventSource.onerror = () => {
+        relEventSource.close();
+      };
+    }
+
+    async function relLoadGraphData(type) {
+      relCurrentType.value = type;
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/data?type=' + encodeURIComponent(type));
+        relGraphData.value = data.data || { entities: [], relations: [], timeline: [] };
+        // 触发 3D 图重绘
+        setTimeout(() => relRender3D(), 50);
+      } catch (e) { showToast('加载关系图失败', 'error'); }
+    }
+
+    async function relLoadArchive(type) {
+      relArchiveType.value = type;
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/data?type=' + encodeURIComponent(type));
+        relArchiveEntities.value = (data.data && data.data.entities) || [];
+        relSelectedEntity.value = null;
+        relEntityContent.value = '';
+      } catch (e) { showToast('加载档案失败', 'error'); }
+    }
+
+    async function relLoadEntity(name) {
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/entity/' + encodeURIComponent(relArchiveType.value) + '/' + encodeURIComponent(name));
+        relSelectedEntity.value = name;
+        relEntityContent.value = data.content || '';
+        // 加载肖像（仅角色类型）
+        relPortraitUrl.value = '';
+        if (relArchiveType.value === '角色') {
+          await relCheckPortrait(name);
+        }
+      } catch (e) { showToast('加载条目失败', 'error'); }
+    }
+
+    async function relCheckPortrait(name) {
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '/info');
+        if (data.exists) {
+          relPortraitUrl.value = '/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '?t=' + Date.now();
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    async function relRedrawPortrait(name) {
+      if (!name) return;
+      relPortraitLoading.value = true;
+      try {
+        await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '/redraw', { method: 'POST' });
+        relPortraitUrl.value = '/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '?t=' + Date.now();
+        showToast('肖像已生成', 'success');
+      } catch (e) {
+        showToast('肖像生成失败: ' + (e.message || e), 'error');
+      } finally {
+        relPortraitLoading.value = false;
+      }
+    }
+
+    async function relGenerateAllPortraits() {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      relGeneratingPortraits.value = true;
+      relPortraitResult.value = null;
+      try {
+        await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/generate', { method: 'POST' });
+        // 轮询状态
+        const poll = async () => {
+          for (let i = 0; i < 60; i++) {
+            await new Promise(r => setTimeout(r, 3000));
+            const status = await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/status');
+            if (status.done) {
+              relPortraitResult.value = status.result;
+              relGeneratingPortraits.value = false;
+              if (status.result && status.result.errors && status.result.errors.length) {
+                showToast('部分肖像生成失败', 'error');
+              } else {
+                showToast('肖像生成完成', 'success');
+              }
+              return;
+            }
+          }
+          relGeneratingPortraits.value = false;
+          showToast('肖像生成超时，请稍后查看', 'error');
+        };
+        poll();
+      } catch (e) {
+        relGeneratingPortraits.value = false;
+        showToast('启动肖像生成失败: ' + (e.message || e), 'error');
+      }
+    }
+
+    // 3D 关系图（Three.js）
+    let relScene = null, relRenderer = null, relCamera = null, relControls = null;
+    let relGraphObjects = [];
+    let relRaycaster = null, relMouse = null;
+    let relAnimationId = null;
+
+    function relRender3D() {
+      const container = document.getElementById('rel-3d-canvas');
+      if (!container) return;
+      // 清理旧场景
+      if (relRenderer) {
+        relRenderer.dispose();
+        container.innerHTML = '';
+      }
+      relGraphObjects = [];
+
+      const data = relGraphData.value;
+      const entities = data.entities || [];
+      const relations = data.relations || [];
+
+      // 初始化 Three.js
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 600;
+      relScene = new THREE.Scene();
+      relScene.background = new THREE.Color(0x0a0a1a);
+
+      relCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
+      relCamera.position.set(0, 0, 120);
+
+      relRenderer = new THREE.WebGLRenderer({ antialias: true });
+      relRenderer.setSize(width, height);
+      container.appendChild(relRenderer.domElement);
+
+      // 光照
+      relScene.add(new THREE.AmbientLight(0x666688, 0.8));
+      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+      dirLight.position.set(50, 50, 50);
+      relScene.add(dirLight);
+
+      if (entities.length === 0) {
+        const textGeo = new THREE.PlaneGeometry(200, 60);
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#8888aa';
+        ctx.font = '32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无数据，请先分析', 256, 64);
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+        const mesh = new THREE.Mesh(textGeo, material);
+        relScene.add(mesh);
+        relAnimate();
+        return;
+      }
+
+      // 力导向布局
+      const positions = relLayoutForceDirected(entities, relations);
+
+      // 创建节点（球体）
+      const colors = { '角色': 0xe74c3c, '世界': 0x3498db, '势力': 0xe67e22, '地点': 0x2ecc71, '事件': 0x9b59b6, '道具': 0xf1c40f };
+      const baseColor = colors[relCurrentType.value] || 0x4a9eff;
+
+      entities.forEach((entity, i) => {
+        const size = 1.5 + Math.min((entity.weight || 1) * 0.8, 4);
+        const geo = new THREE.SphereGeometry(size, 24, 24);
+        const mat = new THREE.MeshPhongMaterial({ color: baseColor, shininess: 80 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(positions[i].x, positions[i].y, positions[i].z);
+        mesh.userData = { name: entity.id, index: i };
+        relScene.add(mesh);
+        relGraphObjects.push(mesh);
+
+        // 标签（Sprite）
+        const labelCanvas = document.createElement('canvas');
+        labelCanvas.width = 256; labelCanvas.height = 64;
+        const lctx = labelCanvas.getContext('2d');
+        lctx.fillStyle = 'rgba(255,255,255,0.9)';
+        lctx.font = '24px sans-serif';
+        lctx.textAlign = 'center';
+        lctx.fillText(entity.id, 128, 36);
+        const labelTex = new THREE.CanvasTexture(labelCanvas);
+        const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
+        const label = new THREE.Sprite(labelMat);
+        label.position.set(positions[i].x, positions[i].y + size + 3, positions[i].z);
+        label.scale.set(20, 5, 1);
+        relScene.add(label);
+      });
+
+      // 创建关系线
+      relations.forEach(r => {
+        const fromIdx = entities.findIndex(e => e.id === r.from);
+        const toIdx = entities.findIndex(e => e.id === r.to);
+        if (fromIdx < 0 || toIdx < 0) return;
+        const points = [
+          new THREE.Vector3(positions[fromIdx].x, positions[fromIdx].y, positions[fromIdx].z),
+          new THREE.Vector3(positions[toIdx].x, positions[toIdx].y, positions[toIdx].z),
+        ];
+        const geo = new THREE.BufferGeometry().setFromPoints(points);
+        const mat = new THREE.LineBasicMaterial({ color: 0x4a9eff, transparent: true, opacity: 0.4 });
+        const line = new THREE.Line(geo, mat);
+        relScene.add(line);
+      });
+
+      // 射线拾取
+      relRaycaster = new THREE.Raycaster();
+      relMouse = new THREE.Vector2();
+      relRenderer.domElement.addEventListener('click', relOnCanvasClick);
+
+      relAnimate();
+    }
+
+    function relLayoutForceDirected(entities, relations) {
+      // 简化版力导向：随机分布 + 关系连线拉力
+      const n = entities.length;
+      const positions = entities.map(() => ({
+        x: (Math.random() - 0.5) * 80,
+        y: (Math.random() - 0.5) * 80,
+        z: (Math.random() - 0.5) * 80,
+      }));
+      // 多轮迭代
+      for (let iter = 0; iter < 50; iter++) {
+        for (let i = 0; i < n; i++) {
+          for (let j = i + 1; j < n; j++) {
+            const dx = positions[j].x - positions[i].x;
+            const dy = positions[j].y - positions[i].y;
+            const dz = positions[j].z - positions[i].z;
+            const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+            const force = 400 / (dist * dist);
+            positions[i].x -= (dx / dist) * force;
+            positions[i].y -= (dy / dist) * force;
+            positions[i].z -= (dz / dist) * force;
+            positions[j].x += (dx / dist) * force;
+            positions[j].y += (dy / dist) * force;
+            positions[j].z += (dz / dist) * force;
+          }
+        }
+        // 关系引力
+        relations.forEach(r => {
+          const fromIdx = entities.findIndex(e => e.id === r.from);
+          const toIdx = entities.findIndex(e => e.id === r.to);
+          if (fromIdx < 0 || toIdx < 0) return;
+          const dx = positions[toIdx].x - positions[fromIdx].x;
+          const dy = positions[toIdx].y - positions[fromIdx].y;
+          const dz = positions[toIdx].z - positions[fromIdx].z;
+          const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+          const force = (dist - 25) * 0.02;
+          positions[fromIdx].x += (dx / dist) * force;
+          positions[fromIdx].y += (dy / dist) * force;
+          positions[fromIdx].z += (dz / dist) * force;
+          positions[toIdx].x -= (dx / dist) * force;
+          positions[toIdx].y -= (dy / dist) * force;
+          positions[toIdx].z -= (dz / dist) * force;
+        });
+      }
+      return positions;
+    }
+
+    function relOnCanvasClick(event) {
+      const rect = relRenderer.domElement.getBoundingClientRect();
+      relMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      relMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      relRaycaster.setFromCamera(relMouse, relCamera);
+      const intersects = relRaycaster.intersectObjects(relGraphObjects);
+      if (intersects.length > 0) {
+        const name = intersects[0].object.userData.name;
+        relLoadEntity(name);
+      }
+    }
+
+    function relAnimate() {
+      relAnimationId = requestAnimationFrame(relAnimate);
+      if (relScene && relCamera) {
+        // 缓慢自转
+        relScene.rotation.y += 0.001;
+        relRenderer.render(relScene, relCamera);
+      }
+    }
+
     // ===== Inspiration =====
     async function loadInspiration() {
       try {
@@ -4195,6 +4773,8 @@ createApp({
           default_api: defaultApi,
           independent_keys: data.independent_keys || false,
           roles: rolesData,
+          image_config: data.image_config || { enabled: false, base_url: '', api_key: '', model: '', size: '1024x1024', quality: 'auto' },
+          api_channels: data.api_channels || [],
         };
         // 加载写作偏好
         try {
@@ -4214,6 +4794,8 @@ createApp({
           },
           independent_keys: configData.value.independent_keys,
           roles: {},
+          image_config: configData.value.image_config,
+          api_channels: configData.value.api_channels,
         };
         for (const key of Object.keys(configData.value.roles)) {
           cleanData.roles[key] = {
@@ -4255,6 +4837,54 @@ createApp({
       testingConfig.value = false;
     }
 
+    // ===== API 渠道管理 =====
+    function addApiChannel() {
+      configData.value.api_channels.push({
+        id: 'ch_' + Date.now(),
+        name: '',
+        models: [''],
+        base_url: '',
+        api_key: '',
+        temperature: 0.7,
+        max_tokens: 8192,
+      });
+    }
+    function _findChannel(idOrName) {
+      return configData.value.api_channels.find(c => (c.id || c.name) === idOrName);
+    }
+    // 将指定渠道设为默认（auto 模式使用），其他渠道取消默认标记
+    function setDefaultChannel(ch) {
+      if (!ch) return;
+      configData.value.api_channels.forEach(c => { c.is_default = (c === ch); });
+      showToast('已设为默认渠道：' + (ch.name || ''), 'success');
+    }
+    function applyChannelToRole(ch) {
+      if (!ch) return;
+      const keys = Object.keys(modelRoles);
+      if (!keys.length) return;
+      // 默认应用到 DIALOGUE_PARTNER（最常用），否则第一个角色
+      const targetKey = keys.includes('DIALOGUE_PARTNER') ? 'DIALOGUE_PARTNER' : keys[0];
+      _applyChannelToRoleKey(targetKey, ch);
+    }
+    function applyChannelToRoleById(roleKey, idOrName) {
+      const ch = _findChannel(idOrName);
+      if (ch) _applyChannelToRoleKey(roleKey, ch);
+    }
+    function _applyChannelToRoleKey(roleKey, ch) {
+      if (!configData.value.roles[roleKey]) {
+        configData.value.roles[roleKey] = { models: [''], base_url: '', api_key: '', temperature: 0.7, max_tokens: 8192 };
+      }
+      configData.value.roles[roleKey] = {
+        ...configData.value.roles[roleKey],
+        models: [...(ch.models || [''])],
+        base_url: ch.base_url || '',
+        api_key: ch.api_key || '',
+        temperature: ch.temperature ?? 0.7,
+        max_tokens: ch.max_tokens ?? 8192,
+      };
+      showToast('已应用到 ' + roleKey, 'success');
+    }
+
     // ===== Health Check =====
     async function checkHealth() {
       try {
@@ -4264,7 +4894,11 @@ createApp({
           const cfg = await apiJSON('/api/config');
           const defaultReady = cfg.default_api?.is_configured;
           const rolesReady = Object.values(cfg.roles || {}).some(r => r.is_configured);
-          apiStatus.value = (defaultReady || rolesReady) ? 'ready' : 'unconfigured';
+          // 任何已保存的 API 渠道配置完整也算就绪
+          const channelsReady = (cfg.api_channels || []).some(c =>
+            c.models && c.models.length && c.base_url && c.api_key
+          );
+          apiStatus.value = (defaultReady || rolesReady || channelsReady) ? 'ready' : 'unconfigured';
         } catch (e) {
           apiStatus.value = 'unconfigured';
         }
@@ -4358,6 +4992,7 @@ createApp({
       if (tab === 'files' && currentProjectId.value) loadFiles();
       if (tab === 'writing' && currentProjectId.value) loadWritingIndex();
       if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
+      if (tab === 'relations' && currentProjectId.value) relLoadOverview();
     });
 
     return {
@@ -4371,7 +5006,7 @@ createApp({
       // Conversations
       conversations, currentConversationId, showConvRenameModal, convRenameInput, currentConvInfo,
       // Chat selectors
-      selectedModel, selectedRole, availableModels, chatRoles, lastUsedModel,
+      selectedModel, selectedRole, availableModels, modelToChannel, chatRoles, lastUsedModel,
       // Settings
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
       currentSettingNodeId, currentSettingNode,
@@ -4430,12 +5065,21 @@ createApp({
       loadForeshadowingList, selectForeshadowing, addForeshadowing, confirmNewFs,
       updateFsName, updateFsStatus, updateFsResolution, deleteForeshadowing,
       addFsEntry, confirmAddEntry, removeFsEntry,
+      // Relations (星图)
+      relSubView, relPreset, relSource, relTextInput, relAnalyzing, relProgressMsgs,
+      relOverview, relCurrentType, relGraphData, relArchiveType, relArchiveEntities,
+      relSelectedEntity, relEntityContent, RELATION_TYPES,
+      relStartAnalyze, relLoadGraphData, relLoadArchive, relLoadEntity,
+      relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult,
+      relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
       // Inspiration
       inspirationPath, inspirationFiles, inspirationContent, currentInspirationFile,
       inspirationFileLoading, showInspirationModal, inspirationInput,
       loadInspiration, readInspirationFile, confirmInspiration, browseInspiration,
       inspirationFileIcon, formatFileSize,
       uploadFile, openSettings, saveConfig, testConfig,
+      addApiChannel, setDefaultChannel, applyChannelToRole,
+      applyChannelToRoleById,
     };
   }
 }).mount('#app');

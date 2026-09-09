@@ -44,7 +44,21 @@ def parse_json_response(text: str) -> dict | list | None:
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
-        return None
+        pass
+    # 容错：尝试从文本中提取 JSON 对象或数组
+    # 策略：找第一个 { 或 [，匹配到最后一个 } 或 ]
+    for opener, closer in [("{", "}"), ("[", "]")]:
+        start = cleaned.find(opener)
+        if start < 0:
+            continue
+        end = cleaned.rfind(closer)
+        if end > start:
+            fragment = cleaned[start:end + 1]
+            try:
+                return json.loads(fragment)
+            except json.JSONDecodeError:
+                continue
+    return None
 
 
 def sanitize_path_name(name: str, error_message: str = "无效的名称") -> str:

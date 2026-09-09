@@ -50,3 +50,6 @@ dist/
 
 # Config files with secrets
 config.json
+
+# Local learning / notes (not for version control)
+项目结构学习文档.html

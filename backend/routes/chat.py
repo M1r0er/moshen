@@ -61,6 +61,14 @@ async def list_available_models():
     cm = get_config_manager()
     default_models = cm.get_available_models("DEFAULT")
 
+    # 模型 → 所属渠道名称映射（用于前端展示）
+    model_to_channel: dict[str, str] = {}
+    for ch in cm.api_channels:
+        ch_name = ch.get("name", "")
+        for m in ch.get("models", []):
+            if m and m.strip():
+                model_to_channel.setdefault(m.strip(), ch_name)
+
     roles_info = {}
     for role_key, role_desc in MODEL_ROLES.items():
         models = cm.get_available_models(role_key) if cm.independent_keys else default_models
@@ -72,6 +80,7 @@ async def list_available_models():
     return {
         "independent_keys": cm.independent_keys,
         "default_models": default_models,
+        "model_to_channel": model_to_channel,
         "roles": roles_info,
     }
 

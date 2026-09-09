@@ -5,7 +5,18 @@
 const { app, BrowserWindow, shell, globalShortcut, dialog, ipcMain } = require('electron');
 const path = require('path');
 const net = require('net');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
+const fs = require('fs');
+
+// 设置 userData 路径（确保单实例锁和缓存路径一致）
+app.setPath('userData', path.join(app.getPath('appData'), 'moshen'));
+
+// 单实例锁：防止多个墨参同时运行
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+  process.exit(0);
+}
 
 // 是否为开发模式
 const isDev = process.argv.includes('--dev');
@@ -139,20 +150,17 @@ function startPythonServer(port) {
  * 终止 Python 后端服务
  */
 function killPythonServer() {
-  if (pythonProcess) {
-    console.log('正在停止后端服务...');
-    try {
-      if (process.platform === 'win32') {
-        // Windows 下用 taskkill 强制终止进程树
-        spawn('taskkill', ['/pid', pythonProcess.pid, '/f', '/t'], {
-          windowsHide: true,
-        });
-      } else {
-        pythonProcess.kill('SIGTERM');
-      }
-    } catch (e) {
-      console.error('终止 Python 进程失败:', e.message);
+  console.log('正在停止后端服务...');
+  try {
+    if (process.platform === 'win32') {
+      // 用 taskkill 终止所有 moshen-server 进程（含子进程树）
+      execSync('taskkill /im moshen-server.exe /f /t', { windowsHide: true, stdio: 'ignore' });
     }
+  } catch (e) {
+    // taskkill 找不到进程会返回非零，忽略即可
+  }
+  if (pythonProcess) {
+    try { pythonProcess.kill('SIGTERM'); } catch (e) {}
     pythonProcess = null;
   }
 }
@@ -267,7 +275,14 @@ async function createWindow() {
 
   // 后端就绪后，加载实际页面
   try {
+    console.log('开始加载页面...');
     await mainWindow.loadURL(`http://127.0.0.1:${backendPort}`);
+    console.log('页面加载完成');
+    // 确保窗口可见
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
   } catch (err) {
     console.error('页面加载失败:', err.message);
     showErrorPage('页面加载失败', err.message);
@@ -277,6 +292,14 @@ async function createWindow() {
 // 应用准备就绪
 app.whenReady().then(createWindow);
 
+// 第二个实例尝试启动时，聚焦已有窗口
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
 // 所有窗口关闭时退出应用
 app.on('window-all-closed', () => {
   killPythonServer();
@@ -285,6 +308,11 @@ app.on('window-all-closed', () => {
 
 // 应用退出前清理
 app.on('before-quit', () => {
+  killPythonServer();
+});
+
+// 确保进程退出时彻底清理
+process.on('exit', () => {
   killPythonServer();
 });
 

@@ -4,6 +4,7 @@
 每个API可配置多个模型，支持auto模式自动选择
 """
 import os
+import json
 from pathlib import Path
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
@@ -65,12 +66,14 @@ class ModelConfig:
         return self.models[0]  # 默认用最强
 
 
-# 四角色定义
+# 角色定义
 MODEL_ROLES = {
     "TEXT_MASTER": "文学性分析、文风诊断、文笔评估",
     "STRUCTURE_ANALYST": "大纲结构分析、节奏诊断、逻辑检查",
     "KNOWLEDGE_BUILDER": "拆书、知识提取、叙事模式抽象",
     "DIALOGUE_PARTNER": "日常对话、创意讨论、问答",
+    "NOVEL_ANALYZER": "小说关系图谱分析、实体与关系提取",
+    "IMAGE_GENERATOR": "人物肖像绘制 prompt 生成（复用聊天 API）",
 }
 
 # 角色降级链：首选不可用时按序降级
@@ -79,6 +82,8 @@ FALLBACK_CHAIN = {
     "STRUCTURE_ANALYST": ["TEXT_MASTER", "DIALOGUE_PARTNER"],
     "KNOWLEDGE_BUILDER": ["DIALOGUE_PARTNER"],
     "DIALOGUE_PARTNER": ["TEXT_MASTER", "STRUCTURE_ANALYST"],
+    "NOVEL_ANALYZER": ["STRUCTURE_ANALYST", "KNOWLEDGE_BUILDER", "DIALOGUE_PARTNER"],
+    "IMAGE_GENERATOR": ["NOVEL_ANALYZER", "DIALOGUE_PARTNER"],
 }
 
 
@@ -143,6 +148,27 @@ class ConfigManager:
             )
             self._models[role] = cfg
 
+        # 加载 API 渠道列表
+        channels_raw = os.getenv("API_CHANNELS", "")
+        self._api_channels: list[dict] = []
+        if channels_raw:
+            try:
+                self._api_channels = json.loads(channels_raw)
+                if not isinstance(self._api_channels, list):
+                    self._api_channels = []
+            except (json.JSONDecodeError, TypeError):
+                self._api_channels = []
+
+        # 加载图像生成 API 配置（独立于聊天 API）
+        self._image_config = {
+            "enabled": os.getenv("IMAGE_ENABLED", "False").lower() in ("true", "1", "yes"),
+            "base_url": os.getenv("IMAGE_BASE_URL", ""),
+            "api_key": os.getenv("IMAGE_API_KEY", ""),
+            "model": os.getenv("IMAGE_MODEL", ""),
+            "size": os.getenv("IMAGE_SIZE", "1024x1024"),
+            "quality": os.getenv("IMAGE_QUALITY", "auto"),
+        }
+
     def reload(self):
         """重新加载配置"""
         # 清除环境变量缓存
@@ -150,6 +176,7 @@ class ConfigManager:
             "DEFAULT_API_MODELS", "DEFAULT_API_MODEL", "DEFAULT_API_BASE_URL", "DEFAULT_API_KEY",
             "DEFAULT_API_TEMPERATURE", "DEFAULT_API_MAX_TOKENS",
             "INDEPENDENT_API_KEYS",
+            "API_CHANNELS",
         ]
         for role in MODEL_ROLES:
             keys_to_clear.extend([
@@ -166,7 +193,21 @@ class ConfigManager:
         return self._independent_keys
 
     def get_available_models(self, role: str = "DEFAULT") -> list[str]:
-        """获取某个角色可用的所有模型列表"""
+        """获取某个角色可用的所有模型列表
+
+        优先返回所有 API 渠道中的模型合集（跨渠道），
+        若没有渠道则回退到默认 API / 角色配置。
+        """
+        # 1. 汇总所有渠道的模型（跨渠道）
+        all_models: list[str] = []
+        for ch in self._api_channels:
+            for m in ch.get("models", []):
+                if m and m.strip() and m.strip() not in all_models:
+                    all_models.append(m.strip())
+        if all_models:
+            return all_models
+
+        # 2. 回退：独立模式关闭或 DEFAULT 角色
         if not self._independent_keys or role == "DEFAULT":
             return list(self._default_api.models)
         cfg = self._models.get(role)
@@ -181,6 +222,27 @@ class ConfigManager:
             return list(self._default_api.models)
         return []
 
+    def get_channel_by_model(self, model_name: str) -> dict | None:
+        """根据模型名查找所属的 API 渠道"""
+        if not model_name:
+            return None
+        for ch in self._api_channels:
+            models = ch.get("models", [])
+            if model_name in models:
+                return ch
+        return None
+
+    def get_default_channel(self) -> dict | None:
+        """获取标记为默认的渠道（或第一个已配置的渠道）"""
+        for ch in self._api_channels:
+            if ch.get("is_default"):
+                return ch
+        # 回退：第一个有模型+base_url+api_key 的渠道
+        for ch in self._api_channels:
+            if (ch.get("models") and ch.get("base_url") and ch.get("api_key")):
+                return ch
+        return self._api_channels[0] if self._api_channels else None
+
     def get_model(self, role: str, model_name: str | None = None,
                   user_input: str = "", intent: str = "") -> ModelConfig | None:
         """获取指定角色的模型配置
@@ -190,24 +252,64 @@ class ConfigManager:
             model_name: 指定模型名称。None 或 "auto" 表示自动选择
             user_input: 用户输入（用于auto模式判断）
             intent: 意图（用于auto模式判断）
+
+        路由策略：
+        - 若指定了具体模型名：在所有 API 渠道中查找该模型，命中即用对应渠道的配置
+        - 若为 auto 或未指定：使用默认渠道的模型（按任务复杂度自动选）
         """
-        # 获取基础配置
+        # 1. 具体模型名 → 跨渠道查找
+        if model_name and model_name != "auto":
+            ch = self.get_channel_by_model(model_name)
+            if ch is not None:
+                return ModelConfig(
+                    role=role,
+                    models=[model_name],
+                    base_url=ch.get("base_url", ""),
+                    api_key=ch.get("api_key", ""),
+                    temperature=float(ch.get("temperature", 0.7)),
+                    max_tokens=int(ch.get("max_tokens", 8192)),
+                )
+            # 渠道中没找到，回退到默认 API（兼容旧逻辑）
+            base_cfg = self._get_base_config(role)
+            if base_cfg is not None and model_name in base_cfg.models:
+                return ModelConfig(
+                    role=base_cfg.role,
+                    models=[model_name],
+                    base_url=base_cfg.base_url,
+                    api_key=base_cfg.api_key,
+                    temperature=base_cfg.temperature,
+                    max_tokens=base_cfg.max_tokens,
+                )
+
+        # 2. auto 模式：使用默认渠道
+        default_ch = self.get_default_channel()
+        if default_ch is not None and default_ch.get("models"):
+            models = [m for m in default_ch["models"] if m and m.strip()]
+            if models:
+                base_cfg = ModelConfig(
+                    role=role,
+                    models=models,
+                    base_url=default_ch.get("base_url", ""),
+                    api_key=default_ch.get("api_key", ""),
+                    temperature=float(default_ch.get("temperature", 0.7)),
+                    max_tokens=int(default_ch.get("max_tokens", 8192)),
+                )
+                if len(models) > 1:
+                    selected = base_cfg.get_model_for_task(user_input, intent)
+                    return ModelConfig(
+                        role=base_cfg.role,
+                        models=[selected],
+                        base_url=base_cfg.base_url,
+                        api_key=base_cfg.api_key,
+                        temperature=base_cfg.temperature,
+                        max_tokens=base_cfg.max_tokens,
+                    )
+                return base_cfg
+
+        # 3. 回退到原有的 default_api / 角色配置逻辑
         base_cfg = self._get_base_config(role)
         if base_cfg is None:
             return None
-
-        # 如果指定了模型名称且不是 auto，创建一个使用指定模型的副本
-        if model_name and model_name != "auto" and model_name in base_cfg.models:
-            return ModelConfig(
-                role=base_cfg.role,
-                models=[model_name],
-                base_url=base_cfg.base_url,
-                api_key=base_cfg.api_key,
-                temperature=base_cfg.temperature,
-                max_tokens=base_cfg.max_tokens,
-            )
-
-        # auto 模式：根据任务选择模型
         if (not model_name or model_name == "auto") and len(base_cfg.models) > 1:
             selected = base_cfg.get_model_for_task(user_input, intent)
             return ModelConfig(
@@ -218,8 +320,6 @@ class ConfigManager:
                 temperature=base_cfg.temperature,
                 max_tokens=base_cfg.max_tokens,
             )
-
-        # 默认：使用第一个模型
         return base_cfg
 
     def _get_base_config(self, role: str) -> ModelConfig | None:
@@ -301,12 +401,28 @@ class ConfigManager:
                 }
                 for role, cfg in self._models.items()
             },
+            "image_config": self._image_config,
+            "api_channels": list(self._api_channels),
         }
 
     def is_any_configured(self) -> bool:
         if self._default_api.is_configured():
             return True
+        # 任何 API 渠道已配置也算
+        for ch in self._api_channels:
+            if (ch.get("models") and ch.get("base_url") and ch.get("api_key")):
+                return True
         return any(c.is_configured() for c in self._models.values())
+
+    @property
+    def image_config(self) -> dict:
+        """图像生成 API 配置"""
+        return self._image_config
+
+    @property
+    def api_channels(self) -> list[dict]:
+        """API 渠道列表"""
+        return list(self._api_channels)
 
     def save_config(self, data: dict):
         """保存配置到 .env 文件
@@ -323,19 +439,49 @@ class ConfigManager:
 
         # 默认 API
         default_api = data.get("default_api", {})
-        default_models = default_api.get("models", [])
-        # 过滤空字符串
-        default_models = [m for m in default_models if m and m.strip()]
-        lines.append("# 默认 API 配置")
-        lines.append(f"DEFAULT_API_MODELS={','.join(default_models)}")
-        lines.append(f"DEFAULT_API_BASE_URL={default_api.get('base_url', '')}")
-        lines.append(f"DEFAULT_API_KEY={default_api.get('api_key', '')}")
-        default_temp = default_api.get("temperature")
-        if default_temp is not None:
-            lines.append(f"DEFAULT_API_TEMPERATURE={default_temp}")
-        default_max = default_api.get("max_tokens")
-        if default_max is not None:
-            lines.append(f"DEFAULT_API_MAX_TOKENS={default_max}")
+        api_channels = data.get("api_channels", [])
+        if not isinstance(api_channels, list):
+            api_channels = []
+        # 过滤无效渠道
+        api_channels = [c for c in api_channels if isinstance(c, dict) and c.get("name")]
+        lines.append("# API 渠道列表（JSON）")
+        lines.append(f"API_CHANNELS={json.dumps(api_channels, ensure_ascii=False)}")
+        lines.append("")
+
+        # 默认 API 配置：从标记为默认的渠道同步（若无则取第一个已配置的渠道）
+        default_ch = None
+        for ch in api_channels:
+            if ch.get("is_default"):
+                default_ch = ch
+                break
+        if default_ch is None:
+            for ch in api_channels:
+                if (ch.get("models") and ch.get("base_url") and ch.get("api_key")):
+                    default_ch = ch
+                    break
+
+        if default_ch is not None:
+            default_models = [m for m in default_ch.get("models", []) if m and m.strip()]
+            lines.append("# 默认 API 配置（由默认渠道自动同步）")
+            lines.append(f"DEFAULT_API_MODELS={','.join(default_models)}")
+            lines.append(f"DEFAULT_API_BASE_URL={default_ch.get('base_url', '')}")
+            lines.append(f"DEFAULT_API_KEY={default_ch.get('api_key', '')}")
+            lines.append(f"DEFAULT_API_TEMPERATURE={default_ch.get('temperature', 0.7)}")
+            lines.append(f"DEFAULT_API_MAX_TOKENS={default_ch.get('max_tokens', 8192)}")
+        else:
+            # 无渠道时使用前端传入的 default_api（兼容旧数据）
+            default_models = default_api.get("models", [])
+            default_models = [m for m in default_models if m and m.strip()]
+            lines.append("# 默认 API 配置")
+            lines.append(f"DEFAULT_API_MODELS={','.join(default_models)}")
+            lines.append(f"DEFAULT_API_BASE_URL={default_api.get('base_url', '')}")
+            lines.append(f"DEFAULT_API_KEY={default_api.get('api_key', '')}")
+            default_temp = default_api.get("temperature")
+            if default_temp is not None:
+                lines.append(f"DEFAULT_API_TEMPERATURE={default_temp}")
+            default_max = default_api.get("max_tokens")
+            if default_max is not None:
+                lines.append(f"DEFAULT_API_MAX_TOKENS={default_max}")
         lines.append("")
 
         # 独立开关
@@ -361,6 +507,17 @@ class ConfigManager:
             if role_max is not None:
                 lines.append(f"{role}_MAX_TOKENS={role_max}")
             lines.append("")
+
+        # 图像生成 API 配置
+        image_data = data.get("image_config", {})
+        lines.append("# 图像生成 API 配置")
+        lines.append(f"IMAGE_ENABLED={'True' if image_data.get('enabled') else 'False'}")
+        lines.append(f"IMAGE_BASE_URL={image_data.get('base_url', '')}")
+        lines.append(f"IMAGE_API_KEY={image_data.get('api_key', '')}")
+        lines.append(f"IMAGE_MODEL={image_data.get('model', '')}")
+        lines.append(f"IMAGE_SIZE={image_data.get('size', '1024x1024')}")
+        lines.append(f"IMAGE_QUALITY={image_data.get('quality', 'auto')}")
+        lines.append("")
 
         with open(self.env_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
