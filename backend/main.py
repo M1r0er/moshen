@@ -27,7 +27,7 @@ from routes.writing import router as writing_router
 from routes.foreshadowing import router as foreshadowing_router
 from routes.relations import router as relations_router
 
-app = FastAPI(title="墨参 MoShen", version="0.5.2", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.5.3", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -58,6 +58,8 @@ class ConfigUpdateRequest(BaseModel):
     default_api: dict = {}
     independent_keys: bool = False
     roles: dict = {}
+    api_channels: list = []
+    image_config: dict = {}
 
 
 @app.get("/api/config")
@@ -75,6 +77,8 @@ async def save_config(req: ConfigUpdateRequest):
         "default_api": req.default_api,
         "independent_keys": req.independent_keys,
         "roles": req.roles,
+        "api_channels": req.api_channels,
+        "image_config": req.image_config,
     }
     mgr.save_config(data)
     return {"success": True, **mgr.get_full_config()}
@@ -109,7 +113,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.5.2"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.5.3"}
 
 
 # ===== 前端静态文件 =====

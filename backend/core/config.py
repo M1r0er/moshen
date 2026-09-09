@@ -159,6 +159,19 @@ class ConfigManager:
             except (json.JSONDecodeError, TypeError):
                 self._api_channels = []
 
+        # 兼容旧配置：仅有默认 API、尚无渠道时，迁移为一个默认渠道
+        if not self._api_channels and self._default_api.is_configured():
+            self._api_channels = [{
+                "id": "ch_default",
+                "name": "默认 API",
+                "models": list(self._default_api.models),
+                "base_url": self._default_api.base_url,
+                "api_key": self._default_api.api_key,
+                "temperature": self._default_api.temperature,
+                "max_tokens": self._default_api.max_tokens,
+                "is_default": True,
+            }]
+
         # 加载图像生成 API 配置（独立于聊天 API）
         self._image_config = {
             "enabled": os.getenv("IMAGE_ENABLED", "False").lower() in ("true", "1", "yes"),
@@ -437,13 +450,20 @@ class ConfigManager:
         os.makedirs(os.path.dirname(self.env_path), exist_ok=True)
         lines = ["# 墨参 MoShen 配置文件", ""]
 
-        # 默认 API
-        default_api = data.get("default_api", {})
+        # API 渠道列表
         api_channels = data.get("api_channels", [])
         if not isinstance(api_channels, list):
             api_channels = []
-        # 过滤无效渠道
-        api_channels = [c for c in api_channels if isinstance(c, dict) and c.get("name")]
+        # 过滤完全空白的渠道（保留仅填了名称/URL/Key/模型的渠道）
+        api_channels = [
+            c for c in api_channels
+            if isinstance(c, dict) and (
+                (c.get("name") or "").strip()
+                or (c.get("base_url") or "").strip()
+                or (c.get("api_key") or "").strip()
+                or any((m or "").strip() for m in (c.get("models") or []))
+            )
+        ]
         lines.append("# API 渠道列表（JSON）")
         lines.append(f"API_CHANNELS={json.dumps(api_channels, ensure_ascii=False)}")
         lines.append("")
@@ -469,19 +489,13 @@ class ConfigManager:
             lines.append(f"DEFAULT_API_TEMPERATURE={default_ch.get('temperature', 0.7)}")
             lines.append(f"DEFAULT_API_MAX_TOKENS={default_ch.get('max_tokens', 8192)}")
         else:
-            # 无渠道时使用前端传入的 default_api（兼容旧数据）
-            default_models = default_api.get("models", [])
-            default_models = [m for m in default_models if m and m.strip()]
-            lines.append("# 默认 API 配置")
-            lines.append(f"DEFAULT_API_MODELS={','.join(default_models)}")
-            lines.append(f"DEFAULT_API_BASE_URL={default_api.get('base_url', '')}")
-            lines.append(f"DEFAULT_API_KEY={default_api.get('api_key', '')}")
-            default_temp = default_api.get("temperature")
-            if default_temp is not None:
-                lines.append(f"DEFAULT_API_TEMPERATURE={default_temp}")
-            default_max = default_api.get("max_tokens")
-            if default_max is not None:
-                lines.append(f"DEFAULT_API_MAX_TOKENS={default_max}")
+            # 无可用默认渠道时清空默认 API（默认 API 由渠道派生，避免残留旧配置导致状态误判）
+            lines.append("# 默认 API 配置（无可用渠道时为空）")
+            lines.append("DEFAULT_API_MODELS=")
+            lines.append("DEFAULT_API_BASE_URL=")
+            lines.append("DEFAULT_API_KEY=")
+            lines.append("DEFAULT_API_TEMPERATURE=0.7")
+            lines.append("DEFAULT_API_MAX_TOKENS=8192")
         lines.append("")
 
         # 独立开关
