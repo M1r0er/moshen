@@ -24,6 +24,7 @@ moshen_env/
 # IDE
 .idea/
 .vscode/
+.trae/
 *.swp
 *.swo
 *~
@@ -43,6 +44,7 @@ workspace/
 # Node.js / Electron
 node_modules/
 release/
+release-v*/
 npm-debug.log*
 
 # PyInstaller output (moshen-server dist)
