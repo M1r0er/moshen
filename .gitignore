@@ -55,3 +55,6 @@ config.json
 
 # Local learning / notes (not for version control)
 项目结构学习文档.html
+
+# Local docs (not for version control)
+docs/
