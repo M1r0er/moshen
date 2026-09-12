@@ -52,27 +52,42 @@ class ContextManager:
     def clear_history(self):
         self._history.clear()
 
-    def build_messages(self, user_input: str) -> list[dict]:
-        """组装完整的 LLM 消息列表"""
-        messages = []
+    def _system_text(self) -> str:
+        """system 消息内容（核心层 + 记忆层）
 
-        # 核心层 → system 消息
+        只包含跨轮次相对稳定的内容，使其在不同轮次之间保持一致，
+        便于 LLM 复用上下文缓存。
+        """
         system_parts = []
         if self._core_layer:
             system_parts.append(self._core_layer)
         if self._memory_layer:
             system_parts.append(f"\n---\n\n## 当前项目知识\n{self._memory_layer}")
-        if self._working_layer:
-            system_parts.append(f"\n---\n\n## 本次对话上下文\n{self._working_layer}")
+        return "\n\n".join(system_parts)
 
-        if system_parts:
-            messages.append({"role": "system", "content": "\n\n".join(system_parts)})
+    def _user_text(self, user_input: str) -> str:
+        """用户消息内容（工作层 + 本轮输入）
+
+        工作层（当前讨论焦点等）每轮都会变化，因此放到用户消息而不是 system，
+        避免破坏 system 前缀的稳定性。
+        """
+        if self._working_layer:
+            return f"{self._working_layer}\n\n{user_input}"
+        return user_input
+
+    def build_messages(self, user_input: str) -> list[dict]:
+        """组装完整的 LLM 消息列表"""
+        messages = []
+
+        system_text = self._system_text()
+        if system_text:
+            messages.append({"role": "system", "content": system_text})
 
         # 历史层 → 历史消息
         messages.extend(self._history)
 
-        # 用户输入
-        messages.append({"role": "user", "content": user_input})
+        # 用户输入（含工作层）
+        messages.append({"role": "user", "content": self._user_text(user_input)})
 
         return messages
 
@@ -80,19 +95,12 @@ class ContextManager:
         """使用外部历史记录组装消息（用于 API 无状态调用）"""
         messages = []
 
-        system_parts = []
-        if self._core_layer:
-            system_parts.append(self._core_layer)
-        if self._memory_layer:
-            system_parts.append(f"\n---\n\n## 当前项目知识\n{self._memory_layer}")
-        if self._working_layer:
-            system_parts.append(f"\n---\n\n## 本次对话上下文\n{self._working_layer}")
-
-        if system_parts:
-            messages.append({"role": "system", "content": "\n\n".join(system_parts)})
+        system_text = self._system_text()
+        if system_text:
+            messages.append({"role": "system", "content": system_text})
 
         messages.extend(history)
-        messages.append({"role": "user", "content": user_input})
+        messages.append({"role": "user", "content": self._user_text(user_input)})
 
         return messages
 

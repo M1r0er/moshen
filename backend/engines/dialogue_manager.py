@@ -3,6 +3,7 @@
 核心编排模块：意图识别 → 上下文组装 → LLM调用 → 干预评估 → 流式返回
 """
 import json
+import os
 import re
 import time
 from typing import AsyncGenerator
@@ -11,10 +12,14 @@ from pathlib import Path
 from core.llm_provider import get_llm_provider
 from core.prompt_loader import get_prompt_loader
 from core.context_manager import build_core_layer, create_context
+from core.context_builder import Section, assemble_context
 from core.config import get_config_manager
 from engines.intent_router import get_intent_router
 from engines.intervention import get_intervention_engine
 from knowledge.project_kb import get_project_kb_manager
+
+# 项目记忆层（注入 system 的项目上下文）的总字符预算，可用环境变量覆盖
+CONTEXT_BUDGET_CHARS = int(os.environ.get("MOSHEN_CONTEXT_BUDGET", "14000"))
 
 # 知识库存写标记的正则：[[KB_SAVE:标题:类型]]内容[[/KB_SAVE]]
 _KB_SAVE_PATTERN = re.compile(
@@ -71,24 +76,28 @@ class DialogueManager:
     def _build_memory_layer(self, project_id: str) -> str:
         """组装某个项目的记忆层文本（知识库/设定/大纲/灵感/全局知识库）
 
-        每次调用都按当前磁盘内容重新组装，因此不需要"刷新"共享状态；
-        该结果只服务于本次请求，不会写入任何跨请求共享的对象。
+        按"预算 + 优先级"组装，并把被截断 / 未注入的片段显式写入缺口说明，
+        而不是静默丢弃。每次调用都按当前磁盘内容重新组装，不写任何共享状态。
         """
         if not project_id:
             return ""
 
-        parts = []
-        # 知识库摘要
-        kb_summary = self.project_kb.get_project_summary(project_id)
-        if kb_summary:
-            parts.append(f"### 知识库\n{kb_summary}")
+        sections: list[Section] = []
+
+        # 知识库摘要（项目内模板/上传/工作区文档，最稳定、最优先）
+        try:
+            kb_summary = self.project_kb.get_project_summary(project_id)
+            if kb_summary:
+                sections.append(Section("知识库", f"### 知识库\n{kb_summary}", priority=10, max_chars=6000))
+        except Exception:
+            pass
 
         # 设定树摘要
         try:
             from routes.settings_writer import get_settings_summary
             settings_summary = get_settings_summary(project_id)
             if settings_summary:
-                parts.append(f"### 设定页\n{settings_summary}")
+                sections.append(Section("设定页", f"### 设定页\n{settings_summary}", priority=20, max_chars=4500))
         except Exception:
             pass
 
@@ -97,11 +106,20 @@ class DialogueManager:
             from routes.outline import get_outline_summary
             outline_summary = get_outline_summary(project_id)
             if outline_summary:
-                parts.append(f"### 大纲\n{outline_summary}")
+                sections.append(Section("大纲", f"### 大纲\n{outline_summary}", priority=30, max_chars=3500))
         except Exception:
             pass
 
-        # 灵感文件夹文件列表
+        # 全局知识库条目（AI/用户存入的知识）
+        try:
+            from routes.knowledge import get_knowledge_summary
+            global_kb = get_knowledge_summary()
+            if global_kb:
+                sections.append(Section("全局知识库", f"### 全局知识库\n{global_kb}", priority=40, max_chars=3500))
+        except Exception:
+            pass
+
+        # 灵感文件夹文件列表（易变，优先级最低）
         try:
             from routes.workspace import get_inspiration_path
             insp_path = get_inspiration_path()
@@ -114,20 +132,17 @@ class DialogueManager:
                         if f.is_file() and not f.name.startswith(".") and f.suffix.lower() in (".txt", ".md", ".docx", ".doc", ".markdown", ".csv", ".json"):
                             file_names.append(f.name)
                     if file_names:
-                        parts.append(f"### 灵感文件夹（{insp_path}）\n用户在该文件夹中存有以下文件，如需查看内容请告知用户在灵感页打开：\n" + "\n".join(f"- {n}" for n in sorted(file_names)))
+                        sections.append(Section(
+                            "灵感文件夹",
+                            f"### 灵感文件夹（{insp_path}）\n用户在该文件夹中存有以下文件，如需查看内容请告知用户在灵感页打开：\n"
+                            + "\n".join(f"- {n}" for n in sorted(file_names)),
+                            priority=60,
+                            max_chars=600,
+                        ))
         except Exception:
             pass
 
-        # 全局知识库条目（此前只写不读，导致 AI 存入的知识在后续对话中不可见）
-        try:
-            from routes.knowledge import get_knowledge_summary
-            global_kb = get_knowledge_summary()
-            if global_kb:
-                parts.append(f"### 全局知识库\n{global_kb}")
-        except Exception:
-            pass
-
-        return "\n\n".join(parts)
+        return assemble_context(sections, total_budget=CONTEXT_BUDGET_CHARS).text
 
     def _core_layer_text(self) -> str:
         """核心层文本（助手人格 + 创作规范库），惰性构造并缓存"""
