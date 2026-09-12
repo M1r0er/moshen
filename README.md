@@ -228,6 +228,7 @@ moshen/
 
 - [tianming-skill](https://github.com/zy-zmc/tianming-skill) by 子夜
 - [harnessNovel](https://github.com/XTmingyue/harnessNovel) by XTmingyue
+- [AI-Novel-Writer](https://github.com/EthanYoQ/AI-Novel-Writer) by EthanYoQ
 
 ## 许可证
 
