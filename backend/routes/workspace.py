@@ -288,3 +288,51 @@ async def set_writing_prefs(req: WritingPrefsRequest):
     data["writing_prefs"] = prefs
     _save_config(data)
     return {"success": True, "prefs": prefs}
+
+
+# ===== 界面语言 / 项目写作语言 =====
+# 两者相互独立：界面语言只影响 UI 文案；项目写作语言决定模型用什么语言创作。
+# 作者原文与引用资料在任何语言下都保持原样。
+
+UI_LOCALES = ("zh-CN", "en-US")
+WRITING_LANGUAGES = ("zh-CN", "en-US")
+
+
+class I18nPrefsRequest(BaseModel):
+    ui_locale: str | None = None
+    writing_language: str | None = None
+
+
+def get_ui_locale() -> str:
+    """获取界面语言"""
+    return _read_config().get("i18n", {}).get("ui_locale", "zh-CN")
+
+
+def get_writing_language() -> str:
+    """获取项目写作语言"""
+    return _read_config().get("i18n", {}).get("writing_language", "zh-CN")
+
+
+@router.get("/prefs/i18n")
+async def get_i18n_prefs():
+    """获取界面语言与写作语言设置"""
+    return {
+        "ui_locale": get_ui_locale(),
+        "writing_language": get_writing_language(),
+        "ui_locales": list(UI_LOCALES),
+        "writing_languages": list(WRITING_LANGUAGES),
+    }
+
+
+@router.put("/prefs/i18n")
+async def set_i18n_prefs(req: I18nPrefsRequest):
+    """更新界面语言 / 写作语言"""
+    data = _read_config()
+    prefs = data.get("i18n", {})
+    if req.ui_locale is not None and req.ui_locale in UI_LOCALES:
+        prefs["ui_locale"] = req.ui_locale
+    if req.writing_language is not None and req.writing_language in WRITING_LANGUAGES:
+        prefs["writing_language"] = req.writing_language
+    data["i18n"] = prefs
+    _save_config(data)
+    return {"success": True, "prefs": prefs}

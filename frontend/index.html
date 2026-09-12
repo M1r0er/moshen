@@ -255,6 +255,14 @@ body {
 .project-ws-path.empty { color: var(--color-text-weak); font-style: italic; background: none; border: 1px dashed var(--color-border-strong); }
 
 .sidebar-footer { padding: 12px; border-top: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 8px; }
+.sidebar-lang { display: flex; flex-direction: column; gap: 6px; }
+.sidebar-lang-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sidebar-lang-row label { font-size: 12px; color: var(--color-text-muted); }
+.sidebar-lang-row select {
+  flex: 1; max-width: 120px; font-size: 12px; padding: 4px 6px;
+  background: var(--color-input-bg); color: var(--color-text-body);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-xs);
+}
 .sidebar-version { text-align: center; font-size: 12px; color: var(--color-text-weak); letter-spacing: 0.5px; }
 .settings-btn {
   width: 100%; padding: 8px; background: var(--color-surface); border: 1px solid var(--color-border-strong);
@@ -1159,8 +1167,24 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
       </div>
 
       <div class="sidebar-footer">
-        <button class="settings-btn" @click="openSettings">⚙ 设置</button>
-        <div class="sidebar-version">v0.6.5</div>
+        <button class="settings-btn" @click="openSettings">⚙ {{ t('app.settings') }}</button>
+        <div class="sidebar-lang">
+          <div class="sidebar-lang-row">
+            <label>{{ t('lang.ui') }}</label>
+            <select :value="locale" @change="setUiLocale($event.target.value)">
+              <option value="zh-CN">简体中文</option>
+              <option value="en-US">English</option>
+            </select>
+          </div>
+          <div class="sidebar-lang-row">
+            <label>{{ t('lang.writing') }}</label>
+            <select :value="writingLanguage" @change="setWritingLanguage($event.target.value)">
+              <option value="zh-CN">简体中文</option>
+              <option value="en-US">English</option>
+            </select>
+          </div>
+        </div>
+        <div class="sidebar-version">v0.6.6</div>
       </div>
     </aside>
 
@@ -1171,7 +1195,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
              class="tab-item" :class="{ active: activeTab === tab.key }"
              @click="activeTab = tab.key">
           <span>{{ tab.icon }}</span>
-          <span>{{ tab.label }}</span>
+          <span>{{ t('tab.' + tab.key) }}</span>
         </div>
         <div class="tab-spacer"></div>
         <div class="tab-status">
@@ -2578,16 +2602,64 @@ createApp({
     const saveToKbContent = ref('');
     const activeTab = ref('chat');
     const tabs = [
-      { key: 'chat', label: '对话', icon: '💬' },
-      { key: 'writing', label: '写作', icon: '✍️' },
-      { key: 'foreshadowing', label: '伏笔', icon: '🪝' },
-      { key: 'relations', label: '星图', icon: '🌌' },
-      { key: 'settings', label: '设定', icon: '📝' },
-      { key: 'outline', label: '大纲', icon: '🗺' },
-      { key: 'knowledge', label: '知识库', icon: '📚' },
-      { key: 'inspiration', label: '灵感', icon: '💡' },
-      { key: 'files', label: '文件', icon: '📁' },
+      { key: 'chat', icon: '💬' },
+      { key: 'writing', icon: '✍️' },
+      { key: 'foreshadowing', icon: '🪝' },
+      { key: 'relations', icon: '🌌' },
+      { key: 'settings', icon: '📝' },
+      { key: 'outline', icon: '🗺' },
+      { key: 'knowledge', icon: '📚' },
+      { key: 'inspiration', icon: '💡' },
+      { key: 'files', icon: '📁' },
     ];
+
+    // ===== i18n（界面语言与项目写作语言相互独立） =====
+    const locale = ref('zh-CN');
+    const writingLanguage = ref('zh-CN');
+    const I18N = {
+      'zh-CN': {
+        'tab.chat': '对话', 'tab.writing': '写作', 'tab.foreshadowing': '伏笔',
+        'tab.relations': '星图', 'tab.settings': '设定', 'tab.outline': '大纲',
+        'tab.knowledge': '知识库', 'tab.inspiration': '灵感', 'tab.files': '文件',
+        'app.settings': '设置', 'status.ready': 'API 已就绪',
+        'status.unconfigured': '未配置 API', 'status.disconnected': '未连接',
+        'lang.ui': '界面语言', 'lang.writing': '写作语言',
+      },
+      'en-US': {
+        'tab.chat': 'Chat', 'tab.writing': 'Writing', 'tab.foreshadowing': 'Foreshadowing',
+        'tab.relations': 'Graph', 'tab.settings': 'Settings', 'tab.outline': 'Outline',
+        'tab.knowledge': 'Knowledge', 'tab.inspiration': 'Ideas', 'tab.files': 'Files',
+        'app.settings': 'Settings', 'status.ready': 'API ready',
+        'status.unconfigured': 'API not configured', 'status.disconnected': 'Disconnected',
+        'lang.ui': 'Interface language', 'lang.writing': 'Writing language',
+      },
+    };
+    function t(key) {
+      const dict = I18N[locale.value] || I18N['zh-CN'];
+      if (dict[key] !== undefined) return dict[key];
+      return I18N['zh-CN'][key] !== undefined ? I18N['zh-CN'][key] : key;
+    }
+    async function loadI18nPrefs() {
+      try {
+        const data = await apiJSON('/api/workspace/prefs/i18n');
+        locale.value = data.ui_locale || 'zh-CN';
+        writingLanguage.value = data.writing_language || 'zh-CN';
+      } catch (e) { /* 保持默认 */ }
+    }
+    async function saveI18nPrefs() {
+      try {
+        await apiJSON('/api/workspace/prefs/i18n', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ui_locale: locale.value, writing_language: writingLanguage.value }),
+        });
+        showToast(locale.value === 'en-US' ? 'Language saved' : '语言设置已保存', 'success');
+      } catch (e) {
+        showToast('保存语言设置失败: ' + e.message, 'error');
+      }
+    }
+    function setUiLocale(v) { locale.value = v; saveI18nPrefs(); }
+    function setWritingLanguage(v) { writingLanguage.value = v; saveI18nPrefs(); }
 
     // Chat
     const messages = ref([]);
@@ -5205,15 +5277,16 @@ createApp({
       return 'disconnected';
     });
     const apiStatusLabel = computed(() => {
-      if (apiStatus.value === 'ready') return 'API 已就绪';
-      if (apiStatus.value === 'unconfigured') return '未配置 API';
-      return '未连接';
+      if (apiStatus.value === 'ready') return t('status.ready');
+      if (apiStatus.value === 'unconfigured') return t('status.unconfigured');
+      return t('status.disconnected');
     });
 
     // ===== Lifecycle =====
     onMounted(async () => {
       await checkHealth();
       await loadWorkspace();
+      await loadI18nPrefs();
       await loadProjects();
       await loadKnowledge();
       await loadChatModels();
@@ -5297,6 +5370,7 @@ createApp({
 
     return {
       apiStatus, apiStatusClass, apiStatusLabel, workspacePath, workspaceInput, showWorkspaceModal,
+      locale, writingLanguage, t, setUiLocale, setWritingLanguage, loadI18nPrefs,
       projects, currentProjectId, showNewProjectModal, newProjectName,
       showRenameModal, renameInput, renamingProjectId,
       projectWorkspacePath, showProjectWsModal, projectWsInput,

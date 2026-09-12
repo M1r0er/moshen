@@ -157,7 +157,22 @@ class DialogueManager:
                 # 系统合同始终位于最后并声明不可覆盖，优先级高于角色定位与用户指导
                 text = f"{text}\n\n---\n\n{contract}"
             self._core_layer_cache = text
-        return self._core_layer_cache
+        # 写作语言随设置变化，单独拼接在缓存之外
+        return f"{self._core_layer_cache}\n\n---\n\n{self._language_directive()}"
+
+    def _language_directive(self) -> str:
+        """写作语言指令（界面语言与写作语言相互独立）"""
+        try:
+            from routes.workspace import get_writing_language
+            lang = get_writing_language()
+        except Exception:
+            lang = "zh-CN"
+        label = {"zh-CN": "简体中文", "en-US": "English"}.get(lang, lang)
+        return (
+            "## 写作语言\n"
+            f"本项目写作语言：{label}。请使用该语言进行创作与回复；"
+            "作者原文与引用资料保持原样，不要翻译或改写。"
+        )
 
     def _system_contract(self) -> str:
         """加载不可被覆盖的系统合同（缺失时降级为空）"""
