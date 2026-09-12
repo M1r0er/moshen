@@ -46,6 +46,7 @@
 | 星图 | 从稿件抽取角色 / 世界 / 势力 / 地点 / 事件 / 道具六类实体及关系；3D 关系图支持拖拽旋转与滚轮缩放；条目档案；可选人物肖像生成 |
 | 设定 | 多级设定目录树、AI 优化、从文档提取设定、导出 txt / md / html / docx |
 | 大纲 | 节点与连线式大纲，区分主线与支线 |
+| 爽爆点 | 大纲页的子页面：按剧情段 / 副本登记爽点、爆点、钩子等，记录每个点用了多少次，附审美疲劳提示，并可用 AI 检查已有正文修正使用次数 |
 | 知识库 | 本地文件分析整理、按关键词生成参考文档、从对话保存、重新分析 |
 | 灵感 | 指定灵感文件夹，浏览并读取其中的常见文本与 Word 文档 |
 | 文件 | 上传 txt / md / docx；文风诊断、逻辑检查、冲突值计算、全面诊断；拆书蒸馏 |
@@ -116,7 +117,7 @@ npm run build:electron
 
 | 数据 | 位置 |
 |---|---|
-| 项目资料（设定、大纲、伏笔、正文、对话、报告、星图） | 你选择的工作区目录，纯文件存储（JSON / Markdown / HTML） |
+| 项目资料（设定、大纲、伏笔、正文、对话、报告、星图、爽爆点） | 你选择的工作区目录，纯文件存储（JSON / Markdown / HTML） |
 | 模型配置与 API Key | `~/.moshen/.env` |
 | 工作区、灵感文件夹、语言与写作偏好 | `~/.moshen/workspace.json` |
 
@@ -156,6 +157,7 @@ moshen/
 │   ├── knowledge/                 # 知识层
 │   │   ├── project_kb.py          # 项目知识库
 │   │   ├── flow.py                # 章节创作流程状态机
+│   │   ├── plot_points.py         # 爽爆点库与使用次数统计
 │   │   ├── rules_kb.py            # 创作规范库
 │   │   ├── novel_analyzer.py      # 可选拆书引擎
 │   │   └── relation_graph_render.py
@@ -174,6 +176,7 @@ moshen/
 │   │   ├── relations.py           # 星图
 │   │   ├── settings_writer.py     # 设定
 │   │   ├── outline.py             # 大纲
+│   │   ├── plot_points.py         # 爽爆点与 AI 使用次数检查
 │   │   ├── knowledge.py           # 知识库
 │   │   ├── files.py               # 文件与诊断
 │   │   ├── workspace.py           # 工作区与偏好
@@ -224,7 +227,6 @@ moshen/
 
 - [tianming-skill](https://github.com/zy-zmc/tianming-skill) by 子夜
 - [harnessNovel](https://github.com/XTmingyue/harnessNovel) by XTmingyue
-- [AI-Novel-Writer](https://github.com/EthanYoQ/AI-Novel-Writer) by EthanYoQ（借鉴设计思路，未复制其代码）
 
 ## 许可证
 

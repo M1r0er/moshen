@@ -635,6 +635,88 @@ body {
 
 /* ===== Outline Page ===== */
 .outline-container { display: flex; flex-direction: column; height: 100%; }
+/* ===== 大纲子页面切换 ===== */
+.outline-subtabs { display: flex; gap: 6px; padding: 10px 24px 0; }
+.outline-subtab {
+  font-size: 13px; padding: 5px 14px; cursor: pointer;
+  background: var(--color-input-bg); color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.outline-subtab.active { background: var(--color-surface); color: var(--accent); border-bottom-color: var(--color-surface); font-weight: 600; }
+.outline-graph-view { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+/* ===== 爽爆点库 ===== */
+.plot-points-view { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; padding: 10px 24px 16px; gap: 10px; }
+.pp-stats { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-stat-chip {
+  font-size: 12px; padding: 3px 10px; border-radius: 999px;
+  background: var(--color-info-bg); color: var(--color-info); border: 1px solid transparent;
+}
+.pp-stat-chip.trope { background: var(--color-input-bg); color: var(--color-text-secondary); }
+.pp-stat-chip.warn { background: var(--color-warning-bg); color: var(--color-warning); border-color: var(--color-warning); }
+.pp-fatigue-hint {
+  font-size: 12.5px; line-height: 1.7; padding: 8px 12px; border-radius: var(--radius-md);
+  background: var(--color-warning-bg); color: var(--color-text-body); border: 1px solid var(--color-warning);
+}
+.pp-fatigue-title { font-weight: 600; color: var(--color-warning); margin-bottom: 2px; }
+.pp-analyze-panel {
+  padding: 10px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-info);
+  background: var(--color-info-bg); display: flex; flex-direction: column; gap: 8px;
+}
+.pp-analyze-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-analyze-title { font-size: 13px; font-weight: 600; color: var(--color-info); }
+.pp-analyze-note { font-size: 12px; color: var(--color-text-muted); flex: 1; }
+.pp-analyze-overall { font-size: 12.5px; color: var(--color-text-body); }
+.pp-suggestion {
+  display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+  background: var(--color-surface); border-radius: var(--radius-xs);
+}
+.pp-suggestion-main { flex: 1; min-width: 0; }
+.pp-suggestion-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-suggestion-title { font-size: 13px; font-weight: 600; color: var(--color-text-body); }
+.pp-suggestion-count { font-size: 12px; color: var(--color-info); }
+.pp-suggestion-evidence { font-size: 12px; color: var(--color-text-muted); }
+.pp-suggestion-reason { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+.pp-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-filter-label { font-size: 12px; color: var(--color-text-muted); }
+.pp-input {
+  font-size: 12.5px; padding: 4px 8px; border-radius: var(--radius-xs);
+  background: var(--color-input-bg); color: var(--color-text-body);
+  border: 1px solid var(--color-border-strong); outline: none;
+}
+.pp-input:focus { border-color: var(--accent); }
+.pp-input-num { width: 80px; }
+.pp-list { display: flex; flex-direction: column; gap: 8px; }
+.pp-card {
+  display: flex; gap: 12px; padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+}
+.pp-card-main { flex: 1; min-width: 0; }
+.pp-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pp-type-tag {
+  font-size: 12px; padding: 1px 8px; border-radius: 999px;
+  background: var(--color-info-bg); color: var(--color-info);
+}
+.pp-name { font-size: 13.5px; font-weight: 600; color: var(--color-text-body); }
+.pp-trope { font-size: 12px; color: var(--color-text-muted); }
+.pp-segment { font-size: 12px; color: var(--color-text-secondary); background: var(--color-input-bg); padding: 1px 8px; border-radius: 999px; }
+.pp-status { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--color-input-bg); color: var(--color-text-secondary); }
+.pp-status-pending { background: var(--color-warning-bg); color: var(--color-warning); }
+.pp-status-writing { background: var(--color-info-bg); color: var(--color-info); }
+.pp-status-used { background: var(--color-success-bg); color: var(--color-success); }
+.pp-status-archived { background: var(--color-input-bg); color: var(--color-text-muted); }
+.pp-card-content { font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.7; margin-top: 6px; white-space: pre-wrap; }
+.pp-card-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11.5px; color: var(--color-text-muted); margin-top: 6px; }
+.pp-card-side { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 150px; }
+.pp-count { font-size: 20px; font-weight: 700; color: var(--color-success); }
+.pp-count.warn { color: var(--color-warning); }
+.pp-count-sep { font-size: 13px; color: var(--color-text-muted); margin: 0 2px; }
+.pp-count-label { font-size: 11px; color: var(--color-text-muted); }
+.pp-actions { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+.pp-edit-pane {
+  padding: 10px 12px; border-radius: var(--radius-md); margin-top: 4px;
+  background: var(--color-surface); border: 1px solid var(--accent);
+}
+.pp-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 8px 0; }
 .outline-toolbar {
   display: flex; align-items: center; gap: 10px; padding: 10px 24px;
   border-bottom: 1px solid var(--color-border); background: var(--color-surface);
@@ -1184,7 +1266,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.6.7</div>
+        <div class="sidebar-version">v0.6.8</div>
       </div>
     </aside>
 
@@ -1479,6 +1561,15 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
+            <!-- 子页面切换 -->
+            <div class="outline-subtabs">
+              <button class="outline-subtab" :class="{ active: outlineSubView === 'graph' }"
+                @click="switchOutlineSub('graph')">大纲图</button>
+              <button class="outline-subtab" :class="{ active: outlineSubView === 'points' }"
+                @click="switchOutlineSub('points')">爽爆点</button>
+            </div>
+
+            <div v-show="outlineSubView === 'graph'" class="outline-graph-view">
             <!-- 工具栏 -->
             <div class="outline-toolbar">
               <button class="btn btn-primary" @click="addOutlineNode">+ 添加节点</button>
@@ -1609,6 +1700,140 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   点击节点或连线进行编辑，或点击上方「添加节点」创建新剧情点
                 </div>
               </template>
+            </div>
+            </div><!-- /outline-graph-view -->
+
+            <!-- 爽爆点库 -->
+            <div v-show="outlineSubView === 'points'" class="plot-points-view">
+              <div class="outline-toolbar">
+                <button class="btn btn-primary" @click="startNewPlotPoint">+ 新增爽爆点</button>
+                <button class="btn btn-secondary" @click="loadPlotPoints">↻ 刷新</button>
+                <button class="btn btn-secondary" @click="analyzePlotPointUsage" :disabled="ppAnalyzing">
+                  {{ ppAnalyzing ? 'AI 检查中...' : 'AI 检查使用次数' }}
+                </button>
+                <span class="outline-toolbar-info">共 {{ plotPoints.length }} 条 · 疲劳阈值 {{ ppFatigueThreshold }} 次</span>
+              </div>
+
+              <div class="pp-stats" v-if="ppTypeStats.length > 0 || ppTropeStats.length > 0">
+                <span v-for="st in ppTypeStats" :key="'t-' + st.key" class="pp-stat-chip"
+                  :class="{ warn: st.used >= ppFatigueThreshold }">
+                  {{ st.key }} 已用 {{ st.used }} 次 · {{ st.count }} 条
+                </span>
+                <span v-for="st in ppTropeStats" :key="'r-' + st.key" class="pp-stat-chip trope"
+                  :class="{ warn: st.used >= ppFatigueThreshold }">
+                  套路「{{ st.key }}」已用 {{ st.used }} 次
+                </span>
+              </div>
+
+              <div class="pp-fatigue-hint" v-if="ppFatigueWarnings.length > 0">
+                <div class="pp-fatigue-title">审美疲劳提示</div>
+                <div v-for="(w, i) in ppFatigueWarnings" :key="'w-' + i">· {{ w }}</div>
+              </div>
+
+              <div class="pp-analyze-panel" v-if="ppAnalyzeResult">
+                <div class="pp-analyze-head">
+                  <span class="pp-analyze-title">AI 使用次数检查</span>
+                  <span class="pp-analyze-note" v-if="ppAnalyzeResult.truncated">
+                    正文较长，仅检查了前 {{ ppAnalyzeResult.chapters_examined_chars }} 字
+                  </span>
+                  <button class="btn btn-secondary flow-mini" @click="ppAnalyzeResult = null">关闭</button>
+                  <button class="btn btn-primary flow-mini" @click="applyAllSuggestions"
+                    :disabled="ppSuggestionsChanged.length === 0">全部应用（{{ ppSuggestionsChanged.length }}）</button>
+                </div>
+                <div class="pp-analyze-overall" v-if="ppAnalyzeResult.overall">{{ ppAnalyzeResult.overall }}</div>
+                <div class="pp-analyze-overall" v-if="ppAnalyzeResult.suggestions.length === 0">没有需要调整的条目。</div>
+                <div v-for="s in ppAnalyzeResult.suggestions" :key="'s-' + s.id" class="pp-suggestion">
+                  <div class="pp-suggestion-main">
+                    <div class="pp-suggestion-line">
+                      <span class="pp-suggestion-title">{{ s.title }}</span>
+                      <span class="pp-suggestion-count">记录 {{ s.current_used_count }} → 建议 {{ s.suggested_used_count }}</span>
+                      <span class="pp-suggestion-evidence" v-if="s.evidence">{{ s.evidence }}</span>
+                    </div>
+                    <div class="pp-suggestion-reason" v-if="s.reason">{{ s.reason }}</div>
+                  </div>
+                  <button class="btn flow-mini" @click="applySuggestion(s)" :disabled="!s.changed">
+                    {{ s.changed ? '应用' : '一致' }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="pp-filters">
+                <input class="pp-input" v-model="ppFilterKeyword" placeholder="搜索标题 / 内容 / 套路">
+                <select class="pp-input" v-model="ppFilterType">
+                  <option value="">全部类型</option>
+                  <option v-for="t in ppTypes" :key="t" :value="t">{{ t }}</option>
+                </select>
+                <select class="pp-input" v-model="ppFilterStatus">
+                  <option value="">全部状态</option>
+                  <option v-for="s in ppStatuses" :key="s" :value="s">{{ ppStatusLabels[s] || s }}</option>
+                </select>
+                <input class="pp-input" v-model="ppFilterSegment" placeholder="按剧情段 / 副本筛选">
+                <span class="pp-filter-label">疲劳阈值</span>
+                <input class="pp-input pp-input-num" type="number" min="1" v-model.number="ppThresholdInput"
+                  @change="saveFatigueThreshold">
+              </div>
+
+              <div class="pp-list">
+                <div v-if="ppFilteredList.length === 0" class="outline-empty-hint">
+                  暂无爽爆点。点「新增爽爆点」，或在对话中让墨参给出爽点、爆点建议后加入。
+                </div>
+                <div v-for="p in ppFilteredList" :key="p.id" class="pp-card">
+                  <div class="pp-card-main">
+                    <div class="pp-card-head">
+                      <span class="pp-type-tag">{{ p.type }}</span>
+                      <span class="pp-name">{{ p.title }}</span>
+                      <span v-if="p.trope" class="pp-trope">套路：{{ p.trope }}</span>
+                      <span v-if="p.segment" class="pp-segment">{{ p.segment }}</span>
+                      <span class="pp-status" :class="'pp-status-' + (p.status || 'pending')">
+                        {{ ppStatusLabels[p.status] || '待写' }}
+                      </span>
+                    </div>
+                    <div class="pp-card-content" v-if="p.content">{{ p.content }}</div>
+                    <div class="pp-card-meta">
+                      <span v-if="p.planned_count">计划 {{ p.planned_count }} 次</span>
+                      <span v-if="p.usage_notes && p.usage_notes.length">使用记录 {{ p.usage_notes.length }} 条</span>
+                      <span v-if="p.updated_at">更新 {{ formatTime(p.updated_at) }}</span>
+                    </div>
+                  </div>
+                  <div class="pp-card-side">
+                    <div class="pp-count" :class="{ warn: (p.used_count || 0) >= ppItemThreshold(p) }">
+                      {{ p.used_count || 0 }}<span class="pp-count-sep">/</span>{{ ppItemThreshold(p) }}
+                    </div>
+                    <div class="pp-count-label">已用 / 阈值</div>
+                    <div class="pp-actions">
+                      <button class="btn flow-mini" @click="incUsed(p, 1)">+1 使用</button>
+                      <button class="btn flow-mini" @click="incUsed(p, -1)" :disabled="!p.used_count">-1</button>
+                      <button class="btn flow-mini" @click="startEditPlotPoint(p)">编辑</button>
+                      <button class="btn flow-mini" @click="deletePlotPoint(p)">删除</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="pp-edit-pane" v-if="ppEditing">
+                <div class="outline-edit-header">
+                  <span class="outline-edit-type-badge">{{ ppEditing.id ? '编辑爽爆点' : '新增爽爆点' }}</span>
+                  <button class="btn btn-secondary flow-mini" @click="ppEditing = null">取消</button>
+                  <button class="btn btn-primary flow-mini" @click="savePlotPoint"
+                    :disabled="!ppEditing.title || !ppEditing.title.trim()">保存</button>
+                </div>
+                <div class="pp-edit-grid">
+                  <input class="pp-input" v-model="ppEditing.title" placeholder="标题，如：主角被轻视后当众反打">
+                  <select class="pp-input" v-model="ppEditing.type">
+                    <option v-for="t in ppTypes" :key="t" :value="t">{{ t }}</option>
+                  </select>
+                  <input class="pp-input" v-model="ppEditing.trope" placeholder="套路 / 桥段类型，如：打脸型">
+                  <input class="pp-input" v-model="ppEditing.segment" placeholder="剧情段 / 副本，如：第一副本·试炼秘境">
+                  <select class="pp-input" v-model="ppEditing.status">
+                    <option v-for="s in ppStatuses" :key="s" :value="s">{{ ppStatusLabels[s] || s }}</option>
+                  </select>
+                  <input class="pp-input pp-input-num" type="number" min="0" v-model.number="ppEditing.used_count" placeholder="已用">
+                  <input class="pp-input pp-input-num" type="number" min="0" v-model.number="ppEditing.planned_count" placeholder="计划">
+                  <input class="pp-input pp-input-num" type="number" min="0" v-model.number="ppEditing.fatigue_threshold" placeholder="独立阈值">
+                </div>
+                <textarea class="outline-edit-textarea" v-model="ppEditing.content"
+                  placeholder="这个点打算怎么写、埋在哪里、想达到什么效果..."></textarea>
+              </div>
             </div>
           </template>
         </div>
@@ -3951,6 +4176,171 @@ createApp({
         outlineSvgWidth.value = Math.max(maxX, 800);
         outlineSvgHeight.value = Math.max(maxY, 600);
       } catch (e) { outlineNodes.value = []; outlineEdges.value = []; }
+      if (outlineSubView.value === 'points') await loadPlotPoints();
+    }
+
+    // ===== 爽爆点库 =====
+    const outlineSubView = ref('graph'); // graph | points
+    const plotPoints = ref([]);
+    const ppTypes = ref([]);
+    const ppStatuses = ref([]);
+    const ppStatusLabels = ref({});
+    const ppFatigueThreshold = ref(3);
+    const ppThresholdInput = ref(3);
+    const ppStats = ref({ by_type: {}, by_trope: {}, warnings: [], fatigue_threshold: 3 });
+    const ppFilterKeyword = ref('');
+    const ppFilterType = ref('');
+    const ppFilterStatus = ref('');
+    const ppFilterSegment = ref('');
+    const ppEditing = ref(null);
+    const ppAnalyzing = ref(false);
+    const ppAnalyzeResult = ref(null);
+
+    function switchOutlineSub(view) {
+      outlineSubView.value = view;
+      if (view === 'points') loadPlotPoints();
+      else loadOutline();
+    }
+
+    async function loadPlotPoints() {
+      if (!currentProjectId.value) { plotPoints.value = []; return; }
+      try {
+        const data = await apiJSON('/api/plot-points/' + currentProjectId.value);
+        plotPoints.value = data.points || [];
+        if (data.types) ppTypes.value = data.types;
+        if (data.statuses) ppStatuses.value = data.statuses;
+        if (data.status_labels) ppStatusLabels.value = data.status_labels;
+        if (data.fatigue_threshold) {
+          ppFatigueThreshold.value = data.fatigue_threshold;
+          ppThresholdInput.value = data.fatigue_threshold;
+        }
+        if (data.stats) ppStats.value = data.stats;
+      } catch (e) { plotPoints.value = []; }
+    }
+
+    const ppFilteredList = computed(() => {
+      const kw = ppFilterKeyword.value.trim().toLowerCase();
+      const seg = ppFilterSegment.value.trim();
+      return plotPoints.value.filter(p => {
+        if (ppFilterType.value && p.type !== ppFilterType.value) return false;
+        if (ppFilterStatus.value && (p.status || 'pending') !== ppFilterStatus.value) return false;
+        if (seg && !(p.segment || '').includes(seg)) return false;
+        if (kw) {
+          const hay = ((p.title || '') + ' ' + (p.content || '') + ' ' + (p.trope || '')).toLowerCase();
+          if (!hay.includes(kw)) return false;
+        }
+        return true;
+      });
+    });
+    const ppTypeStats = computed(() => Object.entries(ppStats.value.by_type || {})
+      .map(([key, v]) => ({ key, used: v.used, count: v.count }))
+      .sort((a, b) => b.used - a.used));
+    const ppTropeStats = computed(() => Object.entries(ppStats.value.by_trope || {})
+      .map(([key, v]) => ({ key, used: v.used, count: v.count }))
+      .sort((a, b) => b.used - a.used));
+    const ppFatigueWarnings = computed(() => ppStats.value.warnings || []);
+    const ppSuggestionsChanged = computed(() => {
+      const r = ppAnalyzeResult.value;
+      return r && r.suggestions ? r.suggestions.filter(s => s.changed) : [];
+    });
+    function ppItemThreshold(p) {
+      return (p && p.fatigue_threshold) ? p.fatigue_threshold : ppFatigueThreshold.value;
+    }
+
+    function startNewPlotPoint() {
+      ppEditing.value = {
+        id: '', title: '', type: ppTypes.value[0] || '爽点', trope: '', content: '',
+        segment: '', status: 'pending', used_count: 0, planned_count: null, fatigue_threshold: null,
+      };
+    }
+    function startEditPlotPoint(p) { ppEditing.value = { ...p }; }
+
+    async function savePlotPoint() {
+      const e = ppEditing.value;
+      if (!e || !e.title || !e.title.trim()) return;
+      const payload = {
+        title: e.title.trim(), type: e.type, trope: e.trope || '', content: e.content || '',
+        segment: e.segment || '', status: e.status || 'pending',
+        used_count: Number(e.used_count) || 0,
+        planned_count: e.planned_count ? Number(e.planned_count) : null,
+        fatigue_threshold: e.fatigue_threshold ? Number(e.fatigue_threshold) : null,
+      };
+      try {
+        if (e.id) {
+          await apiJSON('/api/plot-points/' + currentProjectId.value + '/' + e.id, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          });
+        } else {
+          await apiJSON('/api/plot-points/' + currentProjectId.value, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+          });
+        }
+        ppEditing.value = null;
+        await loadPlotPoints();
+        showToast('已保存爽爆点', 'success');
+      } catch (err) { showToast('保存失败: ' + err.message, 'error'); }
+    }
+
+    async function incUsed(p, delta) {
+      try {
+        await apiJSON('/api/plot-points/' + currentProjectId.value + '/' + p.id + '/used', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ delta }),
+        });
+        await loadPlotPoints();
+      } catch (e) { showToast('更新失败: ' + e.message, 'error'); }
+    }
+
+    async function deletePlotPoint(p) {
+      if (!confirm('删除爽爆点「' + p.title + '」？此操作不可恢复。')) return;
+      try {
+        await apiJSON('/api/plot-points/' + currentProjectId.value + '/' + p.id, { method: 'DELETE' });
+        await loadPlotPoints();
+        showToast('已删除', 'success');
+      } catch (e) { showToast('删除失败: ' + e.message, 'error'); }
+    }
+
+    async function saveFatigueThreshold() {
+      const v = Number(ppThresholdInput.value) || 3;
+      try {
+        const res = await apiJSON('/api/plot-points/' + currentProjectId.value + '/threshold', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fatigue_threshold: v }),
+        });
+        ppFatigueThreshold.value = res.fatigue_threshold;
+        ppThresholdInput.value = res.fatigue_threshold;
+        await loadPlotPoints();
+        showToast('疲劳阈值已更新', 'success');
+      } catch (e) { showToast('保存阈值失败: ' + e.message, 'error'); }
+    }
+
+    async function analyzePlotPointUsage() {
+      if (!currentProjectId.value) return;
+      ppAnalyzing.value = true;
+      try {
+        const data = await apiJSON('/api/plot-points/' + currentProjectId.value + '/analyze-usage', { method: 'POST' });
+        ppAnalyzeResult.value = data;
+      } catch (e) { showToast('AI 检查失败: ' + e.message, 'error'); }
+      ppAnalyzing.value = false;
+    }
+
+    async function applySuggestion(s) {
+      try {
+        await apiJSON('/api/plot-points/' + currentProjectId.value + '/' + s.id + '/used', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ set_to: s.suggested_used_count, note: 'AI 检查：' + (s.evidence || '') }),
+        });
+        s.current_used_count = s.suggested_used_count;
+        s.changed = false;
+        await loadPlotPoints();
+      } catch (e) { showToast('应用失败: ' + e.message, 'error'); }
+    }
+
+    async function applyAllSuggestions() {
+      const list = ppSuggestionsChanged.value.slice();
+      if (list.length === 0) return;
+      for (const s of list) await applySuggestion(s);
+      showToast('已应用 ' + list.length + ' 条调整', 'success');
     }
 
     async function addOutlineNode() {
@@ -5420,6 +5810,14 @@ createApp({
       outlineMousePos, outlineSvgWidth, outlineSvgHeight,
       selectedOutlineNode, selectedOutlineEdge, selectedOutlineEdgeTitles, outlineEdgeRenderList,
       loadOutline, addOutlineNode, updateOutlineNode, deleteOutlineNode,
+      // 爽爆点库
+      outlineSubView, switchOutlineSub, plotPoints, ppTypes, ppStatuses, ppStatusLabels,
+      ppFatigueThreshold, ppThresholdInput, ppStats, ppFilterKeyword, ppFilterType,
+      ppFilterStatus, ppFilterSegment, ppEditing, ppAnalyzing, ppAnalyzeResult,
+      ppFilteredList, ppTypeStats, ppTropeStats, ppFatigueWarnings, ppSuggestionsChanged,
+      ppItemThreshold, loadPlotPoints, startNewPlotPoint, startEditPlotPoint, savePlotPoint,
+      incUsed, deletePlotPoint, saveFatigueThreshold, analyzePlotPointUsage,
+      applySuggestion, applyAllSuggestions,
       updateOutlineEdge, deleteOutlineEdge, selectOutlineNode, selectOutlineEdge,
       deselectOutline, createOutlineEdge, startDragNode, onOutlineMouseMove,
       // Writing
