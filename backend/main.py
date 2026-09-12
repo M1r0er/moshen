@@ -6,7 +6,6 @@ import os
 import sys
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -30,16 +29,7 @@ from routes.session import router as session_router
 from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 
-app = FastAPI(title="墨参 MoShen", version="0.6.10", description="小说写作助手")
-
-# CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(title="墨参 MoShen", version="0.6.11", description="小说写作助手")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -145,7 +135,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.10"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.11"}
 
 
 # ===== 前端静态文件 =====
