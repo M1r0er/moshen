@@ -14,6 +14,7 @@ from core.prompt_loader import get_prompt_loader
 from core.context_manager import build_core_layer, create_context
 from core.context_builder import Section, assemble_context
 from core.config import get_config_manager
+from core.utils import gen_id, parse_json_response
 from engines.intent_router import get_intent_router
 from engines.intervention import get_intervention_engine
 from knowledge.project_kb import get_project_kb_manager
@@ -58,6 +59,17 @@ _OUTLINE_LINK_PATTERN = re.compile(
     r'\[\[OUTLINE_LINK:([^:\]]+):([^:\]]+)\]\](.*?)\[\[/OUTLINE_LINK\]\]',
     re.DOTALL
 )
+
+# 待确认提案：[[MOSHEN_PROPOSAL]]{"target":...}[[/MOSHEN_PROPOSAL]]
+# 与上面的"直接写入"标记不同，提案只是询问作者是否把内容归入某个位置，
+# 必须由作者在前端点击确认后才会真正写入。
+_PROPOSAL_PATTERN = re.compile(
+    r'\[\[MOSHEN_PROPOSAL\]\](.*?)\[\[/MOSHEN_PROPOSAL\]\]',
+    re.DOTALL
+)
+
+# 提案可以归入的目标
+_PROPOSAL_TARGETS = ("setting", "outline", "knowledge", "plot_point")
 
 
 class DialogueManager:
@@ -525,6 +537,24 @@ class DialogueManager:
                         yield self._sse("outline_clean", {"clean_content": clean_response})
                         full_response = clean_response
 
+            # 待确认提案：解析 [[MOSHEN_PROPOSAL]] 块，交给作者确认后才写入
+            proposal_matches = _PROPOSAL_PATTERN.findall(full_response)
+            if proposal_matches:
+                proposals = []
+                for raw in proposal_matches:
+                    proposal = self._parse_proposal(raw)
+                    if proposal:
+                        proposals.append(proposal)
+
+                if proposals:
+                    yield self._sse("proposals", {"proposals": proposals})
+
+                # 无论提案是否合法，都移除标记块，避免原始 JSON 留在回复正文里
+                clean_response = _PROPOSAL_PATTERN.sub('', full_response)
+                clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
+                yield self._sse("proposal_clean", {"clean_content": clean_response})
+                full_response = clean_response
+
         except Exception as e:
             yield self._sse("error", {"message": str(e)})
 
@@ -566,6 +596,42 @@ class DialogueManager:
             )
         except Exception:
             return None
+
+    @staticmethod
+    def _parse_proposal(raw: str) -> dict | None:
+        """解析单个提案块；内容不合法时返回 None（宁可不展示，也不写入错误数据）"""
+        text = (raw or "").strip()
+        if not text:
+            return None
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            data = parse_json_response(text)
+        if not isinstance(data, dict):
+            return None
+
+        target = str(data.get("target", "")).strip().lower()
+        if target not in _PROPOSAL_TARGETS:
+            return None
+        title = str(data.get("title", "")).strip()
+        content = str(data.get("content", "")).strip()
+        if not title and not content:
+            return None
+
+        return {
+            "id": gen_id("prop_"),
+            "target": target,
+            "title": title,
+            "content": content,
+            "question": str(data.get("question", "")).strip(),
+            "category": str(data.get("category", "")).strip(),
+            "node_type": "branch" if str(data.get("node_type", "")).strip() == "branch" else "main",
+            "kb_type": str(data.get("kb_type", "")).strip() or "other",
+            "type": str(data.get("type", "")).strip() or "爽点",
+            "trope": str(data.get("trope", "")).strip(),
+            "segment": str(data.get("segment", "")).strip(),
+            "parent": str(data.get("parent", "")).strip(),
+        }
 
     def _sse(self, event: str, data: dict) -> dict:
         """构造 SSE 事件（由 EventSourceResponse 统一序列化）"""

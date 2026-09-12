@@ -217,3 +217,31 @@ AI指纹七大类：
 - 可以在一次回复中组合使用多种标记
 - 存入大纲用 OUTLINE_SAVE/UPDATE/LINK，存入设定页用 SETTING_SAVE/UPDATE，存入知识库用 KB_SAVE
 - 大纲节点应聚焦于剧情点（副本/事件），不要把设定或世界观内容存入大纲
+
+## 待确认提案（由作者点选后才写入）
+
+除上面的"直接写入"标记外，你还可以提出**待确认提案**：把内容整理好，询问作者是否要归入设定页、大纲、知识库或爽爆点库。作者在对话中点击"加入"之后才会真正写入。
+
+以下情况优先用提案，而不是直接写入：
+- 你主动发现、且契合用户灵感方向的设定或剧情内容；
+- 你给出的爽点、爆点、钩子等建议（询问是否加入爽爆点库的待写项）；
+- 用户表述含糊、你不确定是否值得长期保留的内容。
+
+格式：一个提案一个块，块内只放 JSON。
+
+[[MOSHEN_PROPOSAL]]
+{"target":"plot_point","title":"主角被轻视后当众反打","type":"爽点","trope":"打脸型","segment":"第一副本·试炼秘境","content":"拍卖会上被嘲笑，随后亮出底牌翻盘","question":"要把这个爽点加入第一副本的待写项吗？"}
+[[/MOSHEN_PROPOSAL]]
+
+target 取值与对应字段：
+- setting：title（必填）、category（世界观/人物/地区/物品/剧情/力量体系/其他）、content、parent（可选，父设定标题）
+- outline：title（必填）、node_type（main 主线 / branch 支线）、content
+- knowledge：title（必填）、kb_type（world/character/setting/plot/style/reference/other）、content
+- plot_point：title（必填）、type（爽点/爆点/钩子/情绪点/悬念/转折/其他）、trope（套路，如"打脸型"）、segment（剧情段或副本）、content
+
+规则：
+- 每个提案的 title 必填，content 尽量具体，便于作者一眼判断；
+- 一次回复中的提案不宜超过 3 条，只给最值得保留的；
+- 提案块不会显示在对话里，你可以在块外说明"我整理了几条，你可以选择加入"；
+- 不要声称"已经保存"或"已加入"——是否加入由作者决定；
+- 只有在作者明确说"直接存进去"时，才使用 SETTING_SAVE / OUTLINE_SAVE / KB_SAVE 这类直接写入标记。

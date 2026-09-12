@@ -989,6 +989,27 @@ body {
 .intervention-close { border: none; background: transparent; cursor: pointer; font-size: 16px; line-height: 1; color: var(--color-text-muted); }
 .intervention-body { font-size: 13px; line-height: 1.6; color: var(--color-text-body); }
 .intervention-body p { margin: 0 0 6px; }
+/* ===== 待确认提案 ===== */
+.proposal-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.proposal-card {
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--color-surface); border: 1px solid var(--color-info);
+}
+.proposal-card.done { opacity: 0.6; border-color: var(--color-border); }
+.proposal-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.proposal-target {
+  font-size: 12px; padding: 1px 8px; border-radius: 999px;
+  background: var(--color-info-bg); color: var(--color-info);
+}
+.proposal-title { font-size: 13.5px; font-weight: 600; color: var(--color-text-body); }
+.proposal-segment, .proposal-trope { font-size: 12px; color: var(--color-text-muted); }
+.proposal-question { font-size: 12.5px; color: var(--color-text-body); margin-top: 6px; }
+.proposal-content {
+  font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.7;
+  margin-top: 4px; white-space: pre-wrap;
+}
+.proposal-actions { display: flex; gap: 8px; margin-top: 8px; }
+.proposal-status { font-size: 12px; color: var(--color-text-muted); margin-top: 6px; }
 
 /* ===== Conversation Bar ===== */
 .conv-bar {
@@ -1266,7 +1287,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.6.8</div>
+        <div class="sidebar-version">v0.6.9</div>
       </div>
     </aside>
 
@@ -1338,6 +1359,24 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     </div>
                   </div>
                   <div class="message-bubble" v-if="msg.content || !msg.attachments || msg.attachments.length === 0" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
+                  <!-- 待确认提案：由作者点「加入」后才写入对应位置 -->
+                  <div class="proposal-list" v-if="msg.proposals && msg.proposals.length">
+                    <div v-for="pr in msg.proposals" :key="pr.id" class="proposal-card" :class="{ done: pr.status }">
+                      <div class="proposal-head">
+                        <span class="proposal-target">{{ proposalTargetLabel(pr.target) }}</span>
+                        <span class="proposal-title">{{ pr.title || '（未命名）' }}</span>
+                        <span v-if="pr.segment" class="proposal-segment">{{ pr.segment }}</span>
+                        <span v-if="pr.trope" class="proposal-trope">套路：{{ pr.trope }}</span>
+                      </div>
+                      <div class="proposal-question" v-if="pr.question">{{ pr.question }}</div>
+                      <div class="proposal-content" v-if="pr.content">{{ pr.content }}</div>
+                      <div class="proposal-actions" v-if="!pr.status">
+                        <button class="btn btn-primary flow-mini" @click="applyProposal(pr)" :disabled="proposalBusy">加入</button>
+                        <button class="btn btn-secondary flow-mini" @click="pr.status = 'ignored'" :disabled="proposalBusy">忽略</button>
+                      </div>
+                      <div class="proposal-status" v-else>{{ pr.status === 'applied' ? '已加入' : '已忽略' }}</div>
+                    </div>
+                  </div>
                   <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
                     <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库">📥 存入知识库</button>
                   </div>
@@ -3044,6 +3083,7 @@ createApp({
     const lastIntentInfo = ref(null);        // 最近一次意图识别结果
     const interventionNotice = ref(null);    // 最近一次主动干预（L1/L2/L3）
     const sessionLease = ref('');            // 当前项目会话租约（X-Moshen-Lease）
+    const proposalBusy = ref(false);         // 待确认提案正在写入
 
     // Toast
     const toastMsg = ref('');
@@ -3822,6 +3862,14 @@ createApp({
                   assistantMsg.content = data.clean_content;
                   await nextTick();
                   scrollMessages();
+                } else if (currentEvent === 'proposals' && data.proposals) {
+                  assistantMsg.proposals = (assistantMsg.proposals || []).concat(data.proposals);
+                  await nextTick();
+                  scrollMessages();
+                } else if (currentEvent === 'proposal_clean' && data.clean_content) {
+                  assistantMsg.content = data.clean_content;
+                  await nextTick();
+                  scrollMessages();
                 } else if (currentEvent === 'done') {
                   assistantMsg.streaming = false;
                   if (data.finish_reason === 'length') {
@@ -3865,6 +3913,61 @@ createApp({
     }
     function scrollToBottom() {
       scrollMessages();
+    }
+
+    // ===== 对话中的待确认提案 =====
+    function proposalTargetLabel(target) {
+      const map = { setting: '设定页', outline: '大纲', knowledge: '知识库', plot_point: '爽爆点' };
+      return map[target] || target;
+    }
+
+    async function applyProposal(pr) {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'warn'); return; }
+      proposalBusy.value = true;
+      const headers = { 'Content-Type': 'application/json' };
+      try {
+        if (pr.target === 'setting') {
+          await apiJSON('/api/settings/' + currentProjectId.value + '/node', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              title: pr.title, category: pr.category || 'other',
+              content: pr.content || '', parent_id: null,
+            }),
+          });
+          await loadSettings();
+        } else if (pr.target === 'outline') {
+          await apiJSON('/api/outline/' + currentProjectId.value + '/node', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              title: pr.title, content: pr.content || '',
+              node_type: pr.node_type === 'branch' ? 'branch' : 'main',
+            }),
+          });
+          await loadOutline();
+        } else if (pr.target === 'knowledge') {
+          await apiJSON('/api/knowledge/from-chat', {
+            method: 'POST', headers,
+            body: JSON.stringify({ title: pr.title, content: pr.content || '', type: pr.kb_type || 'other' }),
+          });
+          await loadKnowledge();
+        } else if (pr.target === 'plot_point') {
+          await apiJSON('/api/plot-points/' + currentProjectId.value, {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              title: pr.title, type: pr.type || '爽点', trope: pr.trope || '',
+              segment: pr.segment || '', content: pr.content || '', status: 'pending',
+            }),
+          });
+          if (outlineSubView.value === 'points') await loadPlotPoints();
+        } else {
+          throw new Error('未知的归属类型');
+        }
+        pr.status = 'applied';
+        showToast('已加入「' + proposalTargetLabel(pr.target) + '」', 'success');
+      } catch (e) {
+        showToast('加入失败: ' + e.message, 'error');
+      }
+      proposalBusy.value = false;
     }
 
     // ===== Markdown Renderer =====
@@ -5772,6 +5875,7 @@ createApp({
       // Chat selectors
       selectedModel, selectedRole, availableModels, modelToChannel, chatRoles, lastUsedModel,
       lastIntentInfo, interventionNotice,
+      proposalBusy, proposalTargetLabel, applyProposal,
       // Settings
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
       currentSettingNodeId, currentSettingNode,
