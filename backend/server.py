@@ -10,6 +10,13 @@ from pathlib import Path
 # 确保可以导入同目录下的模块
 sys.path.insert(0, str(Path(__file__).parent))
 
+_log_dir = Path.home() / ".moshen" / "logs"
+_log_dir.mkdir(parents=True, exist_ok=True)
+if sys.stdout is None:
+    sys.stdout = open(_log_dir / "backend-stdout.log", "a", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(_log_dir / "backend-stderr.log", "a", encoding="utf-8")
+
 import uvicorn
 
 

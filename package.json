@@ -1,6 +1,6 @@
 {
   "name": "moshen",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "墨参 MoShen · 小说写作助手 — 辅助而非代笔，让 AI 当编辑，不当枪手",
   "author": "M1r0er",
   "license": "MIT",
@@ -19,6 +19,11 @@
   "build": {
     "appId": "com.m1r0er.moshen",
     "productName": "墨参 MoShen",
+    "copyright": "Copyright © 2025 M1r0er",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "asar": true,
+    "compression": "maximum",
+    "electronLanguages": ["zh-CN", "en-US"],
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -48,16 +53,17 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "allowElevation": true,
-      "differentialPackage": false,
-      "deleteAppDataOnUninstall": false,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "墨参 MoShen",
       "runAfterFinish": true,
-      "installerLanguages": ["zh-CN", "en-US"],
+      "deleteAppDataOnUninstall": false,
+      "differentialPackage": false,
+      "uninstallDisplayName": "墨参 MoShen",
+      "installerLanguages": ["zh-CN"],
       "language": "2052"
     }
   }

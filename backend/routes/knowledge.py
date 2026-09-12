@@ -227,6 +227,57 @@ def save_knowledge_entry(title: str, content: str, ktype: str = "other") -> dict
     )
 
 
+def get_knowledge_summary(max_entries: int = 40, max_content_len: int = 400) -> str:
+    """生成全局知识库摘要文本，供对话管理器注入上下文
+
+    全局知识库条目存放在 {workspace}/knowledge/ 下。此前该目录只写不读，
+    导致 AI 通过 [[KB_SAVE]] 自动存入的知识条目在后续对话中不可见。
+    本函数将这些条目纳入上下文，使其可被引用。
+
+    Args:
+        max_entries: 最多注入的条目数（按更新时间倒序，超出部分省略）
+        max_content_len: 每条正文的最大字符数
+
+    Returns:
+        Markdown 摘要文本；无条目时返回空字符串
+    """
+    kd = get_knowledge_dir()
+    if not kd.exists():
+        return ""
+
+    entries = []
+    for f in kd.iterdir():
+        if not f.is_file() or f.suffix != ".md":
+            continue
+        try:
+            content = read_text_safe(f)
+            metadata, body = parse_frontmatter(content)
+        except Exception:
+            continue
+        title = metadata.get("title", f.stem)
+        ktype = metadata.get("type", "")
+        updated = metadata.get("updated_at", metadata.get("created_at", ""))
+        summary = body.strip()
+        if len(summary) > max_content_len:
+            summary = summary[:max_content_len] + "..."
+        entries.append((updated, title, ktype, summary))
+
+    if not entries:
+        return ""
+
+    entries.sort(key=lambda x: x[0], reverse=True)
+    total = len(entries)
+    entries = entries[:max_entries]
+
+    lines = []
+    for _updated, title, ktype, summary in entries:
+        tag = f"（{ktype}）" if ktype else ""
+        lines.append(f"#### {title}{tag}\n{summary}")
+    if total > max_entries:
+        lines.append(f"（另有 {total - max_entries} 条知识条目未列出）")
+    return "\n\n".join(lines)
+
+
 # ===== 请求模型 =====
 
 class SearchRequest(BaseModel):

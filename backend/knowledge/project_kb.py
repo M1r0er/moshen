@@ -5,10 +5,14 @@
 import os
 import json
 import time
+import shutil
 from pathlib import Path
 
 from core.resource_path import get_workspace_dir
 from core.utils import now_str
+
+# 已完成旧版目录迁移的工作区根路径（避免每次获取管理器时重复扫描磁盘）
+_MIGRATED_ROOTS: set[str] = set()
 
 
 def _read_user_workspace() -> Path:
@@ -152,6 +156,80 @@ class ProjectKBManager:
             # 动态读取用户选择的工作区路径
             self.root = _read_user_workspace()
         self.root.mkdir(parents=True, exist_ok=True)
+        self.migrate_legacy_project_layout()
+
+    def get_project_root_dir(self, project_id: str) -> Path:
+        """获取项目根目录（无论是否已存在），统一的项目数据边界
+
+        历史遗留问题：设定与大纲曾存放在 {workspace}/projects/{proj_id}/ 下，
+        而其余项目数据在 {workspace}/{proj_id}/ 下，导致项目数据被拆散在两处。
+        现统一以 {workspace}/{proj_id}/ 为唯一项目目录。
+        """
+        return self.root / project_id
+
+    def get_settings_dir(self, project_id: str) -> Path:
+        """获取项目设定目录（统一路径：{workspace}/{proj_id}/settings）"""
+        return self.get_project_root_dir(project_id) / "settings"
+
+    def get_outline_path(self, project_id: str) -> Path:
+        """获取项目大纲文件路径（统一路径：{workspace}/{proj_id}/outline.json）"""
+        return self.get_project_root_dir(project_id) / "outline.json"
+
+    def migrate_legacy_project_layout(self) -> list[str]:
+        """把旧版 {workspace}/projects/{proj_id}/ 下的 settings、outline.json
+
+        迁移到统一的项目目录 {workspace}/projects/{proj_id}/ -> {workspace}/{proj_id}/，
+        使设定、大纲与其余项目数据落在同一目录下。迁移是幂等的：
+        仅当目标位置不存在对应数据时才移动，孤儿目录（无对应项目）保持原样。
+
+        Returns:
+            被迁移的项目 ID 列表
+        """
+        legacy_root = self.root / "projects"
+        if not legacy_root.exists() or not legacy_root.is_dir():
+            return []
+
+        migrated = []
+        for legacy_proj in list(legacy_root.iterdir()):
+            if not legacy_proj.is_dir() or legacy_proj.name.startswith("."):
+                continue
+            project_id = legacy_proj.name
+            target_root = self.root / project_id
+            # 仅迁移真实存在的项目，孤儿目录不动
+            if not target_root.exists():
+                continue
+
+            moved = False
+
+            legacy_settings = legacy_proj / "settings"
+            target_settings = target_root / "settings"
+            if legacy_settings.exists() and not target_settings.exists():
+                try:
+                    shutil.move(str(legacy_settings), str(target_settings))
+                    moved = True
+                except OSError:
+                    pass
+
+            legacy_outline = legacy_proj / "outline.json"
+            target_outline = target_root / "outline.json"
+            if legacy_outline.exists() and not target_outline.exists():
+                try:
+                    shutil.move(str(legacy_outline), str(target_outline))
+                    moved = True
+                except OSError:
+                    pass
+
+            if moved:
+                migrated.append(project_id)
+
+            # 清理迁移后残留的空目录
+            try:
+                if not any(legacy_proj.iterdir()):
+                    legacy_proj.rmdir()
+            except OSError:
+                pass
+
+        return migrated
 
     def create_project(self, name: str, description: str = "") -> dict:
         """创建新项目"""
@@ -1106,8 +1184,9 @@ class ProjectKBManager:
                 "created_at": f.get("created_at", ""),
                 "updated_at": f.get("updated_at", ""),
             })
-        # 未回收的在前，按更新时间倒序
-        result.sort(key=lambda x: (0 if x["status"] == "active" else 1, x["updated_at"]), reverse=True)
+        # 先按更新时间倒序，再按状态做稳定排序（未回收在前）。
+        # Python 的排序是稳定的，因此同一状态内仍保持"更新时间倒序"。
+        result.sort(key=lambda x: x.get("updated_at", ""), reverse=True)
         result.sort(key=lambda x: 0 if x["status"] == "active" else 1)
         return result
 
@@ -1225,4 +1304,9 @@ def get_project_kb_manager() -> ProjectKBManager:
         # 每次获取时刷新工作区路径（用户可能通过UI切换了工作区）
         _kb_manager.root = _read_user_workspace()
         _kb_manager.root.mkdir(parents=True, exist_ok=True)
+        # 工作区切换后执行一次旧版目录迁移（避免每次调用都扫描磁盘）
+        root_key = str(_kb_manager.root)
+        if root_key not in _MIGRATED_ROOTS:
+            _MIGRATED_ROOTS.add(root_key)
+            _kb_manager.migrate_legacy_project_layout()
     return _kb_manager

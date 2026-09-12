@@ -2,7 +2,6 @@
 墨参 · 对话路由
 SSE 流式对话接口
 """
-import json
 from fastapi import APIRouter, UploadFile, File
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -27,22 +26,16 @@ async def chat(req: ChatRequest):
     manager = get_dialogue_manager()
 
     async def event_generator():
-        async for sse_data in manager.chat_stream(
+        # chat_stream 直接产出 {"event": ..., "data": ...} 结构，
+        # 由 EventSourceResponse 统一序列化，避免二次拼接/拆解。
+        async for event in manager.chat_stream(
             user_input=req.message,
             history=req.history,
             project_id=req.project_id,
             model_override=req.model,
             role_override=req.role,
         ):
-            lines = sse_data.strip().split("\n")
-            event = ""
-            data = ""
-            for line in lines:
-                if line.startswith("event: "):
-                    event = line[7:]
-                elif line.startswith("data: "):
-                    data = line[6:]
-            yield {"event": event, "data": data}
+            yield event
 
     return EventSourceResponse(event_generator())
 

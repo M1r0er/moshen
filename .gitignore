@@ -45,6 +45,7 @@ workspace/
 node_modules/
 release/
 release-v*/
+release-new/
 npm-debug.log*
 
 # PyInstaller output (moshen-server dist)

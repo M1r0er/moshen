@@ -121,15 +121,33 @@ class DialogueManager:
         except Exception:
             pass
 
+        # 全局知识库条目（此前只写不读，导致 AI 存入的知识在后续对话中不可见）
+        try:
+            from routes.knowledge import get_knowledge_summary
+            global_kb = get_knowledge_summary()
+            if global_kb:
+                parts.append(f"### 全局知识库\n{global_kb}")
+        except Exception:
+            pass
+
         self.context_mgr.set_memory_layer("\n\n".join(parts))
 
     def _init_core_layer(self):
-        """初始化核心层（助手人格）"""
+        """初始化核心层（助手人格 + 创作规范库）"""
         try:
             persona = self.prompt_loader.load_raw("system_persona")
-            self.context_mgr.set_core_layer(persona)
         except FileNotFoundError:
-            self.context_mgr.set_core_layer("你是墨参，一位资深网文编辑兼创作教练。")
+            persona = "你是墨参，一位资深网文编辑兼创作教练。"
+        self.context_mgr.set_core_layer(persona, self._rules_text())
+
+    @staticmethod
+    def _rules_text() -> str:
+        """获取创作规范库文本（失败时降级为空，不阻断对话）"""
+        try:
+            from knowledge.rules_kb import RulesKB
+            return RulesKB.get_all_rules()
+        except Exception:
+            return ""
 
     async def chat_stream(
         self,
@@ -138,7 +156,7 @@ class DialogueManager:
         project_id: str | None = None,
         model_override: str | None = None,
         role_override: str | None = None,
-    ) -> AsyncGenerator[str, None]:
+    ) -> AsyncGenerator[dict, None]:
         """流式对话
 
         Args:
@@ -149,7 +167,7 @@ class DialogueManager:
             role_override: 指定职能角色。None/"auto" 为自动选择（通过意图识别）
 
         Yields:
-            SSE 格式的数据块
+            SSE 事件字典 {"event": ..., "data": ...}（由 EventSourceResponse 序列化）
         """
         # 确保核心层已初始化
         self._init_core_layer()
@@ -475,23 +493,28 @@ class DialogueManager:
         if not project_id:
             return None
 
-        # 获取项目知识库摘要用于干预评估
-        kb_summary = self.project_kb.get_project_summary(project_id)
-        if not kb_summary:
+        # 使用与对话相同的完整项目上下文（记忆层），保证干预评估看到的信息
+        # 不少于写作模型；记忆层为空时回退到知识库摘要。
+        if project_id != self._current_project_id:
+            self.set_project(project_id)
+        project_context = self.context_mgr.get_memory_layer()
+        if not project_context:
+            project_context = self.project_kb.get_project_summary(project_id)
+        if not project_context:
             return None
 
         try:
             return await self.intervention.evaluate(
                 user_input=user_input,
                 assistant_response=assistant_response,
-                project_context=kb_summary,
+                project_context=project_context,
             )
         except Exception:
             return None
 
-    def _sse(self, event: str, data: dict) -> str:
-        """格式化 SSE 数据"""
-        return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+    def _sse(self, event: str, data: dict) -> dict:
+        """构造 SSE 事件（由 EventSourceResponse 统一序列化）"""
+        return {"event": event, "data": json.dumps(data, ensure_ascii=False)}
 
 
 # 全局单例

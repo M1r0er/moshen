@@ -25,6 +25,14 @@ class ContextManager:
         """设置记忆层：项目知识库摘要"""
         self._memory_layer = project_summary
 
+    def get_memory_layer(self) -> str:
+        """获取记忆层文本（供干预评估等复用同一份项目上下文）"""
+        return self._memory_layer
+
+    def get_core_layer(self) -> str:
+        """获取核心层文本"""
+        return self._core_layer
+
     def set_working_layer(self, focus: str, retrieved_knowledge: str = ""):
         """设置工作层：当前讨论焦点 + 检索到的网文知识"""
         parts = []

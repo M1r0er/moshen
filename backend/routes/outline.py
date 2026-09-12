@@ -1,7 +1,7 @@
 """
 墨参 · 大纲管理路由
 流程图式大纲，支持分支、合并、连线说明。
-数据存储在项目的 outline.json 文件中。
+数据存储在项目目录下的 outline.json 文件中。
 """
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.utils import gen_id, now_str, sanitize_path_name
-from routes.workspace import get_workspace_path
+from knowledge.project_kb import get_project_kb_manager
 
 router = APIRouter(prefix="/api/outline", tags=["outline"])
 
@@ -23,9 +23,7 @@ def sanitize_name(name: str) -> str:
 
 
 def _outline_path(project_id: str) -> Path:
-    pid = sanitize_name(project_id)
-    p = get_workspace_path() / "projects" / pid / "outline.json"
-    return p
+    return get_project_kb_manager().get_outline_path(sanitize_name(project_id))
 
 
 def load_outline(project_id: str) -> dict:

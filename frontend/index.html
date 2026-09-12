@@ -880,6 +880,25 @@ body {
   font-size: 12px; padding: 0 8px; height: 22px; display: inline-flex; align-items: center; border-radius: var(--radius-xs);
   background: var(--color-info-bg); color: var(--color-info); white-space: nowrap;
 }
+.intent-badge {
+  font-size: 12px; padding: 0 8px; height: 22px; display: inline-flex; align-items: center; border-radius: var(--radius-xs);
+  background: var(--color-warning-bg); color: var(--color-warning); white-space: nowrap;
+  max-width: 240px; overflow: hidden; text-overflow: ellipsis;
+}
+.intervention-banner {
+  margin: 12px 24px 0; padding: 10px 14px; border-radius: var(--radius-md);
+  border: 1px solid var(--color-info); background: var(--color-info-bg);
+}
+.intervention-banner.lv-l1 { border-color: var(--color-info); background: var(--color-info-bg); }
+.intervention-banner.lv-l2 { border-color: var(--color-warning); background: var(--color-warning-bg); }
+.intervention-banner.lv-l3 { border-color: var(--color-error); background: var(--color-error-bg); }
+.intervention-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.intervention-level { font-size: 12px; font-weight: 600; color: var(--color-info); }
+.intervention-banner.lv-l2 .intervention-level { color: var(--color-warning); }
+.intervention-banner.lv-l3 .intervention-level { color: var(--color-error); }
+.intervention-close { border: none; background: transparent; cursor: pointer; font-size: 16px; line-height: 1; color: var(--color-text-muted); }
+.intervention-body { font-size: 13px; line-height: 1.6; color: var(--color-text-body); }
+.intervention-body p { margin: 0 0 6px; }
 
 /* ===== Conversation Bar ===== */
 .conv-bar {
@@ -1128,7 +1147,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
       <div class="sidebar-footer">
         <button class="settings-btn" @click="openSettings">⚙ 设置</button>
-        <div class="sidebar-version">v0.5.4</div>
+        <div class="sidebar-version">v0.5.5</div>
       </div>
     </aside>
 
@@ -1214,6 +1233,15 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </div>
                 </div>
               </div>
+              <!-- 主动干预提示（L1建议 / L2质询 / L3否决） -->
+              <div v-if="interventionNotice" class="intervention-banner"
+                :class="'lv-' + ((interventionNotice.level || 'L1') + '').toLowerCase()">
+                <div class="intervention-head">
+                  <span class="intervention-level">⚠ {{ interventionNotice.level || 'L1' }} 主动干预</span>
+                  <button class="intervention-close" @click="interventionNotice = null" title="关闭">&times;</button>
+                </div>
+                <div class="intervention-body" v-html="renderMarkdown(interventionNotice.content || '')"></div>
+              </div>
               <!-- 滚动按钮 -->
               <div class="chat-scroll-buttons" v-if="messages.length > 0">
                 <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部">↑</button>
@@ -1237,6 +1265,10 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </select>
                 </div>
                 <div class="model-badge" v-if="lastUsedModel">{{ lastUsedModel }}</div>
+                <div class="intent-badge" v-if="lastIntentInfo && lastIntentInfo.intent !== 'manual'"
+                  :title="'意图识别置信度 ' + Math.round((lastIntentInfo.confidence || 0) * 100) + '% · 职能 ' + lastIntentInfo.model_role">
+                  {{ lastIntentInfo.description || lastIntentInfo.intent }}
+                </div>
               </div>
               <div class="chat-input-wrapper"
                 @dragover.prevent="isDragOver = true"
@@ -2681,6 +2713,8 @@ createApp({
     const modelToChannel = ref({}); // 模型名 → 所属渠道名称
     const chatRoles = ref({ independent: false, roles: {} });
     const lastUsedModel = ref('');
+    const lastIntentInfo = ref(null);        // 最近一次意图识别结果
+    const interventionNotice = ref(null);    // 最近一次主动干预（L1/L2/L3）
 
     // Toast
     const toastMsg = ref('');
@@ -3309,6 +3343,8 @@ createApp({
       inputText.value = '';
       chatAttachments.value = [];
       isThinking.value = true;
+      lastIntentInfo.value = null;
+      interventionNotice.value = null;
       await nextTick();
       scrollMessages();
 
@@ -3354,6 +3390,13 @@ createApp({
                   scrollMessages();
                 } else if (currentEvent === 'model_info' && data.model) {
                   lastUsedModel.value = data.model;
+                } else if (currentEvent === 'intent') {
+                  lastIntentInfo.value = data;
+                  await nextTick();
+                } else if (currentEvent === 'intervention' && data.need_intervention) {
+                  interventionNotice.value = data;
+                  const lv = data.level || 'L1';
+                  showToast('墨参主动干预（' + lv + '）', 'warn');
                 } else if (currentEvent === 'kb_saved' && data.entries) {
                   kbSavedReceived = true;
                   for (const entry of data.entries) {
@@ -4548,15 +4591,55 @@ createApp({
     let relGraphObjects = [];
     let relRaycaster = null, relMouse = null;
     let relAnimationId = null;
+    // 鼠标交互状态（拖拽旋转 / 滚轮缩放）
+    let relDragging = false, relDragLastX = 0, relDragLastY = 0, relGlobalHandlersBound = false;
+
+    // 释放 3D 场景与动画循环（重复渲染或离开视图时必须调用，否则会叠加多个 rAF 循环）
+    function relDispose3D() {
+      if (relAnimationId !== null) {
+        cancelAnimationFrame(relAnimationId);
+        relAnimationId = null;
+      }
+      if (relScene) {
+        relScene.traverse(obj => {
+          if (obj.geometry && obj.geometry.dispose) obj.geometry.dispose();
+          if (obj.material) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach(m => {
+              if (m.map && m.map.dispose) m.map.dispose();
+              if (m.dispose) m.dispose();
+            });
+          }
+        });
+      }
+      if (relRenderer) relRenderer.dispose();
+      relScene = null; relCamera = null; relRenderer = null;
+      relGraphObjects = [];
+      relDragging = false;
+    }
+
+    // 全局鼠标监听只绑定一次，避免每次渲染重复注册导致监听器泄漏
+    function relEnsureGlobalHandlers() {
+      if (relGlobalHandlersBound) return;
+      relGlobalHandlersBound = true;
+      window.addEventListener('mousemove', (e) => {
+        if (!relDragging || !relScene) return;
+        const dx = e.clientX - relDragLastX;
+        const dy = e.clientY - relDragLastY;
+        relDragLastX = e.clientX;
+        relDragLastY = e.clientY;
+        relScene.rotation.y += dx * 0.005;
+        relScene.rotation.x += dy * 0.005;
+      });
+      window.addEventListener('mouseup', () => { relDragging = false; });
+    }
 
     function relRender3D() {
       const container = document.getElementById('rel-3d-canvas');
       if (!container) return;
-      // 清理旧场景
-      if (relRenderer) {
-        relRenderer.dispose();
-        container.innerHTML = '';
-      }
+      // 释放旧场景与旧动画循环（避免 CPU 泄漏）
+      relDispose3D();
+      container.innerHTML = '';
       relGraphObjects = [];
 
       const data = relGraphData.value;
@@ -4575,6 +4658,24 @@ createApp({
       relRenderer = new THREE.WebGLRenderer({ antialias: true });
       relRenderer.setSize(width, height);
       container.appendChild(relRenderer.domElement);
+
+      // 鼠标交互：按住拖拽旋转、滚轮缩放（three.min.js 不含 OrbitControls）
+      const canvasEl = relRenderer.domElement;
+      canvasEl.style.cursor = 'grab';
+      canvasEl.addEventListener('mousedown', (e) => {
+        relDragging = true;
+        relDragLastX = e.clientX;
+        relDragLastY = e.clientY;
+        canvasEl.style.cursor = 'grabbing';
+      });
+      canvasEl.addEventListener('mouseup', () => { canvasEl.style.cursor = 'grab'; });
+      canvasEl.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        if (relCamera) {
+          relCamera.position.z = Math.min(400, Math.max(30, relCamera.position.z + e.deltaY * 0.1));
+        }
+      }, { passive: false });
+      relEnsureGlobalHandlers();
 
       // 光照
       relScene.add(new THREE.AmbientLight(0x8899aa, 0.8));
@@ -4664,8 +4765,9 @@ createApp({
         y: (Math.random() - 0.5) * 80,
         z: (Math.random() - 0.5) * 80,
       }));
-      // 多轮迭代
-      for (let iter = 0; iter < 50; iter++) {
+      // 多轮迭代（节点较多时减少轮数，避免 O(n²) 同步计算长时间阻塞主线程）
+      const iterations = n > 300 ? 8 : n > 150 ? 20 : 50;
+      for (let iter = 0; iter < iterations; iter++) {
         for (let i = 0; i < n; i++) {
           for (let j = i + 1; j < n; j++) {
             const dx = positions[j].x - positions[i].x;
@@ -4716,9 +4818,9 @@ createApp({
 
     function relAnimate() {
       relAnimationId = requestAnimationFrame(relAnimate);
-      if (relScene && relCamera) {
-        // 缓慢自转
-        relScene.rotation.y += 0.001;
+      if (relScene && relCamera && relRenderer) {
+        // 缓慢自转（用户拖拽时暂停，避免与手动旋转冲突）
+        if (!relDragging) relScene.rotation.y += 0.001;
         relRenderer.render(relScene, relCamera);
       }
     }
@@ -5057,6 +5159,13 @@ createApp({
       if (tab === 'writing' && currentProjectId.value) loadWritingIndex();
       if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
       if (tab === 'relations' && currentProjectId.value) relLoadOverview();
+      // 离开星图页时释放 3D 场景与动画循环
+      if (tab !== 'relations') relDispose3D();
+    });
+
+    watch(relSubView, (v) => {
+      // 离开关系图子视图时释放 3D 场景与动画循环
+      if (v !== 'graph') relDispose3D();
     });
 
     return {
@@ -5071,6 +5180,7 @@ createApp({
       conversations, currentConversationId, showConvRenameModal, convRenameInput, currentConvInfo,
       // Chat selectors
       selectedModel, selectedRole, availableModels, modelToChannel, chatRoles, lastUsedModel,
+      lastIntentInfo, interventionNotice,
       // Settings
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
       currentSettingNodeId, currentSettingNode,

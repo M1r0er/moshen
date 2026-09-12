@@ -1,7 +1,7 @@
 """
 墨参 · 设定管理路由
 支持多级目录树、AI优化、文档导入、多格式导出。
-设定数据存储在 {workspace}/projects/{project_id}/settings/settings_tree.json
+设定数据存储在 {workspace}/{project_id}/settings/settings_tree.json
 """
 import json
 import time
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 from core.llm_provider import get_llm_provider
 from core.utils import gen_id, now_str, sanitize_path_name
-from routes.workspace import get_workspace_path, read_text_safe, write_text_safe
+from routes.workspace import read_text_safe
 from knowledge.project_kb import get_project_kb_manager
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -35,9 +35,8 @@ CATEGORIES = {
 # ===== 工具函数 =====
 
 def get_settings_dir(project_id: str) -> Path:
-    """获取项目设定目录"""
-    ws = get_workspace_path()
-    return ws / "projects" / project_id / "settings"
+    """获取项目设定目录（统一在项目根目录下的 settings/ 子目录）"""
+    return get_project_kb_manager().get_settings_dir(sanitize_path_name(project_id, "无效的项目ID"))
 
 
 def sanitize_name(name: str) -> str:

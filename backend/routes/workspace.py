@@ -110,7 +110,7 @@ async def select_workspace(req: SelectWorkspaceRequest):
 
     # 创建必要的子目录
     created_dirs = []
-    for subdir in ("projects", "knowledge"):
+    for subdir in ("knowledge",):
         sub = path / subdir
         if not sub.exists():
             sub.mkdir(parents=True, exist_ok=True)
