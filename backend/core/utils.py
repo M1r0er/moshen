@@ -7,6 +7,7 @@ import re
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
 from fastapi import HTTPException
 
 # 统一的时间戳格式（保持与原 time.strftime("%Y-%m-%d %H:%M:%S") 完全一致）
@@ -70,6 +71,31 @@ def sanitize_path_name(name: str, error_message: str = "无效的名称") -> str
     if not name or "/" in name or "\\" in name or ".." in name:
         raise HTTPException(400, error_message)
     return name
+
+
+def resolve_within(base, *parts, error_message: str = "无效的文件路径") -> Path:
+    """将 parts 拼接到 base 之下并解析为绝对路径，确保结果不越出 base。
+
+    用于所有"用户可控名称 → 读/写磁盘路径"的场景，拦截 ../../、绝对路径、
+    盘符路径、NUL 字节等导致的路径穿越。
+
+    与 routes/workspace.py 的 read_inspiration_file、project_kb.read_workspace_file
+    中的历史写法一致，统一至此供各模块复用。
+    允许 base 内部的多级子路径（如 "子目录/文件.txt"），仅拒绝越界。
+    """
+    base_path = Path(base).resolve()
+    for part in parts:
+        if "\x00" in str(part):
+            raise HTTPException(400, error_message)
+    try:
+        target = base_path.joinpath(*parts).resolve()
+    except (ValueError, OSError) as exc:
+        raise HTTPException(400, error_message) from exc
+    try:
+        target.relative_to(base_path)
+    except ValueError:
+        raise HTTPException(400, error_message) from None
+    return target
 
 
 def gen_id(prefix: str = "", length: int = 10) -> str:

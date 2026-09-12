@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File
 from pydantic import BaseModel
 
 from core.file_parser import FileParser
+from core.utils import resolve_within
 from knowledge.project_kb import get_project_kb_manager
 
 router = APIRouter(prefix="/api/files", tags=["files"])
@@ -60,7 +61,7 @@ async def analyze_file(req: AnalyzeRequest):
     if content is None:
         project_dir = kb.get_project_dir(req.project_id)
         if project_dir:
-            filepath = project_dir / "uploads" / req.filename
+            filepath = resolve_within(project_dir / "uploads", req.filename)
             if filepath.exists():
                 content = kb.read_file_summary(filepath)
     if not content:
@@ -163,7 +164,7 @@ async def dissect_novel(req: DissectRequest):
     if not project_dir:
         raise HTTPException(404, "项目不存在")
 
-    filepath = project_dir / "uploads" / req.filename
+    filepath = resolve_within(project_dir / "uploads", req.filename)
     if not filepath.exists():
         raise HTTPException(404, "文件不存在")
 

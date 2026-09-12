@@ -9,7 +9,7 @@ import shutil
 from pathlib import Path
 
 from core.resource_path import get_workspace_dir
-from core.utils import now_str
+from core.utils import now_str, resolve_within
 from core.safe_io import atomic_write_json, atomic_write_text, locked_write
 
 # 已完成旧版目录迁移的工作区根路径（避免每次获取管理器时重复扫描磁盘）
@@ -295,7 +295,12 @@ class ProjectKBManager:
         return json.loads(meta_path.read_text(encoding="utf-8"))
 
     def get_project_dir(self, project_id: str) -> Path | None:
-        """获取项目目录路径"""
+        """获取项目目录路径
+
+        project_id 由前端传入，需拒绝路径分隔符与 .. 以免越出工作区根目录。
+        """
+        if not project_id or "/" in project_id or "\\" in project_id or ".." in project_id:
+            return None
         d = self.root / project_id
         return d if d.exists() else None
 
@@ -510,15 +515,15 @@ class ProjectKBManager:
         return "\n".join(lines)
 
     def read_kb_file(self, project_id: str, filename: str) -> str | None:
-        """读取知识库文件"""
-        filepath = self.root / project_id / filename
+        """读取知识库文件（限制在工作区内，防止 filename 路径穿越）"""
+        filepath = resolve_within(self.root, project_id, filename)
         if not filepath.exists():
             return None
         return filepath.read_text(encoding="utf-8")
 
     def write_kb_file(self, project_id: str, filename: str, content: str) -> bool:
-        """写入知识库文件"""
-        filepath = self.root / project_id / filename
+        """写入知识库文件（限制在工作区内，防止 filename 路径穿越）"""
+        filepath = resolve_within(self.root, project_id, filename)
         if not filepath.parent.exists():
             return False
         atomic_write_text(filepath, content)
@@ -547,7 +552,11 @@ class ProjectKBManager:
         return files
 
     def save_uploaded_file(self, project_id: str, filename: str, content: str) -> str:
-        """保存上传的文件到项目目录"""
+        """保存上传的文件到项目目录
+
+        filename 由客户端提供，必须限制在项目 uploads 目录内，防止 ../ 或绝对路径
+        导致越界写盘（CWE-22）。
+        """
         project_dir = self.get_project_dir(project_id)
         if not project_dir:
             raise FileNotFoundError("项目不存在")
@@ -555,7 +564,7 @@ class ProjectKBManager:
         upload_dir = project_dir / "uploads"
         upload_dir.mkdir(exist_ok=True)
 
-        filepath = upload_dir / filename
+        filepath = resolve_within(upload_dir, filename)
         atomic_write_text(filepath, content)
         self._update_project_timestamp(project_id)
         return str(filepath)

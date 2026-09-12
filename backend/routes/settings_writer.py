@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from core.llm_provider import get_llm_provider
-from core.utils import gen_id, now_str, sanitize_path_name
+from core.utils import gen_id, now_str, resolve_within, sanitize_path_name
 from core.safe_io import atomic_write_json, locked_write
 from routes.workspace import read_text_safe
 from knowledge.project_kb import get_project_kb_manager
@@ -600,7 +600,7 @@ async def import_from_file(project_id: str, req: ImportFromFileRequest):
     # 尝试从 uploads 读取
     project_dir = kb.get_project_dir(project_id)
     if project_dir:
-        filepath = project_dir / "uploads" / req.filename
+        filepath = resolve_within(project_dir / "uploads", req.filename)
         if filepath.exists():
             content = kb.read_file_summary(filepath)
 
