@@ -94,11 +94,26 @@ class ConfigUpdateRequest(BaseModel):
     image_config: dict = {}
 
 
+def _mask_secrets(config: dict) -> dict:
+    """脱敏配置中的 api_key 等敏感字段，防止未授权调用者获取真实密钥"""
+    if isinstance(config, dict):
+        masked = {}
+        for key, value in config.items():
+            if key == "api_key" and isinstance(value, str) and value:
+                masked[key] = value[:4] + "*" * max(len(value) - 4, 0)
+            else:
+                masked[key] = _mask_secrets(value)
+        return masked
+    if isinstance(config, list):
+        return [_mask_secrets(item) for item in config]
+    return config
+
+
 @app.get("/api/config")
 async def get_config():
-    """获取模型配置状态（包含默认API、开关、四角色）"""
+    """获取模型配置状态（包含默认API、开关、四角色，敏感字段已脱敏）"""
     mgr = get_config_manager()
-    return mgr.get_full_config()
+    return _mask_secrets(mgr.get_full_config())
 
 
 @app.post("/api/config")
