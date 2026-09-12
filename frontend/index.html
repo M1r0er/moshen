@@ -1160,7 +1160,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
       <div class="sidebar-footer">
         <button class="settings-btn" @click="openSettings">⚙ 设置</button>
-        <div class="sidebar-version">v0.6.4</div>
+        <div class="sidebar-version">v0.6.5</div>
       </div>
     </aside>
 
@@ -3527,6 +3527,9 @@ createApp({
                   scrollMessages();
                 } else if (currentEvent === 'done') {
                   assistantMsg.streaming = false;
+                  if (data.finish_reason === 'length') {
+                    showToast('回复因长度上限被截断，可让墨参继续或调高 Max Tokens', 'warn');
+                  }
                 } else if (data.content) {
                   // 兼容旧格式
                   assistantMsg.content += data.content;

@@ -145,14 +145,26 @@ class DialogueManager:
         return assemble_context(sections, total_budget=CONTEXT_BUDGET_CHARS).text
 
     def _core_layer_text(self) -> str:
-        """核心层文本（助手人格 + 创作规范库），惰性构造并缓存"""
+        """核心层文本（助手人格 + 创作规范库 + 不可覆盖的系统合同）"""
         if self._core_layer_cache is None:
             try:
                 persona = self.prompt_loader.load_raw("system_persona")
             except FileNotFoundError:
                 persona = "你是墨参，一位资深网文编辑兼创作教练。"
-            self._core_layer_cache = build_core_layer(persona, self._rules_text())
+            text = build_core_layer(persona, self._rules_text())
+            contract = self._system_contract()
+            if contract:
+                # 系统合同始终位于最后并声明不可覆盖，优先级高于角色定位与用户指导
+                text = f"{text}\n\n---\n\n{contract}"
+            self._core_layer_cache = text
         return self._core_layer_cache
+
+    def _system_contract(self) -> str:
+        """加载不可被覆盖的系统合同（缺失时降级为空）"""
+        try:
+            return self.prompt_loader.load_raw("system_contract")
+        except FileNotFoundError:
+            return ""
 
     @staticmethod
     def _rules_text() -> str:
@@ -507,6 +519,8 @@ class DialogueManager:
             "intent": intent_result.intent if intent_result else "manual",
             "model_role": model_role,
             "model": actual_cfg.model if actual_cfg else "",
+            # 结束原因：length 表示被最大长度截断，前端据此提示用户
+            "finish_reason": getattr(self.llm, "last_finish_reason", None),
         })
 
     async def _evaluate_intervention(

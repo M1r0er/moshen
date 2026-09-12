@@ -29,7 +29,7 @@ from routes.relations import router as relations_router
 from routes.session import router as session_router
 from routes.flow import router as flow_router
 
-app = FastAPI(title="墨参 MoShen", version="0.6.4", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.6.5", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -143,7 +143,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.4"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.5"}
 
 
 # ===== 前端静态文件 =====

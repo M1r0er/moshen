@@ -18,6 +18,8 @@ class LLMProvider:
         self.timeout = 300  # 默认超时 5 分钟
         self.max_retries = 2
         self._prompt_log: list[dict] = []
+        # 最近一次流式调用的结束原因（stop/length/...），供上层诊断截断等问题
+        self.last_finish_reason: str | None = None
 
     def _build_headers(self, cfg: ModelConfig) -> dict:
         return {
@@ -38,12 +40,43 @@ class LLMProvider:
             "model": cfg.model,
             "messages": messages,
             "stream": stream,
-            "temperature": temperature if temperature is not None else cfg.temperature,
-            "max_tokens": max_tokens or cfg.max_tokens,
         }
+        # temperature 与 max_tokens 仅在确有取值时下发，避免把 None 传给服务端；
+        # 使用 `is not None` 判断，使显式传入 0/较小值也能生效。
+        temp = temperature if temperature is not None else cfg.temperature
+        if temp is not None:
+            payload["temperature"] = temp
+        tokens = max_tokens if max_tokens is not None else cfg.max_tokens
+        if tokens:
+            payload["max_tokens"] = tokens
         if response_format:
             payload["response_format"] = response_format
         return payload
+
+    @staticmethod
+    def _extract_content(message: dict) -> str:
+        """从 message 中提取文本内容，兼容字符串与分段（多模态）结构"""
+        content = message.get("content")
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict) and isinstance(item.get("text"), str):
+                    parts.append(item["text"])
+                elif isinstance(item, str):
+                    parts.append(item)
+            return "".join(parts)
+        return ""
+
+    @classmethod
+    def _extract_delta(cls, delta: dict) -> str:
+        """从流式 delta 中提取正文增量
+
+        注意：`reasoning_content`（思维链）不计入正文，仅在存在时忽略；
+        这保证推理模型不会把思考过程混入作品文本。
+        """
+        return cls._extract_content(delta)
 
     async def generate(
         self,
@@ -87,11 +120,15 @@ class LLMProvider:
                         raise RuntimeError(f"认证失败 ({resp.status_code})，请检查 API Key")
                     resp.raise_for_status()
                     data = resp.json()
-                    return data["choices"][0]["message"]["content"]
+                    choices = data.get("choices") or []
+                    if not choices:
+                        raise RuntimeError("模型返回为空（无 choices）")
+                    return self._extract_content(choices[0].get("message") or {})
+            except RuntimeError:
+                # 认证失败/空响应等不可重试错误，直接抛出
+                raise
             except httpx.HTTPStatusError as e:
                 last_error = e
-                if resp.status_code in (401, 402, 403):
-                    raise
                 if attempt < self.max_retries:
                     await asyncio.sleep(1.5 * (attempt + 1))
             except Exception as e:
@@ -129,30 +166,65 @@ class LLMProvider:
 
         self._log_prompt(role, messages)
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            async with client.stream(
-                "POST", url, headers=self._build_headers(cfg), json=payload
-            ) as resp:
-                if resp.status_code in (401, 402, 403):
-                    body = await resp.aread()
-                    raise RuntimeError(f"认证失败 ({resp.status_code})，请检查 API Key")
-                resp.raise_for_status()
+        # 断流恢复：仅当"尚未产出任何内容"时才允许重试，避免重复输出半截正文。
+        last_error = None
+        self.last_finish_reason = None
 
-                async for line in resp.aiter_lines():
-                    if not line or line.startswith(":"):
-                        continue
-                    if line.startswith("data: "):
-                        data_str = line[6:]
-                        if data_str.strip() == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(data_str)
-                            delta = data.get("choices", [{}])[0].get("delta", {})
-                            content = delta.get("content", "")
+        for attempt in range(self.max_retries + 1):
+            yielded_any = False
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    async with client.stream(
+                        "POST", url, headers=self._build_headers(cfg), json=payload
+                    ) as resp:
+                        if resp.status_code in (401, 402, 403):
+                            await resp.aread()
+                            raise RuntimeError(f"认证失败 ({resp.status_code})，请检查 API Key")
+                        resp.raise_for_status()
+
+                        async for line in resp.aiter_lines():
+                            if not line or line.startswith(":"):
+                                continue
+                            if not line.startswith("data:"):
+                                continue
+                            data_str = line[5:].strip()
+                            if not data_str or data_str == "[DONE]":
+                                if data_str == "[DONE]":
+                                    break
+                                continue
+                            try:
+                                data = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+                            choices = data.get("choices") or []
+                            if not choices:
+                                continue
+                            choice = choices[0] or {}
+                            finish = choice.get("finish_reason")
+                            if finish:
+                                self.last_finish_reason = finish
+                            content = self._extract_delta(choice.get("delta") or {})
                             if content:
+                                yielded_any = True
                                 yield content
-                        except json.JSONDecodeError:
-                            continue
+                return
+            except RuntimeError:
+                # 认证失败等不可重试错误，直接抛出
+                raise
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                code = e.response.status_code
+                retryable = code == 429 or code >= 500
+                if yielded_any or not retryable or attempt >= self.max_retries:
+                    raise RuntimeError(f"LLM 流式调用失败 (HTTP {code})：{e}")
+                await asyncio.sleep(1.5 * (attempt + 1))
+            except Exception as e:
+                last_error = e
+                if yielded_any or attempt >= self.max_retries:
+                    raise RuntimeError(
+                        f"LLM 流式调用失败（重试 {self.max_retries} 次后仍失败）: {last_error}"
+                    )
+                await asyncio.sleep(1.5 * (attempt + 1))
 
     async def generate_image(self, prompt: str, size: str | None = None, quality: str | None = None) -> dict:
         """调用图像生成 API，返回 {"b64": "..."} 或 {"url": "..."} 或 {"error": "..."}"""
