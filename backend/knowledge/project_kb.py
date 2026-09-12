@@ -10,6 +10,7 @@ from pathlib import Path
 
 from core.resource_path import get_workspace_dir
 from core.utils import now_str
+from core.safe_io import atomic_write_json, atomic_write_text, locked_write
 
 # 已完成旧版目录迁移的工作区根路径（避免每次获取管理器时重复扫描磁盘）
 _MIGRATED_ROOTS: set[str] = set()
@@ -231,6 +232,7 @@ class ProjectKBManager:
 
         return migrated
 
+    @locked_write
     def create_project(self, name: str, description: str = "") -> dict:
         """创建新项目"""
         import hashlib
@@ -249,7 +251,7 @@ class ProjectKBManager:
         for filename, template in KB_TEMPLATES.items():
             filepath = project_dir / filename
             if not filepath.exists():
-                filepath.write_text(template, encoding="utf-8")
+                atomic_write_text(filepath, template)
 
         # 创建项目元数据
         meta = {
@@ -262,9 +264,7 @@ class ProjectKBManager:
             "total_words": 0,
             "workspace_path": "",  # 项目独立工作区路径（可选）
         }
-        (project_dir / "project.json").write_text(
-            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        atomic_write_json(project_dir / "project.json", meta)
 
         return meta
 
@@ -306,6 +306,7 @@ class ProjectKBManager:
             return meta.get("workspace_path", "")
         return ""
 
+    @locked_write
     def set_project_workspace(self, project_id: str, path: str) -> dict | None:
         """设置项目的独立工作区路径"""
         project_dir = self.get_project_dir(project_id)
@@ -325,9 +326,7 @@ class ProjectKBManager:
 
         meta["workspace_path"] = path
         meta["updated_at"] = now_str()
-        (project_dir / "project.json").write_text(
-            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        atomic_write_json(project_dir / "project.json", meta)
         return meta
 
     def list_workspace_files(self, project_id: str) -> list[dict]:
@@ -522,7 +521,7 @@ class ProjectKBManager:
         filepath = self.root / project_id / filename
         if not filepath.parent.exists():
             return False
-        filepath.write_text(content, encoding="utf-8")
+        atomic_write_text(filepath, content)
         self._update_project_timestamp(project_id)
         return True
 
@@ -557,7 +556,7 @@ class ProjectKBManager:
         upload_dir.mkdir(exist_ok=True)
 
         filepath = upload_dir / filename
-        filepath.write_text(content, encoding="utf-8")
+        atomic_write_text(filepath, content)
         self._update_project_timestamp(project_id)
         return str(filepath)
 
@@ -593,7 +592,7 @@ class ProjectKBManager:
         vol_dir.mkdir(parents=True, exist_ok=True)
 
         chapter_file = vol_dir / f"ch_{chapter:03d}.md"
-        chapter_file.write_text(content, encoding="utf-8")
+        atomic_write_text(chapter_file, content)
 
         # 更新项目元数据
         meta = self.get_project(project_id)
@@ -608,9 +607,7 @@ class ProjectKBManager:
                 })
             meta["total_words"] = sum(c.get("words", 0) for c in meta["chapters"])
             meta["updated_at"] = now_str()
-            (project_dir / "project.json").write_text(
-                json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            atomic_write_json(project_dir / "project.json", meta)
 
         return True
 
@@ -652,13 +649,14 @@ class ProjectKBManager:
         idx_path = self._get_writing_index_path(project_id)
         if not idx_path:
             return False
-        idx_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(idx_path, data)
         return True
 
     def get_writing_index(self, project_id: str) -> dict:
         """获取写作索引（全部卷+章元数据）"""
         return self._load_writing_index(project_id)
 
+    @locked_write
     def create_volume(self, project_id: str, number: int | None = None, title: str = "") -> dict | None:
         """创建新卷"""
         data = self._load_writing_index(project_id)
@@ -684,6 +682,7 @@ class ProjectKBManager:
         self._save_writing_index(project_id, data)
         return vol
 
+    @locked_write
     def update_volume(self, project_id: str, vol_id: str, number: int | None = None, title: str | None = None) -> dict | None:
         """更新卷信息"""
         data = self._load_writing_index(project_id)
@@ -699,6 +698,7 @@ class ProjectKBManager:
                 return v
         return None
 
+    @locked_write
     def delete_volume(self, project_id: str, vol_id: str) -> bool:
         """删除卷（连同所有章节）"""
         data = self._load_writing_index(project_id)
@@ -722,6 +722,7 @@ class ProjectKBManager:
         self._save_writing_index(project_id, data)
         return True
 
+    @locked_write
     def create_chapter(self, project_id: str, vol_id: str,
                        number: int | None = None, title: str = "",
                        numbering_mode: str = "continue") -> dict | None:
@@ -782,7 +783,7 @@ class ProjectKBManager:
             ch_dir = wdir / vol_id
             ch_dir.mkdir(exist_ok=True)
             ch_file = ch_dir / f"{ch_id}.html"
-            ch_file.write_text("", encoding="utf-8")
+            atomic_write_text(ch_file, "")
 
         return chapter
 
@@ -799,6 +800,7 @@ class ProjectKBManager:
         except IOError:
             return ""
 
+    @locked_write
     def save_chapter_content(self, project_id: str, vol_id: str, ch_id: str,
                              content: str, title: str | None = None) -> dict | None:
         """保存章节内容"""
@@ -807,7 +809,7 @@ class ProjectKBManager:
             return None
         ch_file = wdir / vol_id / f"{ch_id}.html"
         ch_file.parent.mkdir(exist_ok=True)
-        ch_file.write_text(content, encoding="utf-8")
+        atomic_write_text(ch_file, content)
 
         # 计算字数（去除 HTML 标签）
         import re
@@ -836,6 +838,7 @@ class ProjectKBManager:
                         return c
         return None
 
+    @locked_write
     def update_chapter(self, project_id: str, vol_id: str, ch_id: str,
                        number: int | None = None, title: str | None = None) -> dict | None:
         """更新章节元数据（标题/编号）"""
@@ -866,6 +869,7 @@ class ProjectKBManager:
                         return c
         return None
 
+    @locked_write
     def delete_chapter(self, project_id: str, vol_id: str, ch_id: str) -> bool:
         """删除章节"""
         data = self._load_writing_index(project_id)
@@ -907,6 +911,7 @@ class ProjectKBManager:
                 })
         return result
 
+    @locked_write
     def save_diagnosis_report(self, project_id: str, report: str) -> str:
         """保存诊断报告"""
         project_dir = self.get_project_dir(project_id)
@@ -918,7 +923,7 @@ class ProjectKBManager:
 
         filename = f"report_{time.strftime('%Y%m%d_%H%M%S')}.md"
         filepath = report_dir / filename
-        filepath.write_text(report, encoding="utf-8")
+        atomic_write_text(filepath, report)
         return filename
 
     def list_diagnosis_reports(self, project_id: str) -> list[dict]:
@@ -954,9 +959,7 @@ class ProjectKBManager:
 
         filename = f"session_{time.strftime('%Y%m%d')}.json"
         filepath = history_dir / filename
-        filepath.write_text(
-            json.dumps(messages, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        atomic_write_json(filepath, messages)
 
     def _update_project_timestamp(self, project_id: str):
         """更新项目时间戳"""
@@ -965,9 +968,7 @@ class ProjectKBManager:
             meta["updated_at"] = now_str()
             project_dir = self.get_project_dir(project_id)
             if project_dir:
-                (project_dir / "project.json").write_text(
-                    json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-                )
+                atomic_write_json(project_dir / "project.json", meta)
 
     def rename_project(self, project_id: str, new_name: str) -> dict | None:
         """重命名项目"""
@@ -980,9 +981,7 @@ class ProjectKBManager:
         meta["updated_at"] = now_str()
         project_dir = self.get_project_dir(project_id)
         if project_dir:
-            (project_dir / "project.json").write_text(
-                json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+            atomic_write_json(project_dir / "project.json", meta)
         return meta
 
     def delete_project(self, project_id: str) -> bool:
@@ -1022,7 +1021,7 @@ class ProjectKBManager:
             "updated_at": now,
         }
         filepath = conv_dir / f"{conv_id}.json"
-        filepath.write_text(json.dumps(conv, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(filepath, conv)
         return conv
 
     def list_conversations(self, project_id: str) -> list[dict]:
@@ -1065,6 +1064,7 @@ class ProjectKBManager:
         except (json.JSONDecodeError, IOError):
             return None
 
+    @locked_write
     def save_conversation(self, project_id: str, conv_id: str,
                           messages: list[dict], title: str | None = None) -> dict | None:
         """保存对话消息"""
@@ -1086,9 +1086,10 @@ class ProjectKBManager:
             data["title"] = title
         data["updated_at"] = now_str()
 
-        filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(filepath, data)
         return data
 
+    @locked_write
     def delete_conversation(self, project_id: str, conv_id: str) -> bool:
         """删除对话"""
         conv_dir = self._get_conversations_dir(project_id)
@@ -1101,6 +1102,7 @@ class ProjectKBManager:
             return True
         return False
 
+    @locked_write
     def rename_conversation(self, project_id: str, conv_id: str, title: str) -> dict | None:
         """重命名对话"""
         conv_dir = self._get_conversations_dir(project_id)
@@ -1118,9 +1120,10 @@ class ProjectKBManager:
 
         data["title"] = title.strip() or "未命名"
         data["updated_at"] = now_str()
-        filepath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(filepath, data)
         return data
 
+    @locked_write
     def import_conversation(self, project_id: str, conv_data: dict) -> dict | None:
         """导入会话（从导出的 JSON 创建新会话，生成新 ID 避免冲突）"""
         conv_dir = self._get_conversations_dir(project_id)
@@ -1138,7 +1141,7 @@ class ProjectKBManager:
             "updated_at": now,
         }
         filepath = conv_dir / f"{conv_id}.json"
-        filepath.write_text(json.dumps(conv, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(filepath, conv)
         return conv
 
     # ===== 伏笔系统 =====
@@ -1164,7 +1167,7 @@ class ProjectKBManager:
         fpath = self._get_foreshadowing_path(project_id)
         if not fpath:
             return False
-        fpath.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        atomic_write_json(fpath, data)
         return True
 
     def list_foreshadowings(self, project_id: str) -> list[dict]:
@@ -1198,6 +1201,7 @@ class ProjectKBManager:
                 return f
         return None
 
+    @locked_write
     def create_foreshadowing(self, project_id: str, name: str,
                              content: str = "", chapter_id: str = "",
                              chapter_title: str = "") -> dict | None:
@@ -1226,6 +1230,7 @@ class ProjectKBManager:
         self._save_foreshadowing(project_id, data)
         return fs
 
+    @locked_write
     def update_foreshadowing(self, project_id: str, f_id: str,
                              name: str | None = None,
                              status: str | None = None,
@@ -1245,6 +1250,7 @@ class ProjectKBManager:
                 return f
         return None
 
+    @locked_write
     def delete_foreshadowing(self, project_id: str, f_id: str) -> bool:
         """删除伏笔"""
         data = self._load_foreshadowing(project_id)
@@ -1255,6 +1261,7 @@ class ProjectKBManager:
         self._save_foreshadowing(project_id, data)
         return True
 
+    @locked_write
     def add_entry(self, project_id: str, f_id: str,
                   content: str, chapter_id: str = "",
                   chapter_title: str = "") -> dict | None:
@@ -1277,6 +1284,7 @@ class ProjectKBManager:
                 return entry
         return None
 
+    @locked_write
     def remove_entry(self, project_id: str, f_id: str, entry_id: str) -> bool:
         """删除伏笔的一条出现记录"""
         data = self._load_foreshadowing(project_id)

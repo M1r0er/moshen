@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from core.safe_io import atomic_write_json, atomic_write_text
 from analysis.base import BaseTextAnalyzer
 from knowledge.relation_graph_render import (
     render_master_markdown,
@@ -218,8 +219,8 @@ class RelationGraphAnalyzer(BaseTextAnalyzer):
         # 主文件
         master_json = type_dir / "关系脉络.json"
         master_md = type_dir / "关系脉络.md"
-        master_json.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-        master_md.write_text(render_master_markdown(data), encoding="utf-8")
+        atomic_write_json(master_json, data)
+        atomic_write_text(master_md, render_master_markdown(data))
 
         # 增量更新条目档案
         previous = ctx.get("previous_data")
@@ -242,4 +243,4 @@ class RelationGraphAnalyzer(BaseTextAnalyzer):
             rels = [r for r in data.get("relations", []) if r["from"] == entity["id"] or r["to"] == entity["id"]]
             tls = [t for t in data.get("timeline", []) if entity["id"] in (t.get("refs") or [])]
             md = render_entity_markdown(self.type, entity, rels, tls)
-            (type_dir / f"{to_file_name(entity['id'])}.md").write_text(md, encoding="utf-8")
+            atomic_write_text(type_dir / f"{to_file_name(entity['id'])}.md", md)

@@ -8,6 +8,8 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from core.safe_io import atomic_write_json, atomic_write_text, locked_write
+
 router = APIRouter(prefix="/api/workspace", tags=["workspace"])
 
 # 用户配置目录 ~/.moshen/
@@ -27,11 +29,8 @@ def _read_config() -> dict:
 
 
 def _save_config(data: dict):
-    """保存配置到 ~/.moshen/workspace.json"""
-    MOSHEN_HOME.mkdir(parents=True, exist_ok=True)
-    WORKSPACE_CONFIG.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    """保存配置到 ~/.moshen/workspace.json（原子写）"""
+    atomic_write_json(WORKSPACE_CONFIG, data)
 
 
 def get_workspace_path() -> Path:
@@ -77,9 +76,8 @@ def read_text_safe(filepath: Path) -> str:
 
 
 def write_text_safe(filepath: Path, content: str):
-    """写入文本文件（UTF-8）"""
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    filepath.write_text(content, encoding="utf-8")
+    """写入文本文件（UTF-8，原子写）"""
+    atomic_write_text(filepath, content)
 
 
 class SelectWorkspaceRequest(BaseModel):

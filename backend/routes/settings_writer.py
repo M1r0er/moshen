@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from core.llm_provider import get_llm_provider
 from core.utils import gen_id, now_str, sanitize_path_name
+from core.safe_io import atomic_write_json, locked_write
 from routes.workspace import read_text_safe
 from knowledge.project_kb import get_project_kb_manager
 
@@ -44,11 +45,6 @@ def sanitize_name(name: str) -> str:
     return sanitize_path_name(name, "无效的名称")
 
 
-def ensure_settings_dir(settings_dir: Path) -> Path:
-    settings_dir.mkdir(parents=True, exist_ok=True)
-    return settings_dir
-
-
 def get_tree_path(project_id: str) -> Path:
     """获取设定树文件路径"""
     return get_settings_dir(project_id) / "settings_tree.json"
@@ -75,14 +71,9 @@ def load_tree(project_id: str) -> dict:
 
 
 def save_tree(project_id: str, tree: dict):
-    """保存设定树"""
+    """保存设定树（原子写）"""
     project_id = sanitize_name(project_id)
-    settings_dir = get_settings_dir(project_id)
-    ensure_settings_dir(settings_dir)
-    tree_path = get_tree_path(project_id)
-    tree_path.write_text(
-        json.dumps(tree, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    atomic_write_json(get_tree_path(project_id), tree)
 
 
 def _migrate_from_flat_files(settings_dir: Path) -> dict:
@@ -195,6 +186,7 @@ _CATEGORY_CN_MAP = {
 }
 
 
+@locked_write
 def save_setting_entry(
     project_id: str,
     title: str,
@@ -325,6 +317,7 @@ def get_settings_summary(project_id: str, max_content_len: int = 800) -> str:
         return ""
 
 
+@locked_write
 def update_setting_entry(
     project_id: str,
     title: str,

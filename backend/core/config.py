@@ -9,6 +9,8 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
+from core.safe_io import atomic_write_text
+
 
 @dataclass
 class ModelConfig:
@@ -533,8 +535,7 @@ class ConfigManager:
         lines.append(f"IMAGE_QUALITY={image_data.get('quality', 'auto')}")
         lines.append("")
 
-        with open(self.env_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
+        atomic_write_text(self.env_path, "\n".join(lines))
         self.reload()
 
 

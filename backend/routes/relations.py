@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from core.safe_io import atomic_write_json
 from knowledge.project_kb import get_project_kb_manager
 from analysis.relation_graph_analyzer import RelationGraphAnalyzer, TYPES
 from analysis.chapter_split import split_by_chapters
@@ -57,8 +58,7 @@ def _load_state(project_dir: Path) -> dict:
 
 def _save_state(project_dir: Path, state: dict) -> None:
     state_file = project_dir / "星图" / "state.json"
-    state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    atomic_write_json(state_file, state)
 
 
 def _read_master_data(type_dir: Path) -> dict | None:

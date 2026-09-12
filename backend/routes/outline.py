@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from core.utils import gen_id, now_str, sanitize_path_name
+from core.safe_io import atomic_write_json, locked_write
 from knowledge.project_kb import get_project_kb_manager
 
 router = APIRouter(prefix="/api/outline", tags=["outline"])
@@ -38,10 +39,8 @@ def load_outline(project_id: str) -> dict:
 
 
 def save_outline(project_id: str, data: dict) -> None:
-    """保存大纲数据"""
-    p = _outline_path(project_id)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    """保存大纲数据（原子写）"""
+    atomic_write_json(_outline_path(project_id), data)
 
 
 # ===== 请求模型 =====
@@ -185,6 +184,7 @@ async def delete_edge(project_id: str, edge_id: str):
 
 # ===== 供对话管理器直接调用的函数 =====
 
+@locked_write
 def save_outline_node(
     project_id: str,
     title: str,
@@ -256,6 +256,7 @@ def save_outline_node(
     return {"id": node["id"], "title": title, "updated": False}
 
 
+@locked_write
 def update_outline_node(
     project_id: str,
     title: str,
@@ -280,6 +281,7 @@ def update_outline_node(
     return None
 
 
+@locked_write
 def save_outline_edge(
     project_id: str,
     from_title: str,
