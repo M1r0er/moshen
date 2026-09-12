@@ -17,7 +17,6 @@ from analysis.relation_graph_analyzer import RelationGraphAnalyzer, TYPES
 from analysis.chapter_split import split_by_chapters
 
 router = APIRouter(prefix="/api/relations", tags=["relations"])
-kb = get_project_kb_manager()
 
 # 后台任务状态：project_id -> {"task": asyncio.Task, "messages": deque, "listeners": set}
 _tasks: dict[str, dict] = {}
@@ -36,7 +35,7 @@ class AnalyzeTextRequest(BaseModel):
 
 
 def _get_project_dir(project_id: str) -> Path:
-    d = kb.get_project_dir(project_id)
+    d = get_project_kb_manager().get_project_dir(project_id)
     if not d:
         raise HTTPException(404, "项目不存在")
     return d
@@ -89,7 +88,7 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
             chapters.append({"name": "全文", "content": text})
     else:
         # 从写作模块获取章节
-        all_chapters = kb.get_all_chapters_text(project_id)
+        all_chapters = get_project_kb_manager().get_all_chapters_text(project_id)
         chapters = [
             {
                 "name": f"第{c.get('ch_number', '')}章 {c.get('ch_title', '')}",
@@ -160,7 +159,7 @@ def _push_message(project_id: str, msg: str):
 @router.post("/{project_id}/analyze")
 async def analyze(project_id: str, req: AnalyzeRequest):
     """触发关系图谱分析"""
-    if not kb.get_project(project_id):
+    if not get_project_kb_manager().get_project(project_id):
         raise HTTPException(404, "项目不存在")
 
     # 如果已有任务在运行，返回冲突
@@ -193,7 +192,7 @@ async def analyze_text(project_id: str, req: AnalyzeTextRequest):
 @router.get("/{project_id}/progress")
 async def progress(project_id: str):
     """SSE 实时进度流"""
-    if not kb.get_project(project_id):
+    if not get_project_kb_manager().get_project(project_id):
         raise HTTPException(404, "项目不存在")
 
     if project_id not in _tasks:
@@ -290,7 +289,7 @@ from fastapi.responses import FileResponse
 @router.post("/{project_id}/portraits/generate")
 async def generate_all_portraits(project_id: str):
     """为所有角色条目生成肖像（幂等：已有则跳过）"""
-    project_dir = kb.get_project_dir(project_id)
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
     if project_dir is None:
         raise HTTPException(404, "项目不存在")
 
@@ -320,7 +319,7 @@ async def portrait_status(project_id: str):
 @router.get("/{project_id}/portraits/{name}")
 async def get_portrait(project_id: str, name: str):
     """获取角色肖像图片"""
-    project_dir = kb.get_project_dir(project_id)
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
     if project_dir is None:
         raise HTTPException(404, "项目不存在")
     safe = name.replace("/", "").replace("\\", "")
@@ -333,7 +332,7 @@ async def get_portrait(project_id: str, name: str):
 @router.get("/{project_id}/portraits/{name}/info")
 async def portrait_info(project_id: str, name: str):
     """查询肖像是否存在"""
-    project_dir = kb.get_project_dir(project_id)
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
     if project_dir is None:
         raise HTTPException(404, "项目不存在")
     safe = name.replace("/", "").replace("\\", "")
@@ -344,7 +343,7 @@ async def portrait_info(project_id: str, name: str):
 @router.post("/{project_id}/portraits/{name}/redraw")
 async def redraw_one_portrait(project_id: str, name: str):
     """重绘单个角色肖像（强制覆盖）"""
-    project_dir = kb.get_project_dir(project_id)
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
     if project_dir is None:
         raise HTTPException(404, "项目不存在")
     safe = name.replace("/", "").replace("\\", "")

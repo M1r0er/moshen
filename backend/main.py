@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 # 确保可以导入同目录下的模块
@@ -26,8 +26,9 @@ from routes.outline import router as outline_router
 from routes.writing import router as writing_router
 from routes.foreshadowing import router as foreshadowing_router
 from routes.relations import router as relations_router
+from routes.session import router as session_router
 
-app = FastAPI(title="墨参 MoShen", version="0.6.0", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.6.1", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -50,6 +51,33 @@ app.include_router(outline_router)
 app.include_router(writing_router)
 app.include_router(foreshadowing_router)
 app.include_router(relations_router)
+app.include_router(session_router)
+
+
+# ===== 项目会话租约校验 =====
+# 已接入租约的调用方会在请求头携带 X-Moshen-Lease。若携带的是"已失效的陈旧租约"
+# （项目被重新打开后旧窗口仍在发请求），则拒绝其写操作，避免旧窗口污染新会话。
+# 未携带租约的请求保持放行，以兼容尚未接入租约的调用路径。
+_SESSION_EXEMPT_PREFIXES = (
+    "/api/session", "/api/config", "/api/workspace", "/api/health",
+    "/api/projects", "/api/chat/intents", "/api/chat/models", "/docs", "/openapi.json",
+)
+_MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+@app.middleware("http")
+async def enforce_session_lease(request, call_next):
+    if request.method in _MUTATING_METHODS:
+        path = request.url.path
+        if path.startswith("/api/") and not path.startswith(_SESSION_EXEMPT_PREFIXES):
+            from core.session import get_session_registry
+            lease = request.headers.get("X-Moshen-Lease")
+            if get_session_registry().is_stale(lease):
+                return JSONResponse(
+                    {"detail": "项目会话已过期（项目可能已被重新打开），请重新打开项目后再操作"},
+                    status_code=409,
+                )
+    return await call_next(request)
 
 
 # ===== 配置管理路由 =====
@@ -113,7 +141,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.0"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.1"}
 
 
 # ===== 前端静态文件 =====

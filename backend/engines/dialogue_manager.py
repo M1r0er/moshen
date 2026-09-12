@@ -10,7 +10,7 @@ from pathlib import Path
 
 from core.llm_provider import get_llm_provider
 from core.prompt_loader import get_prompt_loader
-from core.context_manager import get_context_manager
+from core.context_manager import build_core_layer, create_context
 from core.config import get_config_manager
 from engines.intent_router import get_intent_router
 from engines.intervention import get_intervention_engine
@@ -61,35 +61,32 @@ class DialogueManager:
     def __init__(self):
         self.llm = get_llm_provider()
         self.prompt_loader = get_prompt_loader()
-        self.context_mgr = get_context_manager()
         self.config_mgr = get_config_manager()
         self.intent_router = get_intent_router()
         self.intervention = get_intervention_engine()
         self.project_kb = get_project_kb_manager()
-        self._current_project_id: str | None = None
+        # 核心层（人格 + 创作规范）是静态内容，构造一次后缓存
+        self._core_layer_cache: str | None = None
 
-    def set_project(self, project_id: str | None):
-        """设置当前活跃项目"""
-        self._current_project_id = project_id
-        if project_id:
-            self._refresh_project_context()
+    def _build_memory_layer(self, project_id: str) -> str:
+        """组装某个项目的记忆层文本（知识库/设定/大纲/灵感/全局知识库）
 
-    def _refresh_project_context(self):
-        """刷新项目知识库上下文（含设定树摘要）"""
-        if not self._current_project_id:
-            self.context_mgr.set_memory_layer("")
-            return
+        每次调用都按当前磁盘内容重新组装，因此不需要"刷新"共享状态；
+        该结果只服务于本次请求，不会写入任何跨请求共享的对象。
+        """
+        if not project_id:
+            return ""
 
         parts = []
         # 知识库摘要
-        kb_summary = self.project_kb.get_project_summary(self._current_project_id)
+        kb_summary = self.project_kb.get_project_summary(project_id)
         if kb_summary:
             parts.append(f"### 知识库\n{kb_summary}")
 
         # 设定树摘要
         try:
             from routes.settings_writer import get_settings_summary
-            settings_summary = get_settings_summary(self._current_project_id)
+            settings_summary = get_settings_summary(project_id)
             if settings_summary:
                 parts.append(f"### 设定页\n{settings_summary}")
         except Exception:
@@ -98,7 +95,7 @@ class DialogueManager:
         # 大纲摘要
         try:
             from routes.outline import get_outline_summary
-            outline_summary = get_outline_summary(self._current_project_id)
+            outline_summary = get_outline_summary(project_id)
             if outline_summary:
                 parts.append(f"### 大纲\n{outline_summary}")
         except Exception:
@@ -130,15 +127,17 @@ class DialogueManager:
         except Exception:
             pass
 
-        self.context_mgr.set_memory_layer("\n\n".join(parts))
+        return "\n\n".join(parts)
 
-    def _init_core_layer(self):
-        """初始化核心层（助手人格 + 创作规范库）"""
-        try:
-            persona = self.prompt_loader.load_raw("system_persona")
-        except FileNotFoundError:
-            persona = "你是墨参，一位资深网文编辑兼创作教练。"
-        self.context_mgr.set_core_layer(persona, self._rules_text())
+    def _core_layer_text(self) -> str:
+        """核心层文本（助手人格 + 创作规范库），惰性构造并缓存"""
+        if self._core_layer_cache is None:
+            try:
+                persona = self.prompt_loader.load_raw("system_persona")
+            except FileNotFoundError:
+                persona = "你是墨参，一位资深网文编辑兼创作教练。"
+            self._core_layer_cache = build_core_layer(persona, self._rules_text())
+        return self._core_layer_cache
 
     @staticmethod
     def _rules_text() -> str:
@@ -169,14 +168,8 @@ class DialogueManager:
         Yields:
             SSE 事件字典 {"event": ..., "data": ...}（由 EventSourceResponse 序列化）
         """
-        # 确保核心层已初始化
-        self._init_core_layer()
-
-        # 设置项目上下文
-        if project_id and project_id != self._current_project_id:
-            self.set_project(project_id)
-        elif project_id and not self._current_project_id:
-            self.set_project(project_id)
+        # 核心层（助手人格 + 创作规范库）
+        core_layer = self._core_layer_text()
 
         # 确定使用哪个职能角色
         if role_override and role_override != "auto":
@@ -212,14 +205,16 @@ class DialogueManager:
                 "auto_selected": (not model_override or model_override == "auto"),
             })
 
-        # 设置工作层：当前讨论焦点
+        # 按本次请求构建独立上下文，不写入任何跨请求共享的状态，
+        # 这样并发请求 / 多项目切换不会互相覆盖上下文。
+        memory_layer = self._build_memory_layer(project_id) if project_id else ""
         focus = f"用户正在讨论：{user_input[:200]}"
-        self.context_mgr.set_working_layer(focus)
-
-        # 组装消息
-        messages = self.context_mgr.build_messages_with_history(
-            history or [], user_input
+        ctx = create_context(
+            core_layer=core_layer,
+            memory_layer=memory_layer,
+            working_layer=focus,
         )
+        messages = ctx.build_messages_with_history(history or [], user_input)
 
         # 流式生成
         full_response = ""
@@ -233,9 +228,9 @@ class DialogueManager:
                 full_response += chunk
                 yield self._sse("chunk", {"content": chunk})
 
-            # 干预评估
+            # 干预评估（复用本次请求已组装的记忆层，保证信息口径一致）
             intervention = await self._evaluate_intervention(
-                user_input, full_response, project_id
+                user_input, full_response, project_id, memory_layer
             )
 
             if intervention and intervention.get("need_intervention"):
@@ -288,7 +283,7 @@ class DialogueManager:
             if setting_matches:
                 from routes.settings_writer import save_setting_entry
 
-                pid = project_id or self._current_project_id
+                pid = project_id
                 if pid:
                     saved_settings = []
                     for match in setting_matches:
@@ -316,15 +311,12 @@ class DialogueManager:
                         yield self._sse("setting_clean", {"clean_content": clean_response})
                         full_response = clean_response
 
-                        # 刷新项目上下文，使下一轮对话能看到新设定
-                        self._refresh_project_context()
-
             # 设定更新：检测 SETTING_UPDATE 标记并修改已有设定
             update_matches = _SETTING_UPDATE_PATTERN.findall(full_response)
             if update_matches:
                 from routes.settings_writer import update_setting_entry
 
-                pid = project_id or self._current_project_id
+                pid = project_id
                 if pid:
                     updated_settings = []
                     failed_updates = []
@@ -355,15 +347,12 @@ class DialogueManager:
                         yield self._sse("setting_clean", {"clean_content": clean_response})
                         full_response = clean_response
 
-                    # 刷新项目上下文，使下一轮对话能看到更新后的设定
-                    self._refresh_project_context()
-
             # 大纲存写：检测 OUTLINE_SAVE 标记并自动保存到大纲页
             outline_matches = _OUTLINE_SAVE_PATTERN.findall(full_response)
             if outline_matches:
                 from routes.outline import save_outline_node
 
-                pid = project_id or self._current_project_id
+                pid = project_id
                 if pid:
                     saved_outlines = []
                     for match in outline_matches:
@@ -394,14 +383,12 @@ class DialogueManager:
                         yield self._sse("outline_clean", {"clean_content": clean_response})
                         full_response = clean_response
 
-                        self._refresh_project_context()
-
             # 大纲更新：检测 OUTLINE_UPDATE 标记并修改已有节点
             outline_update_matches = _OUTLINE_UPDATE_PATTERN.findall(full_response)
             if outline_update_matches:
                 from routes.outline import update_outline_node
 
-                pid = project_id or self._current_project_id
+                pid = project_id
                 if pid:
                     updated_outlines = []
                     failed_outline_updates = []
@@ -431,14 +418,12 @@ class DialogueManager:
                         yield self._sse("outline_clean", {"clean_content": clean_response})
                         full_response = clean_response
 
-                        self._refresh_project_context()
-
             # 大纲连线：检测 OUTLINE_LINK 标记并创建/更新连线
             outline_link_matches = _OUTLINE_LINK_PATTERN.findall(full_response)
             if outline_link_matches:
                 from routes.outline import save_outline_edge
 
-                pid = project_id or self._current_project_id
+                pid = project_id
                 if pid:
                     linked_outlines = []
                     failed_links = []
@@ -470,8 +455,6 @@ class DialogueManager:
                         yield self._sse("outline_clean", {"clean_content": clean_response})
                         full_response = clean_response
 
-                        self._refresh_project_context()
-
         except Exception as e:
             yield self._sse("error", {"message": str(e)})
 
@@ -488,16 +471,16 @@ class DialogueManager:
         user_input: str,
         assistant_response: str,
         project_id: str | None,
+        project_context: str = "",
     ) -> dict | None:
-        """评估是否需要主动干预"""
+        """评估是否需要主动干预
+
+        直接复用本次请求已组装的记忆层（project_context），保证干预评估
+        看到的信息与写作模型一致，且不依赖任何跨请求共享状态。
+        """
         if not project_id:
             return None
 
-        # 使用与对话相同的完整项目上下文（记忆层），保证干预评估看到的信息
-        # 不少于写作模型；记忆层为空时回退到知识库摘要。
-        if project_id != self._current_project_id:
-            self.set_project(project_id)
-        project_context = self.context_mgr.get_memory_layer()
         if not project_context:
             project_context = self.project_kb.get_project_summary(project_id)
         if not project_context:

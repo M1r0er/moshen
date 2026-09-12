@@ -1,25 +1,25 @@
 """
 墨参 · 四层上下文管理器
 核心层（助手人格）+ 记忆层（项目知识库）+ 工作层（当前焦点）+ 历史层（对话历史）
+
+注意：本管理器承载的是"单次请求"的上下文。请求级上下文必须按请求创建
+（见 create_context），不要跨请求复用一个实例，否则并发/多项目会互相串台。
 """
 from typing import Optional
 
 
 class ContextManager:
-    """四层上下文组装器"""
+    """四层上下文组装器（请求级，不应跨请求共享可变状态）"""
 
-    def __init__(self):
-        self._core_layer: str = ""        # 助手人格 + 创作规范
-        self._memory_layer: str = ""      # 项目知识库摘要
-        self._working_layer: str = ""     # 当前讨论焦点 + 检索结果
-        self._history: list[dict] = []    # 对话历史
+    def __init__(self, core_layer: str = "", memory_layer: str = "", working_layer: str = ""):
+        self._core_layer: str = core_layer      # 助手人格 + 创作规范
+        self._memory_layer: str = memory_layer  # 项目知识库摘要
+        self._working_layer: str = working_layer  # 当前讨论焦点 + 检索结果
+        self._history: list[dict] = []          # 对话历史
 
     def set_core_layer(self, persona: str, rules: str = ""):
         """设置核心层：助手人格设定 + 创作规范"""
-        parts = [persona]
-        if rules:
-            parts.append(f"\n---\n\n## 创作规范参考\n{rules}")
-        self._core_layer = "\n\n".join(parts)
+        self._core_layer = build_core_layer(persona, rules)
 
     def set_memory_layer(self, project_summary: str):
         """设置记忆层：项目知识库摘要"""
@@ -97,12 +97,22 @@ class ContextManager:
         return messages
 
 
-# 全局单例
-_context_manager: ContextManager | None = None
+def build_core_layer(persona: str, rules: str = "") -> str:
+    """把助手人格与创作规范拼成核心层文本（纯函数，便于按需缓存）"""
+    parts = [persona]
+    if rules:
+        parts.append(f"\n---\n\n## 创作规范参考\n{rules}")
+    return "\n\n".join(parts)
 
 
-def get_context_manager() -> ContextManager:
-    global _context_manager
-    if _context_manager is None:
-        _context_manager = ContextManager()
-    return _context_manager
+def create_context(
+    core_layer: str = "",
+    memory_layer: str = "",
+    working_layer: str = "",
+) -> ContextManager:
+    """为单次请求创建一个独立的上下文实例
+
+    绝不要跨请求复用同一实例：记忆层/工作层都是随请求变化的可变状态，
+    共享会导致并发或多项目场景下上下文互相覆盖。
+    """
+    return ContextManager(core_layer, memory_layer, working_layer)
