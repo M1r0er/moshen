@@ -29,7 +29,7 @@ from routes.session import router as session_router
 from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 
-app = FastAPI(title="墨参 MoShen", version="0.6.11", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.6.12", description="小说写作助手")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -71,6 +71,21 @@ async def enforce_session_lease(request, call_next):
                     {"detail": "项目会话已过期（项目可能已被重新打开），请重新打开项目后再操作"},
                     status_code=409,
                 )
+    return await call_next(request)
+
+
+_ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+@app.middleware("http")
+async def enforce_local_host(request, call_next):
+    host = request.headers.get("host", "")
+    if host.startswith("["):
+        hostname = host.split("]")[0][1:]
+    else:
+        hostname = host.split(":")[0]
+    if hostname.strip().lower() not in _ALLOWED_HOSTS:
+        return JSONResponse({"detail": "仅允许本机访问"}, status_code=400)
     return await call_next(request)
 
 
@@ -135,7 +150,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.11"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.12"}
 
 
 # ===== 前端静态文件 =====
