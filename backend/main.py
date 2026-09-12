@@ -27,8 +27,9 @@ from routes.writing import router as writing_router
 from routes.foreshadowing import router as foreshadowing_router
 from routes.relations import router as relations_router
 from routes.session import router as session_router
+from routes.flow import router as flow_router
 
-app = FastAPI(title="墨参 MoShen", version="0.6.3", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.6.4", description="小说写作助手")
 
 # CORS
 app.add_middleware(
@@ -52,6 +53,7 @@ app.include_router(writing_router)
 app.include_router(foreshadowing_router)
 app.include_router(relations_router)
 app.include_router(session_router)
+app.include_router(flow_router)
 
 
 # ===== 项目会话租约校验 =====
@@ -141,7 +143,7 @@ async def test_config(body: dict):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.3"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.6.4"}
 
 
 # ===== 前端静态文件 =====

@@ -959,6 +959,19 @@ body {
 .vol-title { flex: 1; font-size: 17px; font-weight: 700; }
 .ch-num { width: 85px; }
 .writing-word-count { font-size: 12.5px; color: var(--text-muted); flex-shrink: 0; }
+/* ===== 创作流程阶段 ===== */
+.writing-row.flow-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+.flow-badge {
+  font-size: 12px; padding: 2px 10px; border-radius: 999px;
+  background: var(--color-input-bg); color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-strong);
+}
+.flow-badge.stage-drafted { background: var(--color-info-bg); color: var(--color-info); border-color: var(--color-info); }
+.flow-badge.stage-reviewed { background: var(--color-warning-bg); color: var(--color-warning); border-color: var(--color-warning); }
+.flow-badge.stage-revised { background: var(--color-warning-bg); color: var(--color-warning); border-color: var(--color-warning); }
+.flow-badge.stage-finalized { background: var(--color-success-bg); color: var(--color-success); border-color: var(--color-success); }
+.flow-mini { font-size: 12px; padding: 3px 10px; }
+.flow-hint { font-size: 12px; color: var(--color-text-muted); }
 
 .editor-toolbar { display: flex; gap: 6px; padding: 7px 12px; border-bottom: 1px solid var(--color-border); margin-bottom: 12px; background: var(--color-surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; align-items: center; min-height: 44px; }
 .tool-btn { width: 34px; height: 30px; border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--text-primary); border-radius: var(--radius-md); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
@@ -1147,7 +1160,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
       <div class="sidebar-footer">
         <button class="settings-btn" @click="openSettings">⚙ 设置</button>
-        <div class="sidebar-version">v0.6.3</div>
+        <div class="sidebar-version">v0.6.4</div>
       </div>
     </aside>
 
@@ -1819,6 +1832,24 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                       placeholder="章节名（可不填）"
                       @change="updateChMeta">
                     <span class="writing-word-count">{{ currentWordCount }} 字</span>
+                  </div>
+
+                  <!-- 创作流程阶段（显式状态机 + 门禁） -->
+                  <div class="writing-row flow-row">
+                    <span class="flow-badge" :class="'stage-' + (currentChapterStage || 'none')">
+                      {{ currentChapterStage ? (flowLabels[currentChapterStage] || currentChapterStage) : '未开始' }}
+                    </span>
+                    <button class="btn flow-mini" @click="advanceStage('drafted')" :disabled="flowBusy"
+                      v-if="!currentChapterStage || currentChapterStage === 'planned'">标记草稿</button>
+                    <button class="btn flow-mini" @click="markReviewed()" :disabled="flowBusy"
+                      v-if="currentChapterStage === 'drafted'">标记已审稿</button>
+                    <button class="btn flow-mini" @click="advanceStage('revised')" :disabled="flowBusy"
+                      v-if="currentChapterStage === 'reviewed'">标记已修稿</button>
+                    <button class="btn btn-primary flow-mini" @click="advanceStage('finalized')" :disabled="flowBusy"
+                      v-if="currentChapterStage === 'revised'">定稿</button>
+                    <button class="btn flow-mini" @click="resetStage()" :disabled="flowBusy"
+                      v-if="currentChapterStage && currentChapterStage !== 'planned'">重置</button>
+                    <span class="flow-hint" v-if="currentChapterStage === 'finalized'">已定稿，如需修改请先重置</span>
                   </div>
 
                   <!-- 工具栏 -->
@@ -4029,7 +4060,64 @@ createApp({
             expandedVols[v.id] = true;
           }
         }
+        await loadFlow();
       } catch (e) { showToast('加载写作索引失败', 'error'); }
+    }
+
+    // ===== 创作流程（阶段状态机） =====
+    const flowChapters = ref({});
+    const flowLabels = ref({});
+    const flowBusy = ref(false);
+    const currentChapterStage = computed(() => {
+      const key = currentWritingVolId.value + '/' + currentWritingChId.value;
+      const entry = flowChapters.value[key];
+      return entry ? entry.stage : '';
+    });
+
+    async function loadFlow() {
+      if (!currentProjectId.value) { flowChapters.value = {}; return; }
+      try {
+        const data = await apiJSON('/api/flow/' + currentProjectId.value);
+        flowChapters.value = data.chapters || {};
+        flowLabels.value = data.labels || {};
+      } catch (e) { flowChapters.value = {}; }
+    }
+
+    async function advanceStage(stage, force = false) {
+      if (!currentProjectId.value || !currentWritingChId.value) return;
+      flowBusy.value = true;
+      try {
+        await apiJSON('/api/flow/' + currentProjectId.value + '/volumes/'
+          + currentWritingVolId.value + '/chapters/' + currentWritingChId.value + '/stage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stage, force }),
+        });
+        await loadFlow();
+        showToast('创作阶段已更新为「' + (flowLabels.value[stage] || stage) + '」', 'success');
+      } catch (e) { showToast('阶段更新失败: ' + e.message, 'error'); }
+      flowBusy.value = false;
+    }
+
+    async function markReviewed() {
+      if (!currentProjectId.value || !currentWritingChId.value) return;
+      flowBusy.value = true;
+      try {
+        await apiJSON('/api/flow/' + currentProjectId.value + '/volumes/'
+          + currentWritingVolId.value + '/chapters/' + currentWritingChId.value + '/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        await loadFlow();
+        showToast('已标记为已审稿', 'success');
+      } catch (e) { showToast('标记失败: ' + e.message, 'error'); }
+      flowBusy.value = false;
+    }
+
+    function resetStage() {
+      if (!confirm('确定重置为草稿？此操作会清除当前审稿/定稿状态（历史记录仍保留）。')) return;
+      advanceStage('drafted', true);
     }
 
     function toggleVolume(volId) {
@@ -5260,6 +5348,8 @@ createApp({
       // Writing
       writingIndex, expandedVols, currentWritingVolId, currentWritingChId,
       currentVolNumber, currentVolTitle, currentChNumber, currentChTitle,
+      flowChapters, flowLabels, flowBusy, currentChapterStage,
+      loadFlow, advanceStage, markReviewed, resetStage,
       writingEditor, savingChapter, detectingFs, checkingRecover,
       indentEnabled, showFsDetectModal, detectedForeshadowings, currentWordCount,
       chapterNumberingMode,
