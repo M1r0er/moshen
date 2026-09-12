@@ -100,6 +100,7 @@ def _migrate_from_flat_files(settings_dir: Path) -> dict:
                 "title": name,
                 "category": cat,
                 "content": content,
+                "source": "author",  # 旧版扁平文件由作者维护，视为作者事实
                 "children": [],
                 "created_at": now_str(),
                 "updated_at": now_str(),
@@ -221,6 +222,14 @@ def save_setting_entry(
         # 重名检测：如果同名设定已存在，转为更新
         existing = _find_node_by_title(tree["nodes"], title)
         if existing:
+            # 作者事实保护：AI 自动写入不得覆盖作者手工维护的设定
+            if existing.get("source") == "author":
+                return {
+                    "blocked": True,
+                    "reason": "author_protected",
+                    "id": existing["id"],
+                    "title": title,
+                }
             existing["content"] = content
             existing["category"] = cat_key
             existing["updated_at"] = now_str()
@@ -238,6 +247,7 @@ def save_setting_entry(
             "title": title,
             "category": cat_key,
             "content": content,
+            "source": "ai",  # 来源标注：AI 自动写入
             "children": [],
             "created_at": now_str(),
             "updated_at": now_str(),
@@ -292,7 +302,10 @@ def get_settings_summary(project_id: str, max_content_len: int = 800) -> str:
             title = node.get("title", "")
             content = node.get("content", "").strip()
             prefix = "  " * indent + "▸ "
-            lines.append(f"{prefix}{title}")
+            # 来源标注：作者事实优先于 AI 推断
+            source = node.get("source")
+            source_tag = "（作者）" if source == "author" else ("（AI）" if source == "ai" else "")
+            lines.append(f"{prefix}{title}{source_tag}")
             if content:
                 truncated = content[:max_content_len]
                 if len(content) > max_content_len:
@@ -346,6 +359,10 @@ def update_setting_entry(
         node = _find_node_by_title(tree["nodes"], title)
         if not node:
             return None
+
+        # 作者事实保护：AI 自动写入不得改写作者手工维护的设定
+        if node.get("source") == "author":
+            return {"blocked": True, "reason": "author_protected", "id": node["id"], "title": title}
 
         if new_title:
             node["title"] = new_title.strip()
@@ -479,6 +496,7 @@ async def create_node(project_id: str, req: CreateNodeRequest):
         "title": req.title.strip(),
         "category": req.category if req.category in CATEGORIES else "other",
         "content": req.content,
+        "source": "author",  # 来源标注：作者手工创建
         "children": [],
         "created_at": now_str(),
         "updated_at": now_str(),
@@ -512,6 +530,7 @@ async def update_node(project_id: str, node_id: str, req: UpdateNodeRequest):
         node["content"] = req.content
     if req.category is not None:
         node["category"] = req.category if req.category in CATEGORIES else "other"
+    node["source"] = "author"  # 作者手工编辑后，该节点视为作者事实
     node["updated_at"] = now_str()
 
     save_tree(project_id, tree)
@@ -626,6 +645,7 @@ async def import_from_file(project_id: str, req: ImportFromFileRequest):
         "title": f"{title}（AI提取）",
         "category": req.category if req.category in CATEGORIES else "other",
         "content": result,
+        "source": "ai",
         "children": [],
         "created_at": now_str(),
         "updated_at": now_str(),
@@ -883,6 +903,7 @@ async def save_setting_legacy(project_id: str, req: dict):
         "title": filename,
         "category": "other",
         "content": content,
+        "source": "author",
         "children": [],
         "created_at": now_str(),
         "updated_at": now_str(),

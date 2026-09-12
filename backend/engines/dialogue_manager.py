@@ -301,6 +301,7 @@ class DialogueManager:
                 pid = project_id
                 if pid:
                     saved_settings = []
+                    blocked_settings = []
                     for match in setting_matches:
                         s_title = match[0].strip()
                         s_category = match[1].strip()
@@ -314,12 +315,19 @@ class DialogueManager:
                             category=s_category,
                             parent_title=s_parent,
                         )
-                        if result:
+                        if result and result.get("blocked"):
+                            blocked_settings.append(result.get("title", s_title))
+                        elif result:
                             saved_settings.append(result)
 
                     if saved_settings:
                         yield self._sse("setting_saved", {"entries": saved_settings})
 
+                    if blocked_settings:
+                        # 作者事实保护：AI 试图覆盖作者维护的设定，已被拦截
+                        yield self._sse("setting_conflict", {"titles": blocked_settings})
+
+                    if saved_settings or blocked_settings:
                         # 清理标记块
                         clean_response = _SETTING_SAVE_PATTERN.sub('', full_response)
                         clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
@@ -335,6 +343,7 @@ class DialogueManager:
                 if pid:
                     updated_settings = []
                     failed_updates = []
+                    blocked_settings = []
                     for match in update_matches:
                         u_title = match[0].strip()
                         u_content = match[1].strip()
@@ -344,7 +353,9 @@ class DialogueManager:
                             title=u_title,
                             content=u_content,
                         )
-                        if result:
+                        if result and result.get("blocked"):
+                            blocked_settings.append(result.get("title", u_title))
+                        elif result:
                             updated_settings.append(result)
                         else:
                             failed_updates.append(u_title)
@@ -352,10 +363,13 @@ class DialogueManager:
                     if updated_settings:
                         yield self._sse("setting_updated", {"entries": updated_settings})
 
+                    if blocked_settings:
+                        yield self._sse("setting_conflict", {"titles": blocked_settings})
+
                     if failed_updates:
                         yield self._sse("setting_update_failed", {"titles": failed_updates})
 
-                    if updated_settings or failed_updates:
+                    if updated_settings or failed_updates or blocked_settings:
                         # 清理标记块
                         clean_response = _SETTING_UPDATE_PATTERN.sub('', full_response)
                         clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
@@ -370,6 +384,7 @@ class DialogueManager:
                 pid = project_id
                 if pid:
                     saved_outlines = []
+                    blocked_outlines = []
                     for match in outline_matches:
                         o_title = match[0].strip()
                         o_type = match[1].strip()
@@ -387,12 +402,19 @@ class DialogueManager:
                             after_title=o_after,
                             edge_label=o_edge_label,
                         )
-                        if result:
+                        if result and result.get("blocked"):
+                            blocked_outlines.append(result.get("title", o_title))
+                        elif result:
                             saved_outlines.append(result)
 
                     if saved_outlines:
                         yield self._sse("outline_saved", {"entries": saved_outlines})
 
+                    if blocked_outlines:
+                        # 作者事实保护：AI 试图覆盖作者维护的大纲节点，已被拦截
+                        yield self._sse("outline_conflict", {"titles": blocked_outlines})
+
+                    if saved_outlines or blocked_outlines:
                         clean_response = _OUTLINE_SAVE_PATTERN.sub('', full_response)
                         clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
                         yield self._sse("outline_clean", {"clean_content": clean_response})
@@ -407,6 +429,7 @@ class DialogueManager:
                 if pid:
                     updated_outlines = []
                     failed_outline_updates = []
+                    blocked_outlines = []
                     for match in outline_update_matches:
                         ou_title = match[0].strip()
                         ou_content = match[1].strip()
@@ -416,7 +439,9 @@ class DialogueManager:
                             title=ou_title,
                             content=ou_content,
                         )
-                        if result:
+                        if result and result.get("blocked"):
+                            blocked_outlines.append(result.get("title", ou_title))
+                        elif result:
                             updated_outlines.append(result)
                         else:
                             failed_outline_updates.append(ou_title)
@@ -424,10 +449,13 @@ class DialogueManager:
                     if updated_outlines:
                         yield self._sse("outline_updated", {"entries": updated_outlines})
 
+                    if blocked_outlines:
+                        yield self._sse("outline_conflict", {"titles": blocked_outlines})
+
                     if failed_outline_updates:
                         yield self._sse("outline_update_failed", {"titles": failed_outline_updates})
 
-                    if updated_outlines or failed_outline_updates:
+                    if updated_outlines or failed_outline_updates or blocked_outlines:
                         clean_response = _OUTLINE_UPDATE_PATTERN.sub('', full_response)
                         clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
                         yield self._sse("outline_clean", {"clean_content": clean_response})

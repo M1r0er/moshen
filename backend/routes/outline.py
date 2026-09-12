@@ -93,6 +93,7 @@ async def create_node(project_id: str, req: CreateNodeRequest):
         "type": req.node_type,
         "x": req.x,
         "y": req.y,
+        "source": "author",  # 来源标注：作者手工创建
         "created_at": now,
         "updated_at": now,
     }
@@ -117,6 +118,7 @@ async def update_node(project_id: str, node_id: str, req: UpdateNodeRequest):
                 n["x"] = req.x
             if req.y is not None:
                 n["y"] = req.y
+            n["source"] = "author"  # 作者手工编辑后视为作者事实
             n["updated_at"] = now_str()
             save_outline(project_id, data)
             return {"success": True, "node": n}
@@ -216,6 +218,9 @@ def save_outline_node(
     # 重名检测：如果同名节点已存在，转为更新
     for n in data["nodes"]:
         if n["title"] == title:
+            # 作者事实保护：AI 自动写入不得覆盖作者手工维护的大纲节点
+            if n.get("source") == "author":
+                return {"blocked": True, "reason": "author_protected", "id": n["id"], "title": title}
             n["content"] = content.strip()
             n["type"] = node_type
             n["updated_at"] = now
@@ -231,6 +236,7 @@ def save_outline_node(
         "type": node_type,
         "x": max_x + 250 if data["nodes"] else 100,
         "y": 200 if node_type == "main" else 350,
+        "source": "ai",
         "created_at": now,
         "updated_at": now,
     }
@@ -271,6 +277,9 @@ def update_outline_node(
     data = load_outline(project_id)
     for n in data["nodes"]:
         if n["title"] == title:
+            # 作者事实保护：AI 自动写入不得改写作者手工维护的大纲节点
+            if n.get("source") == "author":
+                return {"blocked": True, "reason": "author_protected", "id": n["id"], "title": title}
             if new_title:
                 n["title"] = new_title.strip()
             if content is not None:
@@ -349,7 +358,9 @@ def get_outline_summary(project_id: str, max_content_len: int = 300) -> str:
             return
         prefix = "  " * indent + ("▸ " if indent == 0 else "  " * indent + "└ ")
         type_tag = "[支线]" if n["type"] == "branch" else ""
-        lines.append(f"{prefix}{n['title']}{type_tag}")
+        src = n.get("source")
+        src_tag = "（作者）" if src == "author" else ("（AI）" if src == "ai" else "")
+        lines.append(f"{prefix}{n['title']}{type_tag}{src_tag}")
         content = n.get("content", "").strip()
         if content:
             truncated = content[:max_content_len]

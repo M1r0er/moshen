@@ -1216,11 +1216,13 @@ class ProjectKBManager:
             "name": name,
             "status": "active",
             "resolution_chapter": "",
+            "source": "author",  # 来源标注：伏笔由作者维护
             "entries": [{
                 "id": entry_id,
                 "content": content,
                 "chapter_id": chapter_id,
                 "chapter_title": chapter_title,
+                "source": "author",
                 "created_at": now,
             }],
             "created_at": now,
@@ -1276,6 +1278,7 @@ class ProjectKBManager:
                     "content": content,
                     "chapter_id": chapter_id,
                     "chapter_title": chapter_title,
+                    "source": "author",
                     "created_at": now,
                 }
                 f.setdefault("entries", []).append(entry)

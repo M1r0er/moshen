@@ -1147,7 +1147,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
       <div class="sidebar-footer">
         <button class="settings-btn" @click="openSettings">⚙ 设置</button>
-        <div class="sidebar-version">v0.6.2</div>
+        <div class="sidebar-version">v0.6.3</div>
       </div>
     </aside>
 
@@ -3455,6 +3455,14 @@ createApp({
                 } else if (currentEvent === 'setting_update_failed' && data.titles) {
                   for (const title of data.titles) {
                     showToast('未找到设定「' + title + '」，无法更新（请检查标题是否一致）', 'warn');
+                  }
+                } else if (currentEvent === 'setting_conflict' && data.titles) {
+                  for (const title of data.titles) {
+                    showToast('已跳过「' + title + '」：该设定由你手工维护，AI 不会自动覆盖', 'warn');
+                  }
+                } else if (currentEvent === 'outline_conflict' && data.titles) {
+                  for (const title of data.titles) {
+                    showToast('已跳过「' + title + '」：该大纲节点由你手工维护，AI 不会自动覆盖', 'warn');
                   }
                 } else if (currentEvent === 'outline_saved' && data.entries) {
                   outlineSavedReceived = true;
