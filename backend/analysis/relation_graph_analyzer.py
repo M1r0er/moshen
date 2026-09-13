@@ -4,6 +4,7 @@
 移植自星图 server/analyzer.js + prompts.js
 """
 import json
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -38,6 +39,155 @@ TYPE_RULES = {
 - 泛指物品（如"剑""枪"）不建条目。""",
 }
 
+# 用户可编辑的条目字段（用于字段级保护）
+ENTITY_FIELDS = [
+    "id", "aliases", "summary", "weight", "category",
+    "gender", "age", "identity", "appearance", "personality",
+]
+
+# 纯用户所有字段：AI 永不写入、永不覆盖（档案正文由用户维护）
+USER_OWNED_FIELDS = ["profile"]
+
+
+def new_rid() -> str:
+    """生成关系条目的稳定唯一标识"""
+    return uuid.uuid4().hex
+
+
+def is_protected(entry: dict) -> bool:
+    """手动创建或显式锁定的条目/关系：整条以本地版本为准"""
+    return bool(entry.get("locked")) or entry.get("source") == "manual"
+
+
+def has_manual_content(entry: dict) -> bool:
+    """条目/关系中是否含有用户手动维护的内容（不得被 AI 删除）"""
+    return is_protected(entry) or bool(entry.get("edited_fields"))
+
+
+def rel_key(r: dict) -> tuple:
+    """关系的业务唯一键（同一对条目只保留一条关系）"""
+    return (r.get("from", ""), r.get("to", ""))
+
+
+def ensure_rids(data: dict) -> None:
+    """为缺失 rid 的关系补齐稳定标识（原地修改）"""
+    for r in data.get("relations", []) or []:
+        if not r.get("rid"):
+            r["rid"] = new_rid()
+
+
+def protect_entry(prev: dict, ai: dict) -> dict:
+    """把本地条目中受保护的内容叠加到 AI 结果上（手动优先）
+
+    - source=="manual" 或 locked==True：整条以本地版本为准
+    - edited_fields 中列出的字段：保留本地值，其余字段允许 AI 更新
+    - profile（档案正文）：始终以本地内容为准
+    """
+    if is_protected(prev):
+        merged = dict(prev)
+        merged["locked"] = bool(prev.get("locked"))
+        merged["source"] = prev.get("source", "manual")
+        merged["edited_fields"] = list(prev.get("edited_fields") or [])
+        return merged
+
+    merged = dict(ai)
+    merged["source"] = "ai"
+    merged["locked"] = bool(prev.get("locked"))
+    merged["edited_fields"] = list(prev.get("edited_fields") or [])
+    if prev.get("rid"):
+        merged["rid"] = prev["rid"]
+    for f in merged["edited_fields"]:
+        if f in prev:
+            merged[f] = prev[f]
+    for f in USER_OWNED_FIELDS:
+        if prev.get(f):
+            merged[f] = prev[f]
+    return merged
+
+
+def merge_manual(previous: Any, ai_data: dict) -> dict:
+    """把 previous 中受保护的手动内容叠加到 AI 结果上，手动内容优先。
+
+    - 手动创建/锁定的条目与关系，AI 既不能删除也不能改写
+    - 用户手动编辑过的字段保留本地值
+    返回合并后的完整数据（不修改入参）。
+    """
+    if not previous or not isinstance(previous, dict):
+        return ai_data
+
+    prev_entities = {
+        e.get("id"): e for e in previous.get("entities", []) or [] if e.get("id")
+    }
+    out_entities: list[dict] = []
+    seen: set[str] = set()
+    for e in ai_data.get("entities", []) or []:
+        eid = e.get("id")
+        if not eid or eid in seen:
+            continue
+        seen.add(eid)
+        pe = prev_entities.get(eid)
+        out_entities.append(protect_entry(pe, e) if pe else e)
+    # AI 漏掉的手动条目补回（保证手动内容不被"分析掉"）
+    for eid, pe in prev_entities.items():
+        if eid not in seen and has_manual_content(pe):
+            out_entities.append(dict(pe))
+            seen.add(eid)
+
+    prev_rels = previous.get("relations", []) or []
+    ai_rels = ai_data.get("relations", []) or []
+    prev_by_key: dict[tuple, list[dict]] = {}
+    for r in prev_rels:
+        prev_by_key.setdefault(rel_key(r), []).append(r)
+
+    out_rels: list[dict] = []
+    consumed: set[int] = set()
+    for r in ai_rels:
+        candidates = [p for p in prev_by_key.get(rel_key(r), []) if id(p) not in consumed]
+        if not candidates:
+            out_rels.append(r)
+            continue
+        prot = next((p for p in candidates if has_manual_content(p)), None)
+        if prot is not None:
+            consumed.add(id(prot))
+            out_rels.append(dict(prot))
+        else:
+            p = candidates[0]
+            consumed.add(id(p))
+            out_rels.append(protect_entry(p, r))
+    for p in prev_rels:
+        if id(p) not in consumed and has_manual_content(p):
+            out_rels.append(dict(p))
+
+    merged = dict(ai_data)
+    merged["entities"] = out_entities
+    merged["relations"] = out_rels
+    return merged
+
+
+def count_protected(data: Any) -> tuple[int, int]:
+    """统计受用户保护（手动创建/编辑/锁定）的条目数与关系数"""
+    if not data or not isinstance(data, dict):
+        return (0, 0)
+    ents = sum(1 for e in data.get("entities", []) or [] if has_manual_content(e))
+    rels = sum(1 for r in data.get("relations", []) or [] if has_manual_content(r))
+    return (ents, rels)
+
+
+def strip_manual_protection(previous: Any) -> Any:
+    """解除全部手动保护标记（"覆盖手动内容"模式使用，需用户显式确认）"""
+    if not previous or not isinstance(previous, dict):
+        return previous
+    out = dict(previous)
+    out["entities"] = [
+        {**e, "source": "ai", "locked": False, "edited_fields": []}
+        for e in previous.get("entities", []) or []
+    ]
+    out["relations"] = [
+        {**r, "source": "ai", "locked": False, "edited_fields": []}
+        for r in previous.get("relations", []) or []
+    ]
+    return out
+
 
 def master_prompt(type_: str, previous: Any, chapters_text: str) -> list[dict]:
     """构建关系图谱分析的 prompt"""
@@ -46,7 +196,32 @@ def master_prompt(type_: str, previous: Any, chapters_text: str) -> list[dict]:
     else:
         prev = "这是首次分析，还没有历史数据。\n\n"
 
+    # 明确告知模型哪些条目被用户锁定（禁止改动）
+    locked_rule = ""
+    if isinstance(previous, dict):
+        locked_e = [
+            str(e.get("id")) for e in previous.get("entities", []) or [] if has_manual_content(e)
+        ]
+        locked_r = [
+            f'{r.get("from")}→{r.get("to")}'
+            for r in previous.get("relations", []) or [] if has_manual_content(r)
+        ]
+        if locked_e or locked_r:
+            notes = []
+            if locked_e:
+                notes.append("用户手动维护的条目（禁止改名/改分类/删除，必须原样保留）：" + "、".join(locked_e))
+            if locked_r:
+                notes.append("用户手动维护的关系（禁止修改或删除，必须原样保留）：" + "、".join(locked_r))
+            locked_rule = (
+                "8. 以上数据中下列内容由用户手动维护，属最高优先级：\n   - "
+                + "\n   - ".join(notes)
+                + "\n   严禁删除、改名、改分类或改描述；必须把它们的 id、aliases、summary、"
+                "category 与关系条目原样保留在输出中。"
+            )
+
     type_rule = TYPE_RULES.get(type_, f'只收录与「{type_}」相关的条目。')
+    if locked_rule:
+        type_rule = type_rule + "\n" + locked_rule
 
     system = f"""你是资深小说文本分析引擎。你只输出合法 JSON，不输出任何其他文字、解释或 Markdown 围栏。
 你的任务：分析小说章节文本，提取与「{type_}」相关的条目与关系，输出 JSON，结构固定如下：
@@ -97,6 +272,11 @@ def validate_data(type_: str, raw: Any) -> dict:
             "identity": str(e.get("identity", "")).strip(),
             "appearance": str(e.get("appearance", "")).strip(),
             "personality": str(e.get("personality", "")).strip(),
+            # 以下字段由用户维护，AI 输出一律以默认值占位（真正的保护在 merge_manual）
+            "profile": "",
+            "source": "ai",
+            "locked": False,
+            "edited_fields": [],
         })
 
     # 关系
@@ -112,6 +292,9 @@ def validate_data(type_: str, raw: Any) -> dict:
             "type": str(r.get("type", "关联")),
             "detail": str(r.get("detail", "")),
             "time": str(r.get("time", "")),
+            "rid": "",
+            "source": "ai",
+            "locked": False,
         })
 
     # 时间线
@@ -135,37 +318,47 @@ def validate_data(type_: str, raw: Any) -> dict:
     }
 
 
-def changed_entity_ids(prev: dict | None, new: dict) -> set[str]:
-    """增量检测：仅返回相比 previous 有变化的实体 id"""
-    ids: set[str] = set()
-    prev_ids = set(e["id"] for e in (prev.get("entities", []) if prev else []))
-    for e in new.get("entities", []):
-        if e["id"] not in prev_ids:
-            ids.add(e["id"])
+def persist_type_data(project_dir: Path, type_: str, data: dict) -> None:
+    """持久化某个分类的关系脉络：主 JSON + 主 Markdown + 每个条目的档案 Markdown。
 
-    prev_rels = prev.get("relations", []) if prev else []
-    prev_rel_keys = set(
-        json.dumps([r["from"], r["to"], r["type"], r["detail"], r["time"]], ensure_ascii=False)
-        for r in prev_rels
-    )
-    for r in new.get("relations", []):
-        key = json.dumps([r["from"], r["to"], r["type"], r["detail"], r["time"]], ensure_ascii=False)
-        if key not in prev_rel_keys:
-            ids.add(r["from"])
-            ids.add(r["to"])
+    档案 Markdown 是纯派生产物，始终全量重渲染，避免与 JSON 数据源脱节；
+    同时清理已删除条目的孤儿档案。
+    """
+    type_dir = project_dir / "星图" / "关系" / type_
+    type_dir.mkdir(parents=True, exist_ok=True)
 
-    prev_tls = prev.get("timeline", []) if prev else []
-    prev_tl_keys = set(
-        json.dumps([t["time"], t["event"], t.get("refs", [])], ensure_ascii=False)
-        for t in prev_tls
-    )
-    for t in new.get("timeline", []):
-        key = json.dumps([t["time"], t["event"], t.get("refs", [])], ensure_ascii=False)
-        if key not in prev_tl_keys:
-            for ref in t.get("refs", []):
-                ids.add(ref)
+    ensure_rids(data)
 
-    return ids
+    atomic_write_json(type_dir / "关系脉络.json", data)
+    atomic_write_text(type_dir / "关系脉络.md", render_master_markdown(data))
+
+    names = {to_file_name(e["id"]) for e in data.get("entities", []) or [] if e.get("id")}
+    for entity in data.get("entities", []) or []:
+        eid = entity.get("id")
+        if not eid:
+            continue
+        rels = [
+            r for r in data.get("relations", []) or []
+            if r.get("from") == eid or r.get("to") == eid
+        ]
+        tls = [
+            t for t in data.get("timeline", []) or []
+            if eid in (t.get("refs") or [])
+        ]
+        atomic_write_text(
+            type_dir / f"{to_file_name(eid)}.md",
+            render_entity_markdown(type_, entity, rels, tls),
+        )
+
+    # 清理本分类中已不存在条目的孤儿档案
+    for f in type_dir.glob("*.md"):
+        if f.name == "关系脉络.md":
+            continue
+        if f.stem not in names:
+            try:
+                f.unlink()
+            except OSError:
+                pass
 
 
 class RelationGraphAnalyzer(BaseTextAnalyzer):
@@ -206,41 +399,13 @@ class RelationGraphAnalyzer(BaseTextAnalyzer):
         return isinstance(data, dict) and "entities" in data and "relations" in data
 
     def merge(self, previous: Any, new: Any) -> Any:
-        """关系图谱需要合并：保留旧实体/关系，补充新发现"""
-        # validate_data 已经做了合并逻辑（基于 previous 更新），
-        # 这里直接返回 new（因为 new 是 LLM 基于 previous 输出的完整结果）
+        """关系图谱需要合并：保留旧实体/关系，补充新发现。
+
+        previous 已在 prompt 中作为上下文交给 LLM，LLM 返回的是完整结果，
+        因此这里直接返回 new；手动内容的保护由 merge_manual 在落盘前执行。
+        """
         return new
 
     async def save(self, data: dict, project_dir: Path, ctx: dict) -> None:
         """保存关系脉络主文件 + 条目档案子文件"""
-        type_dir = project_dir / "星图" / "关系" / self.type
-        type_dir.mkdir(parents=True, exist_ok=True)
-
-        # 主文件
-        master_json = type_dir / "关系脉络.json"
-        master_md = type_dir / "关系脉络.md"
-        atomic_write_json(master_json, data)
-        atomic_write_text(master_md, render_master_markdown(data))
-
-        # 增量更新条目档案
-        previous = ctx.get("previous_data")
-        changed = changed_entity_ids(previous, data)
-        output_root = project_dir / "星图" / "关系"
-
-        for entity in data.get("entities", []):
-            if entity["id"] not in changed:
-                continue
-            # 同一条目在不同分类只生成一份档案
-            existing = None
-            for t in TYPES:
-                f = output_root / t / f"{to_file_name(entity['id'])}.md"
-                if f.exists() and t != self.type:
-                    existing = f
-                    break
-            if existing:
-                continue
-
-            rels = [r for r in data.get("relations", []) if r["from"] == entity["id"] or r["to"] == entity["id"]]
-            tls = [t for t in data.get("timeline", []) if entity["id"] in (t.get("refs") or [])]
-            md = render_entity_markdown(self.type, entity, rels, tls)
-            atomic_write_text(type_dir / f"{to_file_name(entity['id'])}.md", md)
+        persist_type_data(project_dir, self.type, data)

@@ -9,11 +9,21 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
-from core.safe_io import atomic_write_json
+from core.safe_io import atomic_write_json, update_json
 from knowledge.project_kb import get_project_kb_manager
-from analysis.relation_graph_analyzer import RelationGraphAnalyzer, TYPES
+from knowledge.relation_graph_render import to_file_name
+from analysis.relation_graph_analyzer import (
+    TYPES,
+    RelationGraphAnalyzer,
+    count_protected,
+    ensure_rids,
+    merge_manual,
+    new_rid,
+    persist_type_data,
+    strip_manual_protection,
+)
 from analysis.chapter_split import split_by_chapters
 
 router = APIRouter(prefix="/api/relations", tags=["relations"])
@@ -24,7 +34,8 @@ _tasks: dict[str, dict] = {}
 
 class AnalyzeRequest(BaseModel):
     preset: str = "standard"  # fast | standard | deep
-    full: bool = False  # 是否重新分析（清空已有结果）
+    full: bool = False  # AI 结果是否从零重新生成（手动内容仍受保护）
+    mode: str = "preserve"  # preserve | overwrite_manual
     source: str = "chapters"  # chapters | text
     text: str = ""  # source=text 时的文本内容
 
@@ -32,6 +43,63 @@ class AnalyzeRequest(BaseModel):
 class AnalyzeTextRequest(BaseModel):
     text: str
     preset: str = "standard"
+    mode: str = "preserve"
+
+
+class EntityPayload(BaseModel):
+    """手动新增/编辑条目的载荷"""
+    id: str
+    aliases: list[str] = []
+    summary: str = ""
+    profile: str = ""
+    category: str = ""
+    weight: int = 1
+    gender: str = ""
+    age: str = ""
+    identity: str = ""
+    appearance: str = ""
+    personality: str = ""
+    locked: bool = False
+
+
+class EntityUpdatePayload(BaseModel):
+    """编辑条目：仅传入需要改动的字段；new_id/target_type 支持改名与换分类"""
+    new_id: str | None = None
+    target_type: str | None = None
+    aliases: list[str] | None = None
+    summary: str | None = None
+    profile: str | None = None
+    category: str | None = None
+    weight: int | None = None
+    gender: str | None = None
+    age: str | None = None
+    identity: str | None = None
+    appearance: str | None = None
+    personality: str | None = None
+    locked: bool | None = None
+
+
+class RelationPayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_id: str = Field(alias="from")
+    to_id: str = Field(alias="to")
+    type: str = "关联"
+    detail: str = ""
+    time: str = ""
+    locked: bool = False
+
+
+class RelationUpdatePayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_id: str | None = Field(default=None, alias="from")
+    to_id: str | None = Field(default=None, alias="to")
+    type: str | None = None
+    detail: str | None = None
+    time: str | None = None
+    locked: bool | None = None
+
 
 
 def _get_project_dir(project_id: str) -> Path:
@@ -70,6 +138,19 @@ def _read_master_data(type_dir: Path) -> dict | None:
     return None
 
 
+def _load_type_data(project_id: str, type_: str) -> dict:
+    """读取某分类的关系脉络（缺失时返回空结构）"""
+    data = _read_master_data(_get_xingtu_dir(project_id) / "关系" / type_)
+    if not isinstance(data, dict):
+        data = {}
+    data.setdefault("type", type_)
+    data.setdefault("generatedAt", "")
+    data.setdefault("entities", [])
+    data.setdefault("relations", [])
+    data.setdefault("timeline", [])
+    return data
+
+
 async def _run_analysis(project_id: str, req: AnalyzeRequest):
     """后台执行关系图谱分析"""
     project_dir = _get_project_dir(project_id)
@@ -102,22 +183,38 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
         _push_message(project_id, "没有可分析的文本内容")
         return
 
-    # 全量重新分析：清空已有结果
+    overwrite_manual = req.mode == "overwrite_manual"
+    if overwrite_manual:
+        _push_message(project_id, "⚠️ 覆盖模式：手动维护的条目与关系将不再受保护")
     if req.full:
-        import shutil
-        relation_dir = project_dir / "星图" / "关系"
-        if relation_dir.exists():
-            shutil.rmtree(relation_dir)
-        state["read_files"] = {}
-        _push_message(project_id, "重新分析模式：已清空已有结果")
+        _push_message(project_id, "全量重析：AI 结果基于本次文本从零生成（手动内容仍会保留）")
 
     _push_message(project_id, f"开始分析，共 {len(chapters)} 个章节块")
 
+    total_protected = 0
     # 逐类型分析
     for type_ in TYPES:
         analyzer = RelationGraphAnalyzer(type_=type_)
         type_dir = project_dir / "星图" / "关系" / type_
-        previous = _read_master_data(type_dir)
+        local = _read_master_data(type_dir)
+
+        # 交给 LLM 的上下文：full 时从零开始；覆盖模式则去掉保护标记
+        if req.full:
+            seed = None
+        elif overwrite_manual:
+            seed = strip_manual_protection(local)
+        else:
+            seed = local
+
+        # 落盘前的保护基线（手动内容以此为准）
+        baseline = None if overwrite_manual else local
+        ent_n, rel_n = count_protected(local)
+        total_protected += ent_n + rel_n
+        if ent_n or rel_n:
+            _push_message(
+                project_id,
+                f"「{type_}」检测到 {ent_n} 条手动条目、{rel_n} 条手动关系，将予以保护",
+            )
 
         _push_message(project_id, f"正在分析「{type_}」…")
         try:
@@ -125,17 +222,23 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
                 chapters,
                 project_id=project_id,
                 preset=req.preset,
-                previous=previous,
-                ctx={"project_id": project_id, "previous_data": previous},
+                previous=seed,
+                ctx={"project_id": project_id, "previous_data": seed},
                 progress_cb=lambda msg: _push_message(project_id, msg),
             )
-            await analyzer.save(data, project_dir, {"previous_data": previous})
+            # 手动内容优先：AI 不得删除或改写用户手动创建/编辑的内容
+            if baseline:
+                data = merge_manual(baseline, data)
+            await analyzer.save(data, project_dir, {"previous_data": local})
             _push_message(
                 project_id,
                 f"「{type_}」完成：{len(data.get('entities', []))} 个条目，{len(data.get('relations', []))} 条关系",
             )
         except Exception as e:
             _push_message(project_id, f"「{type_}」分析失败：{str(e)}")
+
+    if total_protected:
+        _push_message(project_id, f"已保护 {total_protected} 项手动内容（未被 AI 覆盖）")
 
     _save_state(project_dir, state)
     _push_message(project_id, "分析完成")
@@ -185,7 +288,7 @@ async def analyze_text(project_id: str, req: AnalyzeTextRequest):
         raise HTTPException(400, "文本内容不能为空")
     return await analyze(
         project_id,
-        AnalyzeRequest(preset=req.preset, source="text", text=req.text),
+        AnalyzeRequest(preset=req.preset, source="text", text=req.text, mode=req.mode),
     )
 
 
@@ -247,10 +350,13 @@ async def overview(project_id: str):
     types = []
     for type_ in TYPES:
         data = _read_master_data(project_dir / "关系" / type_)
+        manual_e, manual_r = count_protected(data)
         types.append({
             "type": type_,
             "entity_count": len(data.get("entities", [])) if data else 0,
             "relation_count": len(data.get("relations", [])) if data else 0,
+            "manual_entity_count": manual_e,
+            "manual_relation_count": manual_r,
         })
     return {"types": types}
 
@@ -260,21 +366,37 @@ async def get_data(project_id: str, type: str = "角色"):
     """读取某分类的关系脉络 JSON"""
     if type not in TYPES:
         raise HTTPException(400, f"未知类型，支持：{', '.join(TYPES)}")
-    data = _read_master_data(_get_xingtu_dir(project_id) / "关系" / type)
-    return {"empty": data is None, "data": data}
+    project_dir = _get_project_dir(project_id)
+    data = _read_master_data(project_dir / "星图" / "关系" / type)
+    if data is None:
+        return {"empty": True, "data": None}
+    # 兼容旧数据：为历史关系补上稳定 rid，便于后续编辑/删除定位
+    if any(not r.get("rid") for r in data.get("relations", []) or []):
+        ensure_rids(data)
+        persist_type_data(project_dir, type, data)
+    return {"empty": False, "data": data}
 
 
 @router.get("/{project_id}/entity/{type}/{name}")
 async def get_entity(project_id: str, type: str, name: str):
-    """读取条目档案 Markdown"""
+    """读取条目档案 Markdown + 结构化条目数据（供编辑表单回填）"""
     if type not in TYPES:
         raise HTTPException(400, f"未知类型，支持：{', '.join(TYPES)}")
-    safe = name.replace("/", "").replace("\\", "")
+    safe = to_file_name(name)
     # 跨分类查找
     for t in [type] + [t for t in TYPES if t != type]:
-        file = _get_xingtu_dir(project_id) / "关系" / t / f"{safe}.md"
-        if file.exists():
-            return {"content": file.read_text(encoding="utf-8"), "type": t}
+        dir_ = _get_xingtu_dir(project_id) / "关系" / t
+        data = _read_master_data(dir_)
+        entity = None
+        if data:
+            entity = next(
+                (e for e in data.get("entities", []) if to_file_name(e.get("id", "")) == safe),
+                None,
+            )
+        file = dir_ / f"{safe}.md"
+        if entity is not None or file.exists():
+            content = file.read_text(encoding="utf-8") if file.exists() else ""
+            return {"content": content, "type": t, "entity": entity, "name": name}
     raise HTTPException(404, "条目不存在")
 
 
@@ -352,4 +474,393 @@ async def redraw_one_portrait(project_id: str, name: str):
         return {"success": True, "ext": ext}
     except Exception as e:
         raise HTTPException(500, str(e)[:200])
+
+
+# ===== 条目 / 关系的手动维护（CRUD） =====
+
+
+def _check_type(t: str) -> str:
+    if t not in TYPES:
+        raise HTTPException(400, f"未知分类，支持：{', '.join(TYPES)}")
+    return t
+
+
+def _empty_type(type_: str) -> dict:
+    return {
+        "type": type_,
+        "generatedAt": "",
+        "entities": [],
+        "relations": [],
+        "timeline": [],
+    }
+
+
+def _find_entity(data: dict, name: str) -> dict | None:
+    """按条目名查找（比较前统一做文件名净化，与档案落盘规则一致）"""
+    safe = to_file_name(name)
+    return next(
+        (
+            e
+            for e in data.get("entities", []) or []
+            if to_file_name(e.get("id", "")) == safe
+        ),
+        None,
+    )
+
+
+def _rename_refs(data: dict, old_id: str, new_id: str) -> None:
+    """级联改名：同步关系与时间线中的引用（原地修改）"""
+    for r in data.get("relations", []) or []:
+        if r.get("from") == old_id:
+            r["from"] = new_id
+        if r.get("to") == old_id:
+            r["to"] = new_id
+    for t in data.get("timeline", []) or []:
+        t["refs"] = [new_id if x == old_id else x for x in (t.get("refs") or [])]
+
+
+def _drop_entity_refs(data: dict, eid: str) -> int:
+    """删除指向该条目的关系与时间线引用，返回被移除的关系数"""
+    before = len(data.get("relations", []) or [])
+    data["relations"] = [
+        r
+        for r in data.get("relations", []) or []
+        if r.get("from") != eid and r.get("to") != eid
+    ]
+    for t in data.get("timeline", []) or []:
+        t["refs"] = [x for x in (t.get("refs") or []) if x != eid]
+    return before - len(data["relations"])
+
+
+def _dedupe_relations(data: dict) -> None:
+    """清理自环与重复关系（同一对条目只保留一条）"""
+    out: list[dict] = []
+    seen: set[tuple] = set()
+    for r in data.get("relations", []) or []:
+        if r.get("from") == r.get("to"):
+            continue
+        key = (r.get("from"), r.get("to"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    data["relations"] = out
+
+
+def _apply_entity_fields(entity: dict, payload: EntityUpdatePayload) -> None:
+    """把编辑载荷写入条目，并记录手动编辑痕迹（这些字段 AI 不得覆盖）"""
+    values = {
+        "aliases": payload.aliases,
+        "summary": payload.summary,
+        "profile": payload.profile,
+        "category": payload.category,
+        "weight": payload.weight,
+        "gender": payload.gender,
+        "age": payload.age,
+        "identity": payload.identity,
+        "appearance": payload.appearance,
+        "personality": payload.personality,
+    }
+    touched = set(entity.get("edited_fields") or [])
+    for key, val in values.items():
+        if val is None:
+            continue
+        if key == "aliases":
+            entity[key] = [str(a).strip() for a in val if str(a).strip()]
+        elif key == "weight":
+            entity[key] = val if isinstance(val, int) else 1
+        else:
+            entity[key] = str(val)
+        touched.add(key)
+    if payload.locked is not None:
+        entity["locked"] = bool(payload.locked)
+    entity["edited_fields"] = sorted(touched)
+
+
+def _delete_portrait(project_dir: Path, entity_id: str) -> None:
+    path = get_portrait_path(project_dir, entity_id)
+    if path and path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+def _move_portrait(project_dir: Path, old_id: str, new_id: str) -> None:
+    old = get_portrait_path(project_dir, old_id)
+    if not old or not old.exists():
+        return
+    new = old.parent / f"{to_file_name(new_id)}{old.suffix}"
+    if new == old:
+        return
+    try:
+        old.replace(new)
+    except OSError:
+        pass
+
+
+@router.post("/{project_id}/entity")
+async def create_entity(project_id: str, payload: EntityPayload, type: str = "角色"):
+    """手动新增条目（标记为手动内容，AI 分析时不会被清掉）"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+    eid = payload.id.strip()
+    if not eid:
+        raise HTTPException(400, "条目名称不能为空")
+
+    path = _get_xingtu_dir(project_id) / "关系" / type / "关系脉络.json"
+
+    def mutate(data: dict) -> dict:
+        entities = data.setdefault("entities", [])
+        if any(to_file_name(e.get("id", "")) == to_file_name(eid) for e in entities):
+            raise HTTPException(409, f"条目「{eid}」已存在")
+        entities.append({
+            "id": eid,
+            "aliases": [str(a).strip() for a in (payload.aliases or []) if str(a).strip()],
+            "summary": payload.summary or "",
+            "weight": payload.weight if isinstance(payload.weight, int) else 1,
+            "category": payload.category or "",
+            "gender": payload.gender or "",
+            "age": payload.age or "",
+            "identity": payload.identity or "",
+            "appearance": payload.appearance or "",
+            "personality": payload.personality or "",
+            "profile": payload.profile or "",
+            "source": "manual",
+            "locked": bool(payload.locked),
+            "edited_fields": [],
+        })
+        return data
+
+    data = update_json(path, mutate, default=_empty_type(type))
+    persist_type_data(project_dir, type, data)
+    return {"success": True, "id": eid, "type": type}
+
+
+@router.put("/{project_id}/entity/{type}/{name}")
+async def update_entity(
+    project_id: str, type: str, name: str, payload: EntityUpdatePayload
+):
+    """编辑条目：支持改名、改分类（跨分类迁移）、补充档案、锁定"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+    target_type = payload.target_type or type
+    _check_type(target_type)
+
+    xingtu = _get_xingtu_dir(project_id) / "关系"
+    src_path = xingtu / type / "关系脉络.json"
+    if not src_path.exists():
+        raise HTTPException(404, "条目不存在")
+
+    state: dict = {}
+
+    def mutate_src(data: dict) -> dict:
+        entity = _find_entity(data, name)
+        if entity is None:
+            raise HTTPException(404, f"条目「{name}」不存在")
+
+        old_id = str(entity.get("id", ""))
+        _apply_entity_fields(entity, payload)
+        new_id = (payload.new_id or "").strip() or old_id
+        if new_id != old_id:
+            dup = any(
+                e is not entity and to_file_name(e.get("id", "")) == to_file_name(new_id)
+                for e in data.get("entities", []) or []
+            )
+            if dup:
+                raise HTTPException(409, f"条目「{new_id}」已存在")
+            _rename_refs(data, old_id, new_id)
+            entity["id"] = new_id
+        _dedupe_relations(data)
+
+        state["entity"] = dict(entity)
+        state["old_id"] = old_id
+        state["new_id"] = str(entity.get("id", ""))
+
+        if target_type != type:
+            eid = state["new_id"]
+            data["entities"] = [
+                e
+                for e in data.get("entities", []) or []
+                if to_file_name(e.get("id", "")) != to_file_name(eid)
+            ]
+            state["removed_relations"] = _drop_entity_refs(data, eid)
+        return data
+
+    src_data = update_json(src_path, mutate_src, default=_empty_type(type))
+    persist_type_data(project_dir, type, src_data)
+
+    entity = state.get("entity")
+    if target_type != type and entity is not None:
+        tgt_path = xingtu / target_type / "关系脉络.json"
+
+        def mutate_tgt(data: dict) -> dict:
+            entities = data.setdefault("entities", [])
+            entities[:] = [
+                e
+                for e in entities
+                if to_file_name(e.get("id", "")) != to_file_name(entity.get("id", ""))
+            ]
+            entities.append(entity)
+            return data
+
+        tgt_data = update_json(tgt_path, mutate_tgt, default=_empty_type(target_type))
+        persist_type_data(project_dir, target_type, tgt_data)
+
+    old_id = state.get("old_id", "")
+    new_id = state.get("new_id", "")
+    if old_id and new_id and old_id != new_id and target_type == "角色":
+        _move_portrait(project_dir, old_id, new_id)
+    if target_type != "角色":
+        _delete_portrait(project_dir, old_id or new_id)
+
+    return {
+        "success": True,
+        "id": new_id,
+        "type": target_type,
+        "removed_relations": state.get("removed_relations", 0),
+    }
+
+
+@router.delete("/{project_id}/entity/{type}/{name}")
+async def delete_entity(project_id: str, type: str, name: str):
+    """删除条目（连带其关系、时间线引用、档案与肖像）"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+
+    src_path = _get_xingtu_dir(project_id) / "关系" / type / "关系脉络.json"
+    if not src_path.exists():
+        raise HTTPException(404, "条目不存在")
+
+    state: dict = {}
+
+    def mutate(data: dict) -> dict:
+        entity = _find_entity(data, name)
+        if entity is None:
+            raise HTTPException(404, f"条目「{name}」不存在")
+        eid = str(entity.get("id", ""))
+        data["entities"] = [
+            e for e in data.get("entities", []) or [] if e is not entity
+        ]
+        state["removed_relations"] = _drop_entity_refs(data, eid)
+        state["entity"] = eid
+        return data
+
+    data = update_json(src_path, mutate, default=_empty_type(type))
+    persist_type_data(project_dir, type, data)
+
+    eid = state.get("entity", "")
+    if eid:
+        _delete_portrait(project_dir, eid)
+    return {
+        "success": True,
+        "id": eid,
+        "removed_relations": state.get("removed_relations", 0),
+    }
+
+
+@router.post("/{project_id}/relation")
+async def create_relation(project_id: str, payload: RelationPayload, type: str = "角色"):
+    """手动新增关系（标记为手动内容）"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+    f = payload.from_id.strip()
+    t = payload.to_id.strip()
+    if not f or not t:
+        raise HTTPException(400, "起点与终点不能为空")
+    if f == t:
+        raise HTTPException(400, "起点与终点不能相同")
+
+    path = _get_xingtu_dir(project_id) / "关系" / type / "关系脉络.json"
+
+    def mutate(data: dict) -> dict:
+        rels = data.setdefault("relations", [])
+        if any(r.get("from") == f and r.get("to") == t for r in rels):
+            raise HTTPException(409, "该关系已存在")
+        rels.append({
+            "from": f,
+            "to": t,
+            "type": payload.type or "关联",
+            "detail": payload.detail or "",
+            "time": payload.time or "",
+            "rid": new_rid(),
+            "source": "manual",
+            "locked": bool(payload.locked),
+            "edited_fields": [],
+        })
+        return data
+
+    data = update_json(path, mutate, default=_empty_type(type))
+    persist_type_data(project_dir, type, data)
+    return {"success": True}
+
+
+@router.put("/{project_id}/relation/{rid}")
+async def update_relation(
+    project_id: str, rid: str, payload: RelationUpdatePayload, type: str = "角色"
+):
+    """编辑关系（按 rid 定位）"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+
+    path = _get_xingtu_dir(project_id) / "关系" / type / "关系脉络.json"
+    if not path.exists():
+        raise HTTPException(404, "关系不存在")
+
+    def mutate(data: dict) -> dict:
+        rel = next(
+            (r for r in data.get("relations", []) or [] if r.get("rid") == rid), None
+        )
+        if rel is None:
+            raise HTTPException(404, "关系不存在")
+
+        touched = set(rel.get("edited_fields") or [])
+        if payload.from_id is not None:
+            rel["from"] = payload.from_id.strip()
+            touched.add("from")
+        if payload.to_id is not None:
+            rel["to"] = payload.to_id.strip()
+            touched.add("to")
+        if payload.type is not None:
+            rel["type"] = payload.type
+            touched.add("type")
+        if payload.detail is not None:
+            rel["detail"] = payload.detail
+            touched.add("detail")
+        if payload.time is not None:
+            rel["time"] = payload.time
+            touched.add("time")
+        if payload.locked is not None:
+            rel["locked"] = bool(payload.locked)
+        if not rel.get("from") or not rel.get("to") or rel.get("from") == rel.get("to"):
+            raise HTTPException(400, "起点与终点不能为空且不能相同")
+        rel["edited_fields"] = sorted(touched)
+        return data
+
+    data = update_json(path, mutate, default=_empty_type(type))
+    persist_type_data(project_dir, type, data)
+    return {"success": True, "rid": rid}
+
+
+@router.delete("/{project_id}/relation/{rid}")
+async def delete_relation(project_id: str, rid: str, type: str = "角色"):
+    """删除关系（按 rid 定位）"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+
+    path = _get_xingtu_dir(project_id) / "关系" / type / "关系脉络.json"
+    if not path.exists():
+        raise HTTPException(404, "关系不存在")
+
+    def mutate(data: dict) -> dict:
+        rels = data.get("relations", []) or []
+        found = next((r for r in rels if r.get("rid") == rid), None)
+        if found is None:
+            raise HTTPException(404, "关系不存在")
+        data["relations"] = [r for r in rels if r is not found]
+        return data
+
+    data = update_json(path, mutate, default=_empty_type(type))
+    persist_type_data(project_dir, type, data)
+    return {"success": True, "rid": rid}
 

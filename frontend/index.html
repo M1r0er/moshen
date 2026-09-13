@@ -1169,6 +1169,31 @@ body {
 .rel-portrait-box { display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:12px; }
 .rel-portrait-img { max-width:200px; max-height:200px; border-radius:var(--radius-sm); border:1px solid var(--border-color); }
 .rel-entity-detail { margin-top: 20px; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); max-height: 500px; overflow-y: auto; box-shadow: var(--shadow-card); }
+.rel-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rel-toolbar .rel-type-bar { padding: 0; }
+.rel-legend { display: flex; align-items: center; gap: 14px; margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.rel-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.rel-legend .dot-ai { background: #5A7D9A; }
+.rel-legend .dot-manual { background: #C9A86C; box-shadow: 0 0 0 2px rgba(201, 168, 108, 0.35); }
+.rel-canvas-wrap { position: relative; margin-top: 12px; }
+.rel-node-menu { position: absolute; z-index: 30; min-width: 156px; padding: 6px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-card-hover); }
+.rel-node-menu button { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; color: var(--color-text-body); font-size: 13.5px; border-radius: var(--radius-sm); cursor: pointer; }
+.rel-node-menu button:hover { background: var(--color-primary-light); color: var(--color-primary); }
+.rel-node-menu button.danger:hover { background: #fdecec; color: #c0392b; }
+.rel-menu-title { padding: 6px 12px 8px; margin-bottom: 4px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--color-border); word-break: break-all; }
+.rel-link-hint { margin: 10px 0 0; font-size: 12.5px; color: var(--color-primary); display: flex; align-items: center; gap: 8px; }
+.rel-manual-hint { margin: 0 0 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius-md); background: var(--color-primary-light); border: 1px solid var(--border-accent); color: var(--color-text-body); }
+.rel-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.rel-form-grid .full { grid-column: 1 / -1; }
+.rel-form-field { display: flex; flex-direction: column; gap: 6px; }
+.rel-form-field > label { font-size: 12.5px; color: var(--text-muted); }
+.rel-form-field input, .rel-form-field select, .rel-form-field textarea { padding: 9px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: var(--color-input-bg); color: var(--color-text-body); font-size: 14px; font-family: inherit; }
+.rel-form-field input:focus, .rel-form-field select:focus, .rel-form-field textarea:focus { outline: none; border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
+.rel-form-field .hint { font-size: 11.5px; color: var(--text-muted); }
+.rel-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--color-text-body); }
+.rel-entity-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.rel-badge-manual { display: inline-block; padding: 2px 8px; font-size: 11.5px; border-radius: 10px; background: var(--color-primary-light); color: var(--color-primary); border: 1px solid var(--border-accent); }
+.rel-badge-ai { display: inline-block; padding: 2px 8px; font-size: 11.5px; border-radius: 10px; background: var(--color-input-bg); color: var(--text-muted); border: 1px solid var(--color-border); }
 
 .fs-layout { display: flex; height: 100%; }
 .fs-sidebar { width: 260px; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; background: var(--color-surface); }
@@ -1287,7 +1312,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.6.12</div>
+        <div class="sidebar-version">v0.7.0</div>
       </div>
     </aside>
 
@@ -2349,7 +2374,10 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <label>小说文本</label>
                 <textarea v-model="relTextInput" placeholder="粘贴小说文本…" rows="12"></textarea>
               </div>
-              <button class="btn btn-primary" :disabled="relAnalyzing" @click="relStartAnalyze">
+              <p class="rel-manual-hint">
+                重新分析只会补充新内容：你手动新增或编辑过的条目、关系不会被清掉或改回去。
+              </p>
+              <button class="btn btn-primary" :disabled="relAnalyzing" @click="relRequestAnalyze">
                 {{ relAnalyzing ? '分析中…' : '开始分析' }}
               </button>
 
@@ -2363,6 +2391,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div v-for="t in relOverview" :key="t.type" class="rel-overview-item">
                     <span class="rel-overview-type">{{ t.type }}</span>
                     <span class="rel-overview-count">{{ t.entity_count }} 条目</span>
+                    <span v-if="t.manual_entity_count" class="rel-overview-count" style="display:block;color:var(--color-primary)">
+                      手动 {{ t.manual_entity_count }}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2379,31 +2410,87 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </div>
           </div>
           <div v-if="relSubView === 'graph'" class="rel-subview">
-            <div class="rel-type-bar">
-              <button v-for="t in RELATION_TYPES" :key="t" :class="{ active: relCurrentType === t }"
-                      @click="relLoadGraphData(t)">{{ t }}</button>
+            <div class="rel-toolbar">
+              <div class="rel-type-bar">
+                <button v-for="t in RELATION_TYPES" :key="t" :class="{ active: relCurrentType === t }"
+                        @click="relSwitchGraphType(t)">{{ t }}</button>
+              </div>
+              <button class="btn btn-secondary" style="font-size:13px" @click="relOpenCreateEntity(relCurrentType)">＋ 新建条目</button>
+              <button class="btn" :class="relLinkMode ? 'btn-primary' : 'btn-secondary'" style="font-size:13px"
+                      @click="relToggleLinkMode">{{ relLinkMode ? '🔗 连线中…' : '🔗 连关系' }}</button>
+              <div class="rel-legend">
+                <span><i class="dot-ai"></i>AI 生成</span>
+                <span><i class="dot-manual"></i>手动维护</span>
+              </div>
             </div>
-            <div id="rel-3d-canvas" class="rel-3d-canvas"></div>
+            <p v-if="relLinkMode" class="rel-link-hint">
+              <span>{{ relLinkSource ? '起点「' + relLinkSource + '」，请点击终点节点' : '请点击作为起点的节点' }}</span>
+              <button class="btn btn-secondary" style="font-size:12px" @click="relCancelLink">取消连线</button>
+            </p>
+            <div class="rel-canvas-wrap" @contextmenu.prevent="relOnCanvasContextMenu">
+              <div id="rel-3d-canvas" class="rel-3d-canvas"></div>
+              <div v-if="relNodeMenu" class="rel-node-menu"
+                   :style="{ left: relNodeMenu.x + 'px', top: relNodeMenu.y + 'px' }">
+                <template v-if="relNodeMenu.kind === 'relation'">
+                  <div class="rel-menu-title">{{ relNodeMenu.from }} → {{ relNodeMenu.to }}</div>
+                  <button @click="relMenuEditRelation">✏️ 编辑关系</button>
+                  <button class="danger" @click="relMenuDeleteRelation">🗑 删除关系</button>
+                </template>
+                <template v-else>
+                  <div class="rel-menu-title">{{ relNodeMenu.name }}</div>
+                  <button @click="relMenuCreateRelation">🔗 新增关系</button>
+                  <button @click="relMenuEditEntity">✏️ 编辑条目</button>
+                  <button @click="relMenuViewEntity">📖 查看档案</button>
+                  <button class="danger" @click="relMenuDeleteEntity">🗑 删除条目</button>
+                </template>
+              </div>
+            </div>
+            <p v-if="relGraphHint" class="rel-link-hint" style="color:var(--text-muted)">{{ relGraphHint }}</p>
             <div v-if="relEntityContent" class="rel-entity-panel">
+              <div class="rel-entity-head">
+                <strong>{{ relSelectedEntity }}</strong>
+                <span v-if="relSelectedIsManual" class="rel-badge-manual">手动维护</span>
+                <span v-else class="rel-badge-ai">AI 生成</span>
+                <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">✏️ 编辑条目</button>
+                <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">🔗 加关系</button>
+              </div>
               <pre class="rel-entity-md">{{ relEntityContent }}</pre>
             </div>
           </div>
 
           <!-- 档案库子页 -->
           <div v-if="relSubView === 'archive'" class="rel-subview">
-            <div class="rel-type-bar">
-              <button v-for="t in RELATION_TYPES" :key="t" :class="{ active: relArchiveType === t }"
-                      @click="relLoadArchive(t)">{{ t }}</button>
+            <div class="rel-toolbar">
+              <div class="rel-type-bar">
+                <button v-for="t in RELATION_TYPES" :key="t" :class="{ active: relArchiveType === t }"
+                        @click="relLoadArchive(t)">{{ t }}</button>
+              </div>
+              <button class="btn btn-secondary" style="font-size:13px" @click="relOpenCreateEntity(relArchiveType)">＋ 新增条目</button>
             </div>
+            <p class="rel-manual-hint">
+              这里是星图的完整设定库：可手动新增条目、改分类、补档案、加关系。手动维护的内容在重新分析时不会被覆盖。
+            </p>
             <div class="rel-archive-list">
               <div v-for="e in relArchiveEntities" :key="e.id"
                    :class="{ active: relSelectedEntity === e.id }"
-                   class="rel-archive-item" @click="relLoadEntity(e.id)">
-                <strong>{{ e.id }}</strong>
+                   class="rel-archive-item" @click="relLoadEntity(e.id, relArchiveType)">
+                <strong>{{ e.id }}<span v-if="relIsManual(e)" class="rel-badge-manual" style="margin-left:6px">手动</span></strong>
                 <span class="rel-archive-summary">{{ e.summary }}</span>
               </div>
             </div>
+            <div v-if="!relArchiveEntities.length" class="empty-state">
+              <div class="empty-state-icon">📖</div>
+              <p>该分类还没有条目：点「＋ 新增条目」手动创建，或先执行 AI 分析</p>
+            </div>
             <div v-if="relEntityContent" class="rel-entity-detail">
+              <div class="rel-entity-head">
+                <strong>{{ relSelectedEntity }}</strong>
+                <span v-if="relSelectedIsManual" class="rel-badge-manual">手动维护</span>
+                <span v-else class="rel-badge-ai">AI 生成</span>
+                <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">✏️ 编辑条目</button>
+                <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">🔗 加关系</button>
+                <button class="btn btn-secondary" style="font-size:12px" @click="relDeleteEntity(relSelectedEntity)">🗑 删除</button>
+              </div>
               <div v-if="relPortraitUrl" class="rel-portrait-box">
                 <img :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
                 <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
@@ -2421,6 +2508,156 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- ========== 星图 · 条目编辑 Modal ========== -->
+  <div class="modal-overlay" v-if="relEntityForm" @click.self="relCloseEntityForm">
+    <div class="modal" style="max-width:680px">
+      <div class="modal-title">{{ relEntityMode === 'create' ? '新增条目' : '编辑条目' }}</div>
+      <div class="modal-body">
+        <div class="rel-form-grid">
+          <div class="rel-form-field">
+            <label>名称 *</label>
+            <input v-model="relEntityForm.id" placeholder="如：萧远山">
+          </div>
+          <div class="rel-form-field">
+            <label>所属分类</label>
+            <select v-model="relEntityForm.type">
+              <option v-for="t in RELATION_TYPES" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
+          <div class="rel-form-field">
+            <label>别名（逗号或顿号分隔）</label>
+            <input v-model="relEntityForm.aliasesText" placeholder="如：远山兄、大公子">
+          </div>
+          <div class="rel-form-field">
+            <label>权重（决定图中节点大小）</label>
+            <input type="number" min="1" max="10" v-model.number="relEntityForm.weight">
+          </div>
+          <div class="rel-form-field full">
+            <label>一句话简介</label>
+            <input v-model="relEntityForm.summary" placeholder="如：北境军主帅，性格沉稳">
+          </div>
+          <div class="rel-form-field full">
+            <label>档案正文</label>
+            <textarea v-model="relEntityForm.profile" rows="7" placeholder="可自由记录这个人物的经历与设定细节……"></textarea>
+            <span class="hint">这里写的内容不会被 AI 分析覆盖，可放心长期维护。</span>
+          </div>
+          <template v-if="relEntityForm.type === '角色'">
+            <div class="rel-form-field">
+              <label>性别</label>
+              <input v-model="relEntityForm.gender">
+            </div>
+            <div class="rel-form-field">
+              <label>年龄</label>
+              <input v-model="relEntityForm.age">
+            </div>
+            <div class="rel-form-field">
+              <label>身份</label>
+              <input v-model="relEntityForm.identity">
+            </div>
+            <div class="rel-form-field">
+              <label>外貌</label>
+              <input v-model="relEntityForm.appearance">
+            </div>
+            <div class="rel-form-field full">
+              <label>性格</label>
+              <input v-model="relEntityForm.personality">
+            </div>
+          </template>
+          <div class="rel-form-field full">
+            <label class="rel-check">
+              <input type="checkbox" v-model="relEntityForm.locked">
+              锁定此条目（AI 分析时完全不允许修改或删除）
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="relCloseEntityForm">取消</button>
+        <button class="btn btn-primary" :disabled="relSavingEntity" @click="relSaveEntity">
+          {{ relSavingEntity ? '保存中…' : '保存' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 星图 · 关系编辑 Modal ========== -->
+  <div class="modal-overlay" v-if="relRelationForm" @click.self="relCloseRelationForm">
+    <div class="modal" style="max-width:560px">
+      <div class="modal-title">{{ relRelationMode === 'create' ? '新增关系' : '编辑关系' }}</div>
+      <div class="modal-body">
+        <div class="rel-form-grid">
+          <div class="rel-form-field">
+            <label>起点（from）</label>
+            <input v-model="relRelationForm.from" list="rel-entity-options" placeholder="条目名">
+          </div>
+          <div class="rel-form-field">
+            <label>终点（to）</label>
+            <input v-model="relRelationForm.to" list="rel-entity-options" placeholder="条目名">
+          </div>
+          <div class="rel-form-field full">
+            <label>关系类别</label>
+            <input v-model="relRelationForm.type" placeholder="如：师徒、敌对、隶属">
+          </div>
+          <div class="rel-form-field full">
+            <label>具体描述</label>
+            <textarea v-model="relRelationForm.detail" rows="3" placeholder="如：第 3 章在演武场收其为徒"></textarea>
+          </div>
+          <div class="rel-form-field full">
+            <label>时间</label>
+            <input v-model="relRelationForm.time" placeholder="如：第三年秋">
+          </div>
+        </div>
+        <datalist id="rel-entity-options">
+          <option v-for="e in relEntityChoices" :key="e" :value="e"></option>
+        </datalist>
+      </div>
+      <div class="modal-footer">
+        <button v-if="relRelationMode === 'edit'" class="btn btn-secondary" style="margin-right:auto;color:#c0392b" @click="relDeleteRelation">删除关系</button>
+        <button class="btn btn-secondary" @click="relCloseRelationForm">取消</button>
+        <button class="btn btn-primary" :disabled="relSavingRelation" @click="relSaveRelation">
+          {{ relSavingRelation ? '保存中…' : '保存' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 星图 · 重新分析确认 Modal ========== -->
+  <div class="modal-overlay" v-if="relShowAnalyzeConfirm" @click.self="relShowAnalyzeConfirm = false">
+    <div class="modal" style="max-width:540px">
+      <div class="modal-title">重新分析前请确认</div>
+      <div class="modal-body">
+        <p style="font-size:13.5px;line-height:1.9;color:var(--color-text-body)">
+          当前已有 <strong>{{ relManualTotal }}</strong> 项手动维护的内容（条目 / 关系）。
+        </p>
+        <p style="font-size:13.5px;line-height:1.9;color:var(--color-text-body)">
+          推荐「保留手动内容」：AI 只补充新发现，不会清掉或改回你手动添加、编辑过的条目与关系。
+        </p>
+        <p style="font-size:12.5px;line-height:1.9;color:var(--text-muted)">
+          「覆盖手动内容」会让 AI 结果整体生效，手动内容可能被删改，且不可撤销。
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="relShowAnalyzeConfirm = false">取消</button>
+        <button class="btn btn-secondary" @click="relConfirmAnalyze(true)">覆盖手动内容</button>
+        <button class="btn btn-primary" @click="relConfirmAnalyze(false)">保留手动内容</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 通用确认 Modal ========== -->
+  <div class="modal-overlay" v-if="relConfirm" @click.self="relConfirm = null">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-title">{{ relConfirm.title }}</div>
+      <div class="modal-body">
+        <p style="font-size:13.5px;line-height:1.9;color:var(--color-text-body)">{{ relConfirm.message }}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="relConfirm = null">取消</button>
+        <button class="btn btn-primary" @click="relDoConfirm">确定</button>
+      </div>
+    </div>
   </div>
 
   <!-- ========== New Project Modal ========== -->
@@ -3173,6 +3410,25 @@ createApp({
     const relPortraitLoading = ref(false);
     const relGeneratingPortraits = ref(false);
     const relPortraitResult = ref(null);
+    // 手动维护（编辑 / 新增 / 删除）
+    const relEntityData = ref(null);        // 当前选中条目的结构化数据
+    const relEntityOwnerType = ref('');     // 当前选中条目实际所属分类
+    const relEntityForm = ref(null);        // 条目表单模型（null = 未打开）
+    const relEntityMode = ref('create');    // create | edit
+    const relEditingName = ref('');         // 编辑时的原始条目名
+    const relSavingEntity = ref(false);
+    const relRelationForm = ref(null);      // 关系表单模型
+    const relRelationMode = ref('create');  // create | edit
+    const relRelationRid = ref('');
+    const relRelationType = ref('角色');    // 关系所属分类
+    const relSavingRelation = ref(false);
+    const relShowAnalyzeConfirm = ref(false);
+    const relManualTotal = ref(0);
+    const relLinkMode = ref(false);
+    const relLinkSource = ref(null);
+    const relNodeMenu = ref(null);          // { x, y, name }
+    const relGraphHint = ref('');
+    const relConfirm = ref(null);           // 通用确认弹窗 { title, message }
     let relEventSource = null;
 
     // ===== Workspace =====
@@ -5145,10 +5401,23 @@ createApp({
       try {
         const data = await apiJSON('/api/relations/' + currentProjectId.value + '/overview');
         relOverview.value = data.types || [];
+        relManualTotal.value = relOverview.value.reduce(
+          (sum, t) => sum + (t.manual_entity_count || 0) + (t.manual_relation_count || 0), 0);
       } catch (e) { /* ignore */ }
     }
 
-    async function relStartAnalyze() {
+    function relRequestAnalyze() {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      if (relManualTotal.value > 0) { relShowAnalyzeConfirm.value = true; return; }
+      relStartAnalyze(false);
+    }
+
+    function relConfirmAnalyze(overwrite) {
+      relShowAnalyzeConfirm.value = false;
+      relStartAnalyze(overwrite);
+    }
+
+    async function relStartAnalyze(overwriteManual) {
       if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
       relAnalyzing.value = true;
       relProgressMsgs.value = [];
@@ -5157,6 +5426,7 @@ createApp({
           preset: relPreset.value,
           source: relSource.value,
           text: relTextInput.value,
+          mode: overwriteManual ? 'overwrite_manual' : 'preserve',
         };
         await apiJSON('/api/relations/' + currentProjectId.value + '/analyze', {
           method: 'POST',
@@ -5190,11 +5460,44 @@ createApp({
       };
     }
 
+    function relIsManual(e) {
+      return !!(e && (e.locked || e.source === 'manual' || (e.edited_fields && e.edited_fields.length)));
+    }
+
+    const relSelectedIsManual = computed(() => relIsManual(relEntityData.value));
+
+    const relEntityChoices = computed(() => {
+      const names = [];
+      (relGraphData.value.entities || []).forEach(e => { if (e.id) names.push(e.id); });
+      relArchiveEntities.value.forEach(e => { if (e.id && names.indexOf(e.id) < 0) names.push(e.id); });
+      return names;
+    });
+
+    function relClearGraphUi() {
+      relNodeMenu.value = null;
+      relLinkSource.value = null;
+      relLinkMode.value = false;
+      relGraphHint.value = '';
+    }
+
+    async function relSwitchGraphType(t) {
+      relClearGraphUi();
+      await relLoadGraphData(t);
+    }
+
     async function relLoadGraphData(type) {
       relCurrentType.value = type;
+      relNodeMenu.value = null;
       try {
         const data = await apiJSON('/api/relations/' + currentProjectId.value + '/data?type=' + encodeURIComponent(type));
         relGraphData.value = data.data || { entities: [], relations: [], timeline: [] };
+        // 提示悬空关系（引用了本分类中不存在的条目）
+        const ids = new Set((relGraphData.value.entities || []).map(e => e.id));
+        const dangling = (relGraphData.value.relations || [])
+          .filter(r => !ids.has(r.from) || !ids.has(r.to)).length;
+        relGraphHint.value = dangling
+          ? `有 ${dangling} 条关系的端点不在「${type}」中（跨分类关系暂不在图中显示，可到对应分类查看）`
+          : '';
         // 触发 3D 图重绘
         setTimeout(() => relRender3D(), 50);
       } catch (e) { showToast('加载关系图失败', 'error'); }
@@ -5206,21 +5509,405 @@ createApp({
         const data = await apiJSON('/api/relations/' + currentProjectId.value + '/data?type=' + encodeURIComponent(type));
         relArchiveEntities.value = (data.data && data.data.entities) || [];
         relSelectedEntity.value = null;
+        relEntityData.value = null;
+        relEntityOwnerType.value = '';
         relEntityContent.value = '';
+        relPortraitUrl.value = '';
       } catch (e) { showToast('加载档案失败', 'error'); }
     }
 
-    async function relLoadEntity(name) {
+    async function relLoadEntity(name, type) {
+      const t = type || relArchiveType.value;
       try {
-        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/entity/' + encodeURIComponent(relArchiveType.value) + '/' + encodeURIComponent(name));
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/entity/'
+          + encodeURIComponent(t) + '/' + encodeURIComponent(name));
         relSelectedEntity.value = name;
+        relEntityData.value = data.entity || null;
+        // 后端会返回条目实际所属分类（跨分类查找结果），据此定位编辑/删除目标
+        relEntityOwnerType.value = data.type || t;
         relEntityContent.value = data.content || '';
         // 加载肖像（仅角色类型）
         relPortraitUrl.value = '';
-        if (relArchiveType.value === '角色') {
+        if (relEntityOwnerType.value === '角色') {
           await relCheckPortrait(name);
         }
       } catch (e) { showToast('加载条目失败', 'error'); }
+    }
+
+    // ===== 条目 / 关系的手动维护 =====
+
+    const REL_CATEGORY_MAP = { '角色': '人物', '世界': '世界', '势力': '势力', '地点': '地点', '事件': '事件', '道具': '道具' };
+
+    function relSplitAliases(text) {
+      return String(text || '').split(/[，,、;；\s]+/).map(s => s.trim()).filter(s => s);
+    }
+
+    function relEmptyEntityForm(type) {
+      return {
+        id: '', type: type || relCurrentType.value, aliasesText: '', summary: '', profile: '',
+        weight: 1, gender: '', age: '', identity: '', appearance: '', personality: '', locked: false,
+      };
+    }
+
+    function relOpenCreateEntity(type) {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      relEntityMode.value = 'create';
+      relEditingName.value = '';
+      relEntityData.value = null;
+      relEntityForm.value = relEmptyEntityForm(type || relCurrentType.value);
+      relNodeMenu.value = null;
+    }
+
+    function relOpenEditEntity() {
+      const e = relEntityData.value;
+      if (!e) { showToast('请先选择一个条目', 'error'); return; }
+      relEntityMode.value = 'edit';
+      relEditingName.value = e.id;
+      relEntityForm.value = {
+        id: e.id || '',
+        type: relEntityOwnerType.value || relViewType(),
+        aliasesText: (e.aliases || []).join('、'),
+        summary: e.summary || '',
+        profile: e.profile || '',
+        weight: typeof e.weight === 'number' ? e.weight : 1,
+        gender: e.gender || '',
+        age: e.age || '',
+        identity: e.identity || '',
+        appearance: e.appearance || '',
+        personality: e.personality || '',
+        locked: !!e.locked,
+      };
+      relNodeMenu.value = null;
+    }
+
+    function relViewType() {
+      return relSubView.value === 'graph' ? relCurrentType.value : relArchiveType.value;
+    }
+
+    async function relReloadCurrentView() {
+      await relLoadOverview();
+      if (relSubView.value === 'graph') await relLoadGraphData(relCurrentType.value);
+      else if (relSubView.value === 'archive') await relLoadArchive(relArchiveType.value);
+    }
+
+    function relCloseEntityForm() {
+      relEntityForm.value = null;
+      relSavingEntity.value = false;
+    }
+
+    async function relSaveEntity() {
+      const f = relEntityForm.value;
+      if (!f) return;
+      const eid = String(f.id || '').trim();
+      if (!eid) { showToast('请填写条目名称', 'error'); return; }
+      if (relEntityMode.value === 'edit' && !f.type) { showToast('请选择所属分类', 'error'); return; }
+
+      relSavingEntity.value = true;
+      try {
+        if (relEntityMode.value === 'create') {
+          await apiJSON('/api/relations/' + currentProjectId.value + '/entity?type=' + encodeURIComponent(f.type), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: eid,
+              aliases: relSplitAliases(f.aliasesText),
+              summary: f.summary || '',
+              profile: f.profile || '',
+              category: REL_CATEGORY_MAP[f.type] || '',
+              weight: typeof f.weight === 'number' ? f.weight : 1,
+              gender: f.gender || '',
+              age: f.age || '',
+              identity: f.identity || '',
+              appearance: f.appearance || '',
+              personality: f.personality || '',
+              locked: !!f.locked,
+            }),
+          });
+          showToast('条目已创建', 'success');
+        } else {
+          const src = relEditingName.value || eid;
+          const orig = relEntityData.value || {};
+          const ownerType = relEntityOwnerType.value;
+          const payload = {};
+          if (eid !== (orig.id || '')) payload.new_id = eid;
+          if (f.type !== ownerType) payload.target_type = f.type;
+          const aliasList = relSplitAliases(f.aliasesText);
+          if (JSON.stringify(aliasList) !== JSON.stringify(orig.aliases || [])) payload.aliases = aliasList;
+          if ((f.summary || '') !== (orig.summary || '')) payload.summary = f.summary || '';
+          if ((f.profile || '') !== (orig.profile || '')) payload.profile = f.profile || '';
+          const w = typeof f.weight === 'number' ? f.weight : 1;
+          if (w !== (typeof orig.weight === 'number' ? orig.weight : 1)) payload.weight = w;
+          ['gender', 'age', 'identity', 'appearance', 'personality'].forEach(k => {
+            if ((f[k] || '') !== (orig[k] || '')) payload[k] = f[k] || '';
+          });
+          if (!!f.locked !== !!orig.locked) payload.locked = !!f.locked;
+          if (f.type === '角色' && !orig.category) payload.category = REL_CATEGORY_MAP[f.type];
+
+          if (!Object.keys(payload).length) {
+            relCloseEntityForm();
+            showToast('没有需要保存的改动', 'info');
+            return;
+          }
+          const res = await apiJSON('/api/relations/' + currentProjectId.value + '/entity/'
+            + encodeURIComponent(ownerType) + '/' + encodeURIComponent(src), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          showToast(res.removed_relations
+            ? '条目已更新（改分类后原分类中 ' + res.removed_relations + ' 条关系已移除）'
+            : '条目已更新', 'success');
+        }
+        const targetType = f.type || relViewType();
+        relCloseEntityForm();
+        relSelectedEntity.value = null;
+        relEntityData.value = null;
+        relEntityContent.value = '';
+        relPortraitUrl.value = '';
+        await relLoadOverview();
+        if (relSubView.value === 'graph') {
+          await relLoadGraphData(relCurrentType.value);
+        } else if (relSubView.value === 'archive') {
+          await relLoadArchive(targetType);
+        }
+      } catch (e) {
+        showToast('保存失败: ' + (e.message || e), 'error');
+      } finally {
+        relSavingEntity.value = false;
+      }
+    }
+
+    let relPendingConfirm = null;
+
+    function relAskConfirm(title, message, action) {
+      relPendingConfirm = action;
+      relConfirm.value = { title, message };
+    }
+
+    function relDoConfirm() {
+      const action = relPendingConfirm;
+      relConfirm.value = null;
+      relPendingConfirm = null;
+      if (action) action();
+    }
+
+    function relDeleteEntity(name) {
+      if (!name) return;
+      const owner = relEntityOwnerType.value || relViewType();
+      relAskConfirm('删除条目', `确定要删除条目「${name}」吗？与之相关的关系会一并删除，此操作不可撤销。`, async () => {
+        try {
+          const res = await apiJSON('/api/relations/' + currentProjectId.value + '/entity/'
+            + encodeURIComponent(owner) + '/' + encodeURIComponent(name), { method: 'DELETE' });
+          showToast(res.removed_relations
+            ? `条目已删除（同时移除 ${res.removed_relations} 条关系）` : '条目已删除', 'success');
+          relSelectedEntity.value = null;
+          relEntityData.value = null;
+          relEntityContent.value = '';
+          relPortraitUrl.value = '';
+          relClearGraphUi();
+          await relReloadCurrentView();
+        } catch (e) {
+          showToast('删除失败: ' + (e.message || e), 'error');
+        }
+      });
+    }
+
+    function relOpenCreateRelation(fromName, toName, type) {
+      relRelationMode.value = 'create';
+      relRelationRid.value = '';
+      relRelationType.value = type || relViewType();
+      relRelationForm.value = {
+        from: fromName || '', to: toName || '', type: '', detail: '', time: '',
+      };
+      relNodeMenu.value = null;
+      relLinkSource.value = null;
+    }
+
+    function relOpenCreateRelationFrom(fromName) {
+      relOpenCreateRelation(fromName, '', relEntityOwnerType.value || relViewType());
+    }
+
+    function relOpenEditRelation(rel) {
+      relRelationMode.value = 'edit';
+      relRelationRid.value = rel.rid || '';
+      relRelationType.value = relCurrentType.value;
+      relRelationForm.value = {
+        from: rel.from || '', to: rel.to || '', type: rel.type || '',
+        detail: rel.detail || '', time: rel.time || '',
+      };
+      relNodeMenu.value = null;
+    }
+
+    function relCloseRelationForm() {
+      relRelationForm.value = null;
+      relSavingRelation.value = false;
+    }
+
+    async function relSaveRelation() {
+      const f = relRelationForm.value;
+      if (!f) return;
+      const from_ = String(f.from || '').trim();
+      const to_ = String(f.to || '').trim();
+      if (!from_ || !to_) { showToast('起点与终点都不能为空', 'error'); return; }
+      if (from_ === to_) { showToast('起点与终点不能相同', 'error'); return; }
+
+      const rtype = relRelationType.value || relCurrentType.value;
+      relSavingRelation.value = true;
+      try {
+        if (relRelationMode.value === 'create') {
+          await apiJSON('/api/relations/' + currentProjectId.value + '/relation?type=' + encodeURIComponent(rtype), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: from_, to: to_, type: f.type || '关联', detail: f.detail || '', time: f.time || '' }),
+          });
+          showToast('关系已新增', 'success');
+        } else {
+          await apiJSON('/api/relations/' + currentProjectId.value + '/relation/'
+            + encodeURIComponent(relRelationRid.value) + '?type=' + encodeURIComponent(rtype), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from: from_, to: to_, type: f.type || '关联', detail: f.detail || '', time: f.time || '' }),
+          });
+          showToast('关系已更新', 'success');
+        }
+        relCloseRelationForm();
+        relClearGraphUi();
+        await relReloadCurrentView();
+      } catch (e) {
+        showToast('保存关系失败: ' + (e.message || e), 'error');
+      } finally {
+        relSavingRelation.value = false;
+      }
+    }
+
+    function relDeleteRelation() {
+      const rid = relRelationRid.value;
+      if (!rid) return;
+      const rtype = relRelationType.value || relCurrentType.value;
+      relAskConfirm('删除关系', '确定要删除这条关系吗？', async () => {
+        try {
+          await apiJSON('/api/relations/' + currentProjectId.value + '/relation/'
+            + encodeURIComponent(rid) + '?type=' + encodeURIComponent(rtype), { method: 'DELETE' });
+          showToast('关系已删除', 'success');
+          relCloseRelationForm();
+          relClearGraphUi();
+          await relReloadCurrentView();
+        } catch (e) {
+          showToast('删除关系失败: ' + (e.message || e), 'error');
+        }
+      });
+    }
+
+    // ===== 关系图节点右键菜单 / 连线模式 =====
+
+    function relOnCanvasContextMenu(event) {
+      if (!relRenderer || !relScene) return;
+      // 在菜单内部右键时不处理，避免菜单被关闭
+      if (event.target && event.target.closest && event.target.closest('.rel-node-menu')) return;
+      const pos = relMenuPosition(event);
+      if (relPickNode(event)) {
+        relNodeMenu.value = Object.assign(pos, { kind: 'node', name: relPickedName });
+        return;
+      }
+      const lv = relPickLine(event);
+      if (lv && lv.rel) {
+        relNodeMenu.value = Object.assign(pos, {
+          kind: 'relation', rid: lv.rel.rid || '', from: lv.rel.from, to: lv.rel.to,
+        });
+        return;
+      }
+      relNodeMenu.value = null;
+    }
+
+    function relMenuPosition(event) {
+      const wrap = document.querySelector('.rel-canvas-wrap');
+      const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 };
+      const x = Math.min(event.clientX - rect.left, Math.max(0, (wrap ? wrap.clientWidth : 0) - 170));
+      const y = Math.min(event.clientY - rect.top, Math.max(0, (wrap ? wrap.clientHeight : 0) - 150));
+      return { x: Math.max(0, x), y: Math.max(0, y) };
+    }
+
+    function relMenuCreateRelation() {
+      const name = relNodeMenu.value && relNodeMenu.value.name;
+      relOpenCreateRelation(name, '');
+    }
+
+    function relMenuEditRelation() {
+      const m = relNodeMenu.value;
+      relNodeMenu.value = null;
+      if (!m) return;
+      const rel = (relGraphData.value.relations || []).find(
+        r => (r.rid && r.rid === m.rid) || (r.from === m.from && r.to === m.to));
+      if (!rel) { showToast('未找到该关系，请刷新后重试', 'error'); return; }
+      relOpenEditRelation(rel);
+    }
+
+    function relMenuDeleteRelation() {
+      const m = relNodeMenu.value;
+      relNodeMenu.value = null;
+      if (!m) return;
+      relRelationType.value = relCurrentType.value;
+      relRelationRid.value = m.rid || '';
+      if (!relRelationRid.value) { showToast('该关系缺少标识，请刷新后重试', 'error'); return; }
+      relDeleteRelation();
+    }
+
+    function relMenuEditEntity() {
+      const name = relNodeMenu.value && relNodeMenu.value.name;
+      relNodeMenu.value = null;
+      if (!name) return;
+      const ent = (relGraphData.value.entities || []).find(e => e.id === name);
+      relEntityData.value = ent || null;
+      relEntityOwnerType.value = relCurrentType.value;
+      relSelectedEntity.value = name;
+      relOpenEditEntity();
+    }
+
+    function relMenuViewEntity() {
+      const name = relNodeMenu.value && relNodeMenu.value.name;
+      relNodeMenu.value = null;
+      if (name) relLoadEntity(name, relCurrentType.value);
+    }
+
+    function relMenuDeleteEntity() {
+      const name = relNodeMenu.value && relNodeMenu.value.name;
+      relNodeMenu.value = null;
+      if (!name) return;
+      const ent = (relGraphData.value.entities || []).find(e => e.id === name);
+      relEntityData.value = ent || null;
+      relEntityOwnerType.value = relCurrentType.value;
+      relSelectedEntity.value = name;
+      relDeleteEntity(name);
+    }
+
+    function relToggleLinkMode() {
+      relLinkMode.value = !relLinkMode.value;
+      relLinkSource.value = null;
+      relNodeMenu.value = null;
+      relSyncLinkHighlight();
+    }
+
+    function relCancelLink() {
+      relLinkMode.value = false;
+      relLinkSource.value = null;
+      relSyncLinkHighlight();
+    }
+
+    function relOnNodePicked(name) {
+      if (relLinkMode.value) {
+        if (!relLinkSource.value) {
+          relLinkSource.value = name;
+          relSyncLinkHighlight();
+          return;
+        }
+        if (relLinkSource.value === name) { relCancelLink(); return; }
+        const fromName = relLinkSource.value;
+        relLinkSource.value = null;
+        relSyncLinkHighlight();
+        relOpenCreateRelation(fromName, name);
+        return;
+      }
+      relLoadEntity(name, relCurrentType.value);
     }
 
     async function relCheckPortrait(name) {
@@ -5285,6 +5972,13 @@ createApp({
     let relAnimationId = null;
     // 鼠标交互状态（拖拽旋转 / 滚轮缩放）
     let relDragging = false, relDragLastX = 0, relDragLastY = 0, relGlobalHandlersBound = false;
+    // 节点拖拽 / 连线高亮 / 手动布局记忆
+    let relPickedName = null;
+    let relDragNode = null, relDragMoved = false;
+    let relNodeViews = [];        // [{ name, index, mesh, label, manualRing, linkRing }]
+    let relLineViews = [];        // [{ line, fromIdx, toIdx, rel }]
+    let relLineObjects = [];      // 关系线 Mesh 列表（供射线拾取）
+    const relPinnedPositions = {}; // "type::name" -> {x,y,z}，会话内记住用户拖动后的位置
 
     // 释放 3D 场景与动画循环（重复渲染或离开视图时必须调用，否则会叠加多个 rAF 循环）
     function relDispose3D() {
@@ -5307,7 +6001,13 @@ createApp({
       if (relRenderer) relRenderer.dispose();
       relScene = null; relCamera = null; relRenderer = null;
       relGraphObjects = [];
+      relNodeViews = [];
+      relLineViews = [];
+      relLineObjects = [];
       relDragging = false;
+      relDragNode = null;
+      relDragMoved = false;
+      relPickedName = null;
     }
 
     // 全局鼠标监听只绑定一次，避免每次渲染重复注册导致监听器泄漏
@@ -5315,6 +6015,30 @@ createApp({
       if (relGlobalHandlersBound) return;
       relGlobalHandlersBound = true;
       window.addEventListener('mousemove', (e) => {
+        // 拖拽节点：移动球体、标签与高亮环，并同步刷新相连的线
+        if (relDragNode) {
+          const scale = relDragScale();
+          const dx = (e.clientX - relDragLastX) * scale;
+          const dy = (e.clientY - relDragLastY) * scale;
+          relDragLastX = e.clientX;
+          relDragLastY = e.clientY;
+          relDragMoved = true;
+          const view = relDragNode;
+          view.mesh.position.x += dx;
+          view.mesh.position.y -= dy;
+          if (view.label) {
+            view.label.position.set(
+              view.mesh.position.x, view.mesh.position.y + view.labelOffset, view.mesh.position.z);
+          }
+          if (view.manualRing) view.manualRing.position.copy(view.mesh.position);
+          if (view.linkRing) view.linkRing.position.copy(view.mesh.position);
+          relRefreshLinesFor(view.index);
+          const key = relCurrentType.value + '::' + view.name;
+          relPinnedPositions[key] = {
+            x: view.mesh.position.x, y: view.mesh.position.y, z: view.mesh.position.z,
+          };
+          return;
+        }
         if (!relDragging || !relScene) return;
         const dx = e.clientX - relDragLastX;
         const dy = e.clientY - relDragLastY;
@@ -5323,7 +6047,72 @@ createApp({
         relScene.rotation.y += dx * 0.005;
         relScene.rotation.x += dy * 0.005;
       });
-      window.addEventListener('mouseup', () => { relDragging = false; });
+      window.addEventListener('mouseup', () => {
+        relDragging = false;
+        relDragNode = null;
+      });
+      // 点击空白处关闭节点右键菜单
+      document.addEventListener('mousedown', (e) => {
+        if (!relNodeMenu.value) return;
+        if (e.target && e.target.closest && e.target.closest('.rel-node-menu')) return;
+        relNodeMenu.value = null;
+      });
+    }
+
+    function relDragScale() {
+      if (!relCamera || !relRenderer) return 0.25;
+      const h = relRenderer.domElement.clientHeight || 1;
+      const visible = 2 * Math.tan((relCamera.fov * Math.PI / 180) / 2) * relCamera.position.z;
+      return visible / h;
+    }
+
+    function relRefreshLinesFor(index) {
+      relLineViews.forEach(lv => {
+        if (lv.fromIdx !== index && lv.toIdx !== index) return;
+        const a = relNodeViews[lv.fromIdx];
+        const b = relNodeViews[lv.toIdx];
+        if (!a || !b) return;
+        lv.line.geometry.setFromPoints([
+          new THREE.Vector3(a.mesh.position.x, a.mesh.position.y, a.mesh.position.z),
+          new THREE.Vector3(b.mesh.position.x, b.mesh.position.y, b.mesh.position.z),
+        ]);
+        lv.line.geometry.computeBoundingSphere();
+      });
+    }
+
+    // 射线拾取：返回是否命中节点，命中时把条目名写入 relPickedName
+    function relPickNode(event) {
+      relPickedName = null;
+      if (!relRenderer || !relCamera || !relRaycaster) return false;
+      const rect = relRenderer.domElement.getBoundingClientRect();
+      relMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      relMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      relRaycaster.setFromCamera(relMouse, relCamera);
+      const hits = relRaycaster.intersectObjects(relGraphObjects, false);
+      if (!hits.length) return false;
+      const view = relNodeViews.find(v => v.mesh === hits[0].object);
+      relPickedName = view ? view.name : (hits[0].object.userData && hits[0].object.userData.name) || null;
+      return !!relPickedName;
+    }
+
+    // 射线拾取关系线：返回被命中的线视图（含关系数据）
+    function relPickLine(event) {
+      if (!relRenderer || !relCamera || !relRaycaster || !relLineObjects.length) return null;
+      const rect = relRenderer.domElement.getBoundingClientRect();
+      relMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      relMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      relRaycaster.setFromCamera(relMouse, relCamera);
+      const hits = relRaycaster.intersectObjects(relLineObjects, false);
+      if (!hits.length) return null;
+      return relLineViews.find(lv => lv.line === hits[0].object) || null;
+    }
+
+    // 连线模式：高亮已选起点
+    function relSyncLinkHighlight() {
+      relNodeViews.forEach(v => {
+        if (!v.linkRing) return;
+        v.linkRing.visible = relLinkMode.value && relLinkSource.value === v.name;
+      });
     }
 
     function relRender3D() {
@@ -5351,13 +6140,29 @@ createApp({
       relRenderer.setSize(width, height);
       container.appendChild(relRenderer.domElement);
 
-      // 鼠标交互：按住拖拽旋转、滚轮缩放（three.min.js 不含 OrbitControls）
+      // 射线拾取器需在 mousedown 之前就绪（用于判断是否命中节点）
+      relRaycaster = new THREE.Raycaster();
+      relRaycaster.params.Line.threshold = 2.5; // 关系线是 1px 细线，需放宽命中阈值
+      relMouse = new THREE.Vector2();
+
+      // 鼠标交互：命中节点则拖拽节点，否则拖拽旋转；滚轮缩放（three.min.js 不含 OrbitControls）
       const canvasEl = relRenderer.domElement;
       canvasEl.style.cursor = 'grab';
       canvasEl.addEventListener('mousedown', (e) => {
-        relDragging = true;
+        if (e.button !== 0) return;
         relDragLastX = e.clientX;
         relDragLastY = e.clientY;
+        relDragMoved = false;
+        if (relPickNode(e)) {
+          const view = relNodeViews.find(v => v.name === relPickedName);
+          if (view) {
+            relDragNode = view;
+            canvasEl.style.cursor = 'move';
+            relNodeMenu.value = null;
+            return;
+          }
+        }
+        relDragging = true;
         canvasEl.style.cursor = 'grabbing';
       });
       canvasEl.addEventListener('mouseup', () => { canvasEl.style.cursor = 'grab'; });
@@ -5376,29 +6181,38 @@ createApp({
       relScene.add(dirLight);
 
       if (entities.length === 0) {
-        const textGeo = new THREE.PlaneGeometry(200, 60);
+        const textGeo = new THREE.PlaneGeometry(240, 60);
         const canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 128;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.font = '32px sans-serif';
+        ctx.font = '28px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('暂无数据，请先分析', 256, 64);
+        ctx.fillText('暂无数据', 256, 50);
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = '20px sans-serif';
+        ctx.fillText('点「＋ 新建条目」手动创建，或先执行 AI 分析', 256, 88);
         const texture = new THREE.CanvasTexture(canvas);
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
         const mesh = new THREE.Mesh(textGeo, material);
         relScene.add(mesh);
+        relRenderer.domElement.addEventListener('click', relOnCanvasClick);
         relAnimate();
         return;
       }
 
-      // 力导向布局
+      // 力导向布局（保留用户拖动过的节点位置）
       const positions = relLayoutForceDirected(entities, relations);
+      entities.forEach((entity, i) => {
+        const pin = relPinnedPositions[relCurrentType.value + '::' + entity.id];
+        if (pin) positions[i] = { x: pin.x, y: pin.y, z: pin.z };
+      });
 
       // 创建节点（球体）
       // 节点配色（对齐 UI 设计规范 §8.2：角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
       const colors = { '角色': 0xC9A86C, '世界': 0x3D8B6F, '势力': 0x6B5B95, '地点': 0x5A7D9A, '事件': 0xB38600, '道具': 0x8B6F5C };
       const baseColor = colors[relCurrentType.value] || 0x5A7D9A;
+      relNodeViews = [];
 
       entities.forEach((entity, i) => {
         const size = 1.5 + Math.min((entity.weight || 1) * 0.8, 4);
@@ -5409,6 +6223,28 @@ createApp({
         mesh.userData = { name: entity.id, index: i };
         relScene.add(mesh);
         relGraphObjects.push(mesh);
+
+        // 手动维护的条目：常亮金色线框环，与 AI 生成内容区分
+        let manualRing = null;
+        if (relIsManual(entity)) {
+          const ringGeo = new THREE.SphereGeometry(size * 1.35, 16, 16);
+          const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xE8C87A, wireframe: true, transparent: true, opacity: 0.5,
+          });
+          manualRing = new THREE.Mesh(ringGeo, ringMat);
+          manualRing.position.copy(mesh.position);
+          relScene.add(manualRing);
+        }
+
+        // 连线模式的起点高亮环（默认隐藏）
+        const linkGeo = new THREE.SphereGeometry(size * 1.7, 18, 18);
+        const linkMat = new THREE.MeshBasicMaterial({
+          color: 0x6EC1FF, wireframe: true, transparent: true, opacity: 0.9,
+        });
+        const linkRing = new THREE.Mesh(linkGeo, linkMat);
+        linkRing.position.copy(mesh.position);
+        linkRing.visible = false;
+        relScene.add(linkRing);
 
         // 标签（Sprite）
         const labelCanvas = document.createElement('canvas');
@@ -5424,9 +6260,16 @@ createApp({
         label.position.set(positions[i].x, positions[i].y + size + 3, positions[i].z);
         label.scale.set(20, 5, 1);
         relScene.add(label);
+
+        relNodeViews.push({
+          name: entity.id, index: i, mesh, label, manualRing, linkRing,
+          labelOffset: size + 3,
+        });
       });
 
-      // 创建关系线
+      // 创建关系线（手动维护的关系用金色区分）
+      relLineViews = [];
+      relLineObjects = [];
       relations.forEach(r => {
         const fromIdx = entities.findIndex(e => e.id === r.from);
         const toIdx = entities.findIndex(e => e.id === r.to);
@@ -5436,15 +6279,20 @@ createApp({
           new THREE.Vector3(positions[toIdx].x, positions[toIdx].y, positions[toIdx].z),
         ];
         const geo = new THREE.BufferGeometry().setFromPoints(points);
-        const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 });
+        const manual = relIsManual(r);
+        const mat = new THREE.LineBasicMaterial({
+          color: manual ? 0xC9A86C : 0xffffff,
+          transparent: true,
+          opacity: manual ? 0.6 : 0.25,
+        });
         const line = new THREE.Line(geo, mat);
         relScene.add(line);
+        relLineViews.push({ line, fromIdx, toIdx, rel: r });
+        relLineObjects.push(line);
       });
 
-      // 射线拾取
-      relRaycaster = new THREE.Raycaster();
-      relMouse = new THREE.Vector2();
       relRenderer.domElement.addEventListener('click', relOnCanvasClick);
+      relSyncLinkHighlight();
 
       relAnimate();
     }
@@ -5497,15 +6345,11 @@ createApp({
     }
 
     function relOnCanvasClick(event) {
-      const rect = relRenderer.domElement.getBoundingClientRect();
-      relMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      relMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      relRaycaster.setFromCamera(relMouse, relCamera);
-      const intersects = relRaycaster.intersectObjects(relGraphObjects);
-      if (intersects.length > 0) {
-        const name = intersects[0].object.userData.name;
-        relLoadEntity(name);
-      }
+      // 拖拽节点后的 click 不算点击（避免误触发加载条目）
+      if (relDragMoved) { relDragMoved = false; return; }
+      relNodeMenu.value = null;
+      if (!relPickNode(event)) return;
+      if (relPickedName) relOnNodePicked(relPickedName);
     }
 
     function relAnimate() {
@@ -5853,12 +6697,22 @@ createApp({
       if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
       if (tab === 'relations' && currentProjectId.value) relLoadOverview();
       // 离开星图页时释放 3D 场景与动画循环
-      if (tab !== 'relations') relDispose3D();
+      if (tab !== 'relations') {
+        relDispose3D();
+        relClearGraphUi();
+        relEntityForm.value = null;
+        relRelationForm.value = null;
+        relConfirm.value = null;
+        relShowAnalyzeConfirm.value = false;
+      }
     });
 
     watch(relSubView, (v) => {
       // 离开关系图子视图时释放 3D 场景与动画循环
-      if (v !== 'graph') relDispose3D();
+      if (v !== 'graph') {
+        relDispose3D();
+        relClearGraphUi();
+      }
     });
 
     return {
@@ -5948,9 +6802,24 @@ createApp({
       relSubView, relPreset, relSource, relTextInput, relAnalyzing, relProgressMsgs,
       relOverview, relCurrentType, relGraphData, relArchiveType, relArchiveEntities,
       relSelectedEntity, relEntityContent, RELATION_TYPES,
-      relStartAnalyze, relLoadGraphData, relLoadArchive, relLoadEntity,
+      relStartAnalyze, relRequestAnalyze, relConfirmAnalyze,
+      relShowAnalyzeConfirm, relManualTotal,
+      relLoadGraphData, relLoadArchive, relLoadEntity, relSwitchGraphType,
       relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult,
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
+      // 星图 · 手动维护
+      relIsManual, relSelectedIsManual, relEntityChoices,
+      relEntityData, relEntityForm, relEntityMode, relSavingEntity,
+      relRelationForm, relRelationMode, relSavingRelation,
+      relOpenCreateEntity, relOpenEditEntity, relCloseEntityForm, relSaveEntity,
+      relDeleteEntity, relOpenCreateRelation, relOpenCreateRelationFrom,
+      relOpenEditRelation, relCloseRelationForm, relSaveRelation, relDeleteRelation,
+      relConfirm, relDoConfirm,
+      // 星图 · 关系图交互
+      relLinkMode, relLinkSource, relNodeMenu, relGraphHint,
+      relToggleLinkMode, relCancelLink, relOnCanvasContextMenu,
+      relMenuCreateRelation, relMenuEditRelation, relMenuDeleteRelation,
+      relMenuEditEntity, relMenuViewEntity, relMenuDeleteEntity,
       // Inspiration
       inspirationPath, inspirationFiles, inspirationContent, currentInspirationFile,
       inspirationFileLoading, showInspirationModal, inspirationInput,

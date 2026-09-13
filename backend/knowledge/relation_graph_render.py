@@ -70,6 +70,10 @@ def render_entity_markdown(type_: str, entity: dict, relations: list[dict], time
     lines.append(f"# {entity.get('id', '')}")
     if entity.get("category"):
         lines.append(f"> 定位：{entity['category']}")
+    if entity.get("locked") or entity.get("source") == "manual":
+        lines.append("> 来源：手动条目（AI 不覆盖）")
+    elif entity.get("edited_fields"):
+        lines.append("> 来源：含手动编辑内容（AI 不覆盖）")
     lines.append("")
     lines.append(f"## {titles['intro']}")
     lines.append(entity.get("summary") or "（暂无简介）")
@@ -95,8 +99,9 @@ def render_entity_markdown(type_: str, entity: dict, relations: list[dict], time
     lines.append(f"## {titles['story']}")
     tls = [t for t in (timeline or []) if entity.get("id") in (t.get("refs") or [])]
     story_lines = []
-    if entity.get("story"):
-        story_lines.extend(str(entity["story"]).split("\n"))
+    body = entity.get("profile") or entity.get("story")
+    if body:
+        story_lines.extend(str(body).split("\n"))
     for t in tls:
         story_lines.append(f"- {t.get('time', '')}：{t.get('event', '')}")
     if story_lines:
