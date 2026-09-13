@@ -64,9 +64,16 @@ def has_manual_content(entry: dict) -> bool:
     return is_protected(entry) or bool(entry.get("edited_fields"))
 
 
-def rel_key(r: dict) -> tuple:
-    """关系的业务唯一键（同一对条目只保留一条关系）"""
-    return (r.get("from", ""), r.get("to", ""))
+def _str_list(value: Any) -> list[str]:
+    """把任意输入规范化为去重后的字符串列表"""
+    if not isinstance(value, (list, tuple)):
+        return []
+    out: list[str] = []
+    for v in value:
+        s = str(v).strip()
+        if s and s not in out:
+            out.append(s)
+    return out
 
 
 def ensure_rids(data: dict) -> None:
@@ -76,92 +83,367 @@ def ensure_rids(data: dict) -> None:
             r["rid"] = new_rid()
 
 
-def protect_entry(prev: dict, ai: dict) -> dict:
-    """把本地条目中受保护的内容叠加到 AI 结果上（手动优先）
+# ===== 更新模式：变更补丁 =====
 
-    - source=="manual" 或 locked==True：整条以本地版本为准
-    - edited_fields 中列出的字段：保留本地值，其余字段允许 AI 更新
-    - profile（档案正文）：始终以本地内容为准
-    """
-    if is_protected(prev):
-        merged = dict(prev)
-        merged["locked"] = bool(prev.get("locked"))
-        merged["source"] = prev.get("source", "manual")
-        merged["edited_fields"] = list(prev.get("edited_fields") or [])
-        return merged
+# 补丁允许出现的键（缺省视为空）
+PATCH_KEYS = [
+    "entities_add", "entities_update", "entities_remove",
+    "relations_add", "relations_update", "relations_remove",
+    "timeline_add",
+]
 
-    merged = dict(ai)
-    merged["source"] = "ai"
-    merged["locked"] = bool(prev.get("locked"))
-    merged["edited_fields"] = list(prev.get("edited_fields") or [])
-    if prev.get("rid"):
-        merged["rid"] = prev["rid"]
-    for f in merged["edited_fields"]:
-        if f in prev:
-            merged[f] = prev[f]
-    for f in USER_OWNED_FIELDS:
-        if prev.get(f):
-            merged[f] = prev[f]
-    return merged
+# 关系可被 AI 修改的字段
+RELATION_FIELDS = ["type", "detail", "time"]
 
 
-def merge_manual(previous: Any, ai_data: dict) -> dict:
-    """把 previous 中受保护的手动内容叠加到 AI 结果上，手动内容优先。
-
-    - 手动创建/锁定的条目与关系，AI 既不能删除也不能改写
-    - 用户手动编辑过的字段保留本地值
-    返回合并后的完整数据（不修改入参）。
-    """
-    if not previous or not isinstance(previous, dict):
-        return ai_data
-
-    prev_entities = {
-        e.get("id"): e for e in previous.get("entities", []) or [] if e.get("id")
+def empty_data(type_: str) -> dict:
+    """空的关系脉络数据"""
+    return {
+        "type": type_,
+        "generatedAt": "",
+        "entities": [],
+        "relations": [],
+        "timeline": [],
     }
-    out_entities: list[dict] = []
+
+
+def field_blocked(entry: dict, field: str, protect: bool) -> bool:
+    """字段是否被"用户内容"保护（AI 不可改写）"""
+    if not protect:
+        return False
+    if field in USER_OWNED_FIELDS:
+        return True
+    return field in (entry.get("edited_fields") or [])
+
+
+def _set_relation_fields(rel: dict, values: dict, protect: bool, report: dict) -> None:
+    """把 AI 提出的关系字段变更写入关系，跳过受保护字段"""
+    changed = False
+    for key in RELATION_FIELDS:
+        if key not in (values or {}):
+            continue
+        if field_blocked(rel, key, protect):
+            report["protected_fields"] += 1
+            continue
+        if rel.get(key) == values[key]:
+            continue
+        rel[key] = values[key]
+        changed = True
+    if changed:
+        report["updated"] += 1
+    else:
+        report["noop"] += 1
+
+
+def _set_entity_fields(
+    ent: dict, values: dict, aliases_add: list, protect: bool, report: dict
+) -> None:
+    """把 AI 提出的条目字段变更写入条目，跳过受保护字段"""
+    changed = False
+    for key, val in (values or {}).items():
+        if key == "id" or key == "aliases" or key not in ENTITY_FIELDS:
+            continue
+        if field_blocked(ent, key, protect):
+            report["protected_fields"] += 1
+            continue
+        if ent.get(key) == val:
+            continue
+        ent[key] = val
+        changed = True
+
+    if aliases_add:
+        if field_blocked(ent, "aliases", protect):
+            report["protected_fields"] += 1
+        else:
+            merged = list(ent.get("aliases") or [])
+            for a in aliases_add:
+                if a and a not in merged:
+                    merged.append(a)
+                    changed = True
+            ent["aliases"] = merged
+
+    if changed:
+        report["updated"] += 1
+    else:
+        report["noop"] += 1
+
+
+def validate_patch(type_: str, raw: Any) -> dict:
+    """校验并清洗 LLM 返回的「变更补丁」
+
+    兼容两种输入：
+    - 新协议：entities_add / entities_update / ... 补丁结构
+    - 旧格式（entities/relations/timeline 全量）：安全降级为"仅允许新增"，
+      不允许改动已有内容（避免一次格式误判把整份设定库重写掉）
+    """
+    src = raw if isinstance(raw, dict) else {}
+    patch: dict[str, Any] = {k: [] for k in PATCH_KEYS}
+    patch["type"] = type_
+
+    if not any(k in src for k in PATCH_KEYS):
+        if "entities" in src or "relations" in src or "timeline" in src:
+            patch["legacy_fallback"] = True
+            src = {
+                "entities_add": src.get("entities") or [],
+                "relations_add": src.get("relations") or [],
+                "timeline_add": src.get("timeline") or [],
+            }
+
+    # ---- 新增条目 ----
     seen: set[str] = set()
-    for e in ai_data.get("entities", []) or []:
-        eid = e.get("id")
+    for e in src.get("entities_add") or []:
+        if not isinstance(e, dict):
+            continue
+        eid = str(e.get("id", "")).strip()
         if not eid or eid in seen:
             continue
         seen.add(eid)
-        pe = prev_entities.get(eid)
-        out_entities.append(protect_entry(pe, e) if pe else e)
-    # AI 漏掉的手动条目补回（保证手动内容不被"分析掉"）
-    for eid, pe in prev_entities.items():
-        if eid not in seen and has_manual_content(pe):
-            out_entities.append(dict(pe))
-            seen.add(eid)
+        item = {"id": eid}
+        item["aliases"] = _str_list(e.get("aliases"))
+        item["summary"] = str(e.get("summary", ""))
+        item["weight"] = e.get("weight") if isinstance(e.get("weight"), int) else 1
+        item["category"] = str(e.get("category", "")).strip()
+        for f in ("gender", "age", "identity", "appearance", "personality"):
+            item[f] = str(e.get(f, "")).strip()
+        item["reason"] = str(e.get("reason", ""))
+        patch["entities_add"].append(item)
 
-    prev_rels = previous.get("relations", []) or []
-    ai_rels = ai_data.get("relations", []) or []
-    prev_by_key: dict[tuple, list[dict]] = {}
-    for r in prev_rels:
-        prev_by_key.setdefault(rel_key(r), []).append(r)
-
-    out_rels: list[dict] = []
-    consumed: set[int] = set()
-    for r in ai_rels:
-        candidates = [p for p in prev_by_key.get(rel_key(r), []) if id(p) not in consumed]
-        if not candidates:
-            out_rels.append(r)
+    # ---- 更新条目：{id, set:{...}, aliases_add:[...], reason} ----
+    for u in src.get("entities_update") or []:
+        if not isinstance(u, dict):
             continue
-        prot = next((p for p in candidates if has_manual_content(p)), None)
-        if prot is not None:
-            consumed.add(id(prot))
-            out_rels.append(dict(prot))
-        else:
-            p = candidates[0]
-            consumed.add(id(p))
-            out_rels.append(protect_entry(p, r))
-    for p in prev_rels:
-        if id(p) not in consumed and has_manual_content(p):
-            out_rels.append(dict(p))
+        eid = str(u.get("id", "")).strip()
+        if not eid:
+            continue
+        raw_set = u.get("set") if isinstance(u.get("set"), dict) else {}
+        clean: dict[str, Any] = {}
+        for k, v in raw_set.items():
+            k = str(k)
+            if k not in ENTITY_FIELDS or k in ("id", "aliases"):
+                continue
+            clean[k] = v if k == "weight" and isinstance(v, int) else str(v)
+        patch["entities_update"].append({
+            "id": eid,
+            "set": clean,
+            "aliases_add": _str_list(u.get("aliases_add")),
+            "reason": str(u.get("reason", "")),
+        })
 
-    merged = dict(ai_data)
-    merged["entities"] = out_entities
-    merged["relations"] = out_rels
-    return merged
+    # ---- 删除条目 ----
+    for r in src.get("entities_remove") or []:
+        if not isinstance(r, dict):
+            continue
+        eid = str(r.get("id", "")).strip()
+        if eid:
+            patch["entities_remove"].append({"id": eid, "reason": str(r.get("reason", ""))})
+
+    # ---- 新增关系 ----
+    for r in src.get("relations_add") or []:
+        if not isinstance(r, dict):
+            continue
+        f = str(r.get("from", "")).strip()
+        t = str(r.get("to", "")).strip()
+        if not f or not t or f == t:
+            continue
+        patch["relations_add"].append({
+            "from": f, "to": t,
+            "type": str(r.get("type", "关联")),
+            "detail": str(r.get("detail", "")),
+            "time": str(r.get("time", "")),
+            "reason": str(r.get("reason", "")),
+        })
+
+    # ---- 更新关系 ----
+    for r in src.get("relations_update") or []:
+        if not isinstance(r, dict):
+            continue
+        f = str(r.get("from", "")).strip()
+        t = str(r.get("to", "")).strip()
+        if not f or not t:
+            continue
+        raw_set = r.get("set") if isinstance(r.get("set"), dict) else {}
+        clean = {k: str(raw_set[k]) for k in RELATION_FIELDS if k in raw_set}
+        patch["relations_update"].append({
+            "from": f, "to": t, "set": clean, "reason": str(r.get("reason", "")),
+        })
+
+    # ---- 删除关系 ----
+    for r in src.get("relations_remove") or []:
+        if not isinstance(r, dict):
+            continue
+        f = str(r.get("from", "")).strip()
+        t = str(r.get("to", "")).strip()
+        if f and t:
+            patch["relations_remove"].append({
+                "from": f, "to": t, "reason": str(r.get("reason", "")),
+            })
+
+    # ---- 新增时间线 ----
+    for t in src.get("timeline_add") or []:
+        if not isinstance(t, dict):
+            continue
+        event = str(t.get("event", "")).strip()
+        if not event:
+            continue
+        patch["timeline_add"].append({
+            "time": str(t.get("time", "")).strip(),
+            "event": event,
+            "refs": _str_list(t.get("refs")),
+        })
+
+    return patch
+
+
+def apply_patch(base: Any, patch: dict, protect: bool = True) -> tuple[dict, dict]:
+    """把「变更补丁」增量应用到现有数据上。
+
+    与旧的全量覆盖不同：**现有数据是骨架**，AI 只提交增 / 改 / 删。
+    AI 没有提到的条目、字段、关系一律原样保留，因此：
+    - 随剧情推进的更新不会丢失此前累积的细节
+    - 删除变成显式动作（entities_remove / relations_remove）
+    - 手动创建 / 编辑 / 锁定的内容不会被触碰
+
+    Returns: (新数据, 变更报告)
+    """
+    src = base if isinstance(base, dict) else {}
+    data = {
+        "type": patch.get("type") or src.get("type", ""),
+        "generatedAt": datetime.now().isoformat(),
+        "entities": [dict(e) for e in src.get("entities", []) or []],
+        "relations": [dict(r) for r in src.get("relations", []) or []],
+        "timeline": [dict(t) for t in src.get("timeline", []) or []],
+    }
+    report: dict[str, Any] = {
+        "added": 0, "updated": 0, "removed": 0, "noop": 0,
+        "protected_entities": 0, "protected_relations": 0, "protected_fields": 0,
+        "skipped": [],
+    }
+    legacy = bool(patch.get("legacy_fallback"))
+
+    by_id = {e.get("id"): e for e in data["entities"] if e.get("id")}
+
+    # ---- 新增条目 ----
+    for e in patch.get("entities_add") or []:
+        eid = e.get("id")
+        if not eid:
+            continue
+        cur = by_id.get(eid)
+        if cur is None:
+            ent = {k: e.get(k) for k in ENTITY_FIELDS}
+            ent["id"] = eid
+            ent["profile"] = ""
+            ent["source"] = "ai"
+            ent["locked"] = False
+            ent["edited_fields"] = []
+            data["entities"].append(ent)
+            by_id[eid] = ent
+            report["added"] += 1
+        elif legacy:
+            # 旧格式降级：已存在的条目一律不改，避免整库被重写
+            report["skipped"].append("旧格式响应，忽略对已有条目「%s」的改动" % eid)
+        else:
+            # 幂等：上一批次已创建，则本次按字段更新处理
+            vals = {k: e[k] for k in ENTITY_FIELDS if k in e and k != "id"}
+            _set_entity_fields(cur, vals, e.get("aliases"), protect, report)
+
+    # ---- 更新条目 ----
+    for u in patch.get("entities_update") or []:
+        ent = by_id.get(u.get("id"))
+        if ent is None:
+            report["skipped"].append("更新未命中条目「%s」" % u.get("id"))
+            continue
+        if protect and is_protected(ent):
+            report["protected_entities"] += 1
+            continue
+        _set_entity_fields(ent, u.get("set") or {}, u.get("aliases_add") or [], protect, report)
+
+    # ---- 删除条目（连带清理引用）----
+    removed_ids: list[str] = []
+    for r in patch.get("entities_remove") or []:
+        eid = r.get("id")
+        ent = by_id.get(eid)
+        if ent is None:
+            continue
+        if protect and has_manual_content(ent):
+            report["protected_entities"] += 1
+            continue
+        data["entities"] = [x for x in data["entities"] if x is not ent]
+        by_id.pop(eid, None)
+        removed_ids.append(eid)
+        report["removed"] += 1
+
+    if removed_ids:
+        data["relations"] = [
+            r for r in data["relations"]
+            if r.get("from") not in removed_ids and r.get("to") not in removed_ids
+        ]
+        for t in data["timeline"]:
+            t["refs"] = [x for x in (t.get("refs") or []) if x not in removed_ids]
+
+    def find_rel(from_: str, to: str):
+        return next(
+            (r for r in data["relations"]
+             if r.get("from") == from_ and r.get("to") == to),
+            None,
+        )
+
+    # ---- 新增关系 ----
+    for r in patch.get("relations_add") or []:
+        f, t = r.get("from"), r.get("to")
+        if not f or not t or f == t:
+            continue
+        cur = find_rel(f, t)
+        if cur is None:
+            data["relations"].append({
+                "from": f, "to": t,
+                "type": r.get("type") or "关联",
+                "detail": r.get("detail", ""),
+                "time": r.get("time", ""),
+                "rid": new_rid(), "source": "ai", "locked": False, "edited_fields": [],
+            })
+            report["added"] += 1
+        elif legacy:
+            report["skipped"].append("旧格式响应，忽略对已有关系「%s→%s」的改动" % (f, t))
+        else:
+            _set_relation_fields(cur, {k: r[k] for k in RELATION_FIELDS if k in r}, protect, report)
+
+    # ---- 更新关系 ----
+    for u in patch.get("relations_update") or []:
+        cur = find_rel(u.get("from"), u.get("to"))
+        if cur is None:
+            report["skipped"].append("更新未命中关系「%s→%s」" % (u.get("from"), u.get("to")))
+            continue
+        if protect and is_protected(cur):
+            report["protected_relations"] += 1
+            continue
+        _set_relation_fields(cur, u.get("set") or {}, protect, report)
+
+    # ---- 删除关系 ----
+    for r in patch.get("relations_remove") or []:
+        cur = find_rel(r.get("from"), r.get("to"))
+        if cur is None:
+            continue
+        if protect and has_manual_content(cur):
+            report["protected_relations"] += 1
+            continue
+        data["relations"] = [x for x in data["relations"] if x is not cur]
+        report["removed"] += 1
+
+    # ---- 新增时间线（按 时间+事件 去重）----
+    existing_tl = {(t.get("time"), t.get("event")) for t in data["timeline"]}
+    for t in patch.get("timeline_add") or []:
+        key = (t.get("time"), t.get("event"))
+        if key in existing_tl:
+            continue
+        data["timeline"].append({
+            "time": t.get("time", ""),
+            "event": t.get("event", ""),
+            "refs": list(t.get("refs") or []),
+        })
+        existing_tl.add(key)
+        report["added"] += 1
+
+    return data, report
 
 
 def count_protected(data: Any) -> tuple[int, int]:
@@ -190,13 +472,16 @@ def strip_manual_protection(previous: Any) -> Any:
 
 
 def master_prompt(type_: str, previous: Any, chapters_text: str) -> list[dict]:
-    """构建关系图谱分析的 prompt"""
+    """构建关系图谱分析的 prompt（更新模式：只输出变更补丁）"""
     if previous:
-        prev = f'以下是之前已分析出的"{type_}"数据（JSON）：\n{json.dumps(previous, ensure_ascii=False, indent=2)}\n\n'
+        prev = (
+            f'以下是当前"{type_}"设定库的现状（JSON）：\n'
+            f'{json.dumps(previous, ensure_ascii=False, indent=2)}\n\n'
+        )
     else:
-        prev = "这是首次分析，还没有历史数据。\n\n"
+        prev = "本次不提供现有数据，请只提交新增内容。\n\n"
 
-    # 明确告知模型哪些条目被用户锁定（禁止改动）
+    # 明确告知模型哪些条目被用户手动维护（禁止改动）
     locked_rule = ""
     if isinstance(previous, dict):
         locked_e = [
@@ -209,113 +494,66 @@ def master_prompt(type_: str, previous: Any, chapters_text: str) -> list[dict]:
         if locked_e or locked_r:
             notes = []
             if locked_e:
-                notes.append("用户手动维护的条目（禁止改名/改分类/删除，必须原样保留）：" + "、".join(locked_e))
+                notes.append("用户手动维护的条目：" + "、".join(locked_e))
             if locked_r:
-                notes.append("用户手动维护的关系（禁止修改或删除，必须原样保留）：" + "、".join(locked_r))
+                notes.append("用户手动维护的关系：" + "、".join(locked_r))
             locked_rule = (
-                "8. 以上数据中下列内容由用户手动维护，属最高优先级：\n   - "
+                "10. 以下内容由作者本人手动维护，属最高优先级：\n   - "
                 + "\n   - ".join(notes)
-                + "\n   严禁删除、改名、改分类或改描述；必须把它们的 id、aliases、summary、"
-                "category 与关系条目原样保留在输出中。"
+                + "\n   **禁止**把它们放进 entities_update / entities_remove / "
+                "relations_update / relations_remove；只有当它们尚未存在（即不在现有数据里）时，"
+                "才可以用 entities_add / relations_add 补充。"
             )
 
     type_rule = TYPE_RULES.get(type_, f'只收录与「{type_}」相关的条目。')
     if locked_rule:
         type_rule = type_rule + "\n" + locked_rule
 
-    system = f"""你是资深小说文本分析引擎。你只输出合法 JSON，不输出任何其他文字、解释或 Markdown 围栏。
-你的任务：分析小说章节文本，提取与「{type_}」相关的条目与关系，输出 JSON，结构固定如下：
+    system = f"""你是资深小说文本分析引擎，负责长期维护一份「{type_}」设定库。
+你只输出合法 JSON，不输出任何其他文字、解释或 Markdown 围栏。
+
+你的任务**不是重写整份设定库**，而是只提交一份「变更补丁」：
+把从新章节里读到的**新增、修订、作废**，以最小改动的方式写出来。
+未被你提及的内容会被原样保留，因此不必、也禁止为了"完整"而回传旧内容。
+
+输出结构（所有键都必须出现，没有内容的写空数组 []）：
 {{
-  "entities": [{{"id": "条目名", "aliases": ["曾用名/化名"], "summary": "一句话概括", "weight": 1, "category": "本质归属分类", "gender": "", "age": "", "identity": "", "appearance": "", "personality": ""}}],
-  "relations": [{{"from": "条目A", "to": "条目B", "type": "关系类别", "detail": "具体经过描述", "time": ""}}],
-  "timeline": [{{"time": "时间", "event": "事件描述", "refs": ["涉及条目id"]}}]
+  "entities_add": [{{"id": "条目名", "aliases": ["别名"], "summary": "一句话概括", "weight": 1, "category": "本质归属", "gender": "", "age": "", "identity": "", "appearance": "", "personality": "", "reason": "新增依据"}}],
+  "entities_update": [{{"id": "已有条目名", "set": {{"identity": "新的身份"}}, "aliases_add": ["新别名"], "reason": "依据（章节/情节）"}}],
+  "entities_remove": [{{"id": "条目名", "reason": "作废依据"}}],
+  "relations_add": [{{"from": "条目A", "to": "条目B", "type": "关系类别", "detail": "具体经过", "time": "", "reason": ""}}],
+  "relations_update": [{{"from": "条目A", "to": "条目B", "set": {{"detail": "新的描述"}}, "reason": ""}}],
+  "relations_remove": [{{"from": "条目A", "to": "条目B", "reason": ""}}],
+  "timeline_add": [{{"time": "时间", "event": "事件描述", "refs": ["涉及条目id"]}}]
 }}
+
 收录边界（重要）：
 {type_rule}
-规则：
-1. 必须基于新章节文本更新/合并上一轮数据，保留所有旧条目与旧关系（除非新文本推翻），再补充新发现。
-2. 关系按最直接类别记录；同一对条目只保留一条关系，取最新的。
-3. id 使用条目规范名；同一条目在不同章节的别名、职位、称号并入 aliases，不新建条目。
-4. category 标注条目的本质归属：人物/世界/势力/地点/事件/道具 之一。
-5. 人物 id 使用小说中最新使用的名字；曾用名并入 aliases。
-6. gender/age/identity/appearance/personality 仅对「人物」类条目填写，其他类型留空字符串。
-7. 判断不了归属或信息不足时：宁缺毋滥，不硬造条目；summary 写"待补充"，time 填空字符串。"""
 
-    user = f"{prev}以下是新章节文本：\n---\n{chapters_text}\n---\n请输出更新后的完整 JSON。"
+硬性规则：
+1. **只写变化**。与现有数据一致的条目、字段、关系一律不要出现在输出里；四类数组可以同时为空。
+2. **禁止整体重写**。要修订已有条目，只能放进 entities_update，且 set 里**只放真正发生变化的字段**。
+   例：某角色升官，只写 {{"id":"某某","set":{{"identity":"新任官职"}},"reason":"第12章受封"}}，不要附带其它字段。
+3. **不要回传未变化的旧内容**：你没提到的字段会被原样保留，不会丢失，这一点无需担心。
+4. **删除要克制且写明依据**。只有新文本明确推翻时才用 entities_remove / relations_remove
+   （人物死亡、身份彻底转变、设定被废弃、上一轮确属误建），并在 reason 里写清依据；拿不准就不要删。
+5. entities_update / entities_remove / relations_update / relations_remove 的 id 与 from/to，
+   必须与「现有数据」中的写法完全一致。
+6. 关系按最直接类别记录；同一对条目只保留一条关系（同一对要改就放 relations_update）。
+7. category 标注条目的本质归属：人物/世界/势力/地点/事件/道具 之一。
+8. gender/age/identity/appearance/personality 仅对「人物」类条目填写，其他类型留空字符串。
+9. 判断不了归属或信息不足时：宁缺毋滥，不硬造条目；summary 写"待补充"。
+   另外 entities_add 中**不要**填写 profile 字段（档案正文由作者本人维护）。"""
+
+    user = (
+        f"{prev}以下是新章节文本：\n---\n{chapters_text}\n---\n"
+        "请只输出变更补丁 JSON（没有变化就四个数组都留空）。"
+    )
 
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
-
-
-def validate_data(type_: str, raw: Any) -> dict:
-    """校验并清洗 LLM 返回的关系图谱数据"""
-    src = raw if isinstance(raw, dict) else {}
-
-    # 实体
-    entities = []
-    seen = set()
-    for e in src.get("entities", []) or []:
-        eid = str(e.get("id", "")).strip()
-        if not eid or eid in seen:
-            continue
-        seen.add(eid)
-        entities.append({
-            "id": eid,
-            "aliases": [str(a) for a in (e.get("aliases") or [])],
-            "summary": str(e.get("summary", "")),
-            "weight": e.get("weight") if isinstance(e.get("weight"), int) else 1,
-            "category": str(e.get("category", "")).strip(),
-            "gender": str(e.get("gender", "")).strip(),
-            "age": str(e.get("age", "")).strip(),
-            "identity": str(e.get("identity", "")).strip(),
-            "appearance": str(e.get("appearance", "")).strip(),
-            "personality": str(e.get("personality", "")).strip(),
-            # 以下字段由用户维护，AI 输出一律以默认值占位（真正的保护在 merge_manual）
-            "profile": "",
-            "source": "ai",
-            "locked": False,
-            "edited_fields": [],
-        })
-
-    # 关系
-    relations = []
-    for r in src.get("relations", []) or []:
-        from_ = str(r.get("from", "")).strip()
-        to = str(r.get("to", "")).strip()
-        if not from_ or not to or from_ == to:
-            continue
-        relations.append({
-            "from": from_,
-            "to": to,
-            "type": str(r.get("type", "关联")),
-            "detail": str(r.get("detail", "")),
-            "time": str(r.get("time", "")),
-            "rid": "",
-            "source": "ai",
-            "locked": False,
-        })
-
-    # 时间线
-    timeline = []
-    for t in src.get("timeline", []) or []:
-        event = str(t.get("event", "")).strip()
-        if not event:
-            continue
-        timeline.append({
-            "time": str(t.get("time", "")).strip(),
-            "event": event,
-            "refs": [str(r) for r in (t.get("refs") or [])],
-        })
-
-    return {
-        "type": type_,
-        "generatedAt": datetime.now().isoformat(),
-        "entities": entities,
-        "relations": relations,
-        "timeline": timeline,
-    }
 
 
 def persist_type_data(project_dir: Path, type_: str, data: dict) -> None:
@@ -362,16 +600,20 @@ def persist_type_data(project_dir: Path, type_: str, data: dict) -> None:
 
 
 class RelationGraphAnalyzer(BaseTextAnalyzer):
-    """关系图谱分析器
+    """关系图谱分析器（更新模式）
 
-    提取小说中的角色/世界/势力/地点/事件/道具条目及其关系与时间线。
+    分析小说章节文本，产出「变更补丁」，再增量应用到现有设定库上。
     """
 
     name = "关系图谱分析"
 
-    def __init__(self, type_: str = "角色"):
+    def __init__(self, type_: str = "角色", protect: bool = True):
         super().__init__()
         self.type = type_
+        # protect=False 时解除手动内容保护（"覆盖手动内容"模式，需用户显式确认）
+        self.protect = protect
+        # 最近一次合并的变更报告（供进度流播报）
+        self.last_report: dict = {}
 
     def get_role(self) -> str:
         return "NOVEL_ANALYZER"
@@ -381,30 +623,31 @@ class RelationGraphAnalyzer(BaseTextAnalyzer):
         return None
 
     def build_prompt(self, text: str, previous: Any, ctx: dict) -> list[dict]:
-        return master_prompt(self.type, previous, text)
+        # blind 模式（全量重析）：不把现有数据交给模型，只让它提交新增
+        ctx = ctx or {}
+        return master_prompt(self.type, None if ctx.get("blind") else previous, text)
 
     def parse_result(self, raw: str) -> Any:
-        # LLM 返回空内容时，返回空结果（可能该类型无条目）
+        # LLM 返回空内容时，返回空补丁（可能本批无变化）
         if not raw or not raw.strip():
-            return validate_data(self.type, {})
+            return validate_patch(self.type, {})
         data = self._parse_json(raw)
         if data is None:
             snippet = raw[:500] if raw else "(空)"
             import logging
             logging.warning(f"{self.name} JSON解析失败，原始内容前500字: {snippet}")
             raise ValueError(f"LLM 返回内容无法解析为 JSON（前200字: {snippet[:200]}）")
-        return validate_data(self.type, data)
+        return validate_patch(self.type, data)
 
     def validate(self, data: Any) -> bool:
-        return isinstance(data, dict) and "entities" in data and "relations" in data
+        """校验补丁结构：至少含一个已知补丁键"""
+        return isinstance(data, dict) and any(k in data for k in PATCH_KEYS)
 
     def merge(self, previous: Any, new: Any) -> Any:
-        """关系图谱需要合并：保留旧实体/关系，补充新发现。
-
-        previous 已在 prompt 中作为上下文交给 LLM，LLM 返回的是完整结果，
-        因此这里直接返回 new；手动内容的保护由 merge_manual 在落盘前执行。
-        """
-        return new
+        """更新模式：把变更补丁增量应用到现有数据上（现有数据为骨架）"""
+        data, report = apply_patch(previous, new, protect=self.protect)
+        self.last_report = report
+        return data
 
     async def save(self, data: dict, project_dir: Path, ctx: dict) -> None:
         """保存关系脉络主文件 + 条目档案子文件"""

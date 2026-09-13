@@ -18,8 +18,8 @@ from analysis.relation_graph_analyzer import (
     TYPES,
     RelationGraphAnalyzer,
     count_protected,
+    empty_data,
     ensure_rids,
-    merge_manual,
     new_rid,
     persist_type_data,
     strip_manual_protection,
@@ -187,27 +187,23 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
     if overwrite_manual:
         _push_message(project_id, "⚠️ 覆盖模式：手动维护的条目与关系将不再受保护")
     if req.full:
-        _push_message(project_id, "全量重析：AI 结果基于本次文本从零生成（手动内容仍会保留）")
+        _push_message(project_id, "全量重析：AI 不参考现有数据，只做新增（现有内容不会被改动）")
 
     _push_message(project_id, f"开始分析，共 {len(chapters)} 个章节块")
 
     total_protected = 0
     # 逐类型分析
     for type_ in TYPES:
-        analyzer = RelationGraphAnalyzer(type_=type_)
+        analyzer = RelationGraphAnalyzer(type_=type_, protect=not overwrite_manual)
         type_dir = project_dir / "星图" / "关系" / type_
         local = _read_master_data(type_dir)
 
-        # 交给 LLM 的上下文：full 时从零开始；覆盖模式则去掉保护标记
-        if req.full:
-            seed = None
-        elif overwrite_manual:
-            seed = strip_manual_protection(local)
+        # 补丁应用的基底（现有数据为骨架）
+        if overwrite_manual and local:
+            base = strip_manual_protection(local)
         else:
-            seed = local
+            base = local if local else empty_data(type_)
 
-        # 落盘前的保护基线（手动内容以此为准）
-        baseline = None if overwrite_manual else local
         ent_n, rel_n = count_protected(local)
         total_protected += ent_n + rel_n
         if ent_n or rel_n:
@@ -218,22 +214,37 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
 
         _push_message(project_id, f"正在分析「{type_}」…")
         try:
+            # 更新模式：每批产出变更补丁，链式应用到现有数据上
             data = await analyzer.analyze_batched(
                 chapters,
                 project_id=project_id,
                 preset=req.preset,
-                previous=seed,
-                ctx={"project_id": project_id, "previous_data": seed},
+                previous=base,
+                ctx={
+                    "project_id": project_id,
+                    "previous_data": base,
+                    "blind": bool(req.full),
+                },
                 progress_cb=lambda msg: _push_message(project_id, msg),
             )
-            # 手动内容优先：AI 不得删除或改写用户手动创建/编辑的内容
-            if baseline:
-                data = merge_manual(baseline, data)
             await analyzer.save(data, project_dir, {"previous_data": local})
-            _push_message(
-                project_id,
-                f"「{type_}」完成：{len(data.get('entities', []))} 个条目，{len(data.get('relations', []))} 条关系",
+
+            report = analyzer.last_report or {}
+            summary = (
+                f"「{type_}」完成：新增 {report.get('added', 0)} 项、"
+                f"更新 {report.get('updated', 0)} 项、删除 {report.get('removed', 0)} 项；"
+                f"现共 {len(data.get('entities', []))} 个条目，{len(data.get('relations', []))} 条关系"
             )
+            _push_message(project_id, summary)
+            if report.get("protected_entities") or report.get("protected_fields") or report.get("protected_relations"):
+                _push_message(
+                    project_id,
+                    f"「{type_}」保护了 {report.get('protected_entities', 0)} 个手动条目、"
+                    f"{report.get('protected_fields', 0)} 个手动字段、"
+                    f"{report.get('protected_relations', 0)} 条手动关系未被改动",
+                )
+            for note in (report.get("skipped") or [])[:5]:
+                _push_message(project_id, f"「{type_}」跳过：{note}")
         except Exception as e:
             _push_message(project_id, f"「{type_}」分析失败：{str(e)}")
 

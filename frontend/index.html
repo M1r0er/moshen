@@ -1194,6 +1194,15 @@ body {
 .rel-entity-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
 .rel-badge-manual { display: inline-block; padding: 2px 8px; font-size: 11.5px; border-radius: 10px; background: var(--color-primary-light); color: var(--color-primary); border: 1px solid var(--border-accent); }
 .rel-badge-ai { display: inline-block; padding: 2px 8px; font-size: 11.5px; border-radius: 10px; background: var(--color-input-bg); color: var(--text-muted); border: 1px solid var(--color-border); }
+/* 关系图空态：不启动 WebGL，用 HTML 承接，视觉与画布同源 */
+.rel-graph-empty { height: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: radial-gradient(120% 120% at 50% 0%, #16232F 0%, #0F1720 58%, #0A0F14 100%); color: #E8EEF4; }
+.rel-graph-empty-icon { font-size: 44px; line-height: 1; opacity: 0.9; filter: drop-shadow(0 0 18px rgba(201, 168, 108, 0.35)); }
+.rel-graph-empty h3 { margin: 0; font-size: 17px; font-weight: 600; color: #F2F6FA; }
+.rel-graph-empty > p { margin: 0; font-size: 13px; color: rgba(232, 238, 244, 0.62); }
+.rel-graph-empty-actions { display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap; justify-content: center; }
+.rel-graph-empty-actions .btn-secondary { background: rgba(255, 255, 255, 0.08); color: #E8EEF4; border-color: rgba(255, 255, 255, 0.18); }
+.rel-graph-empty-actions .btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); border-color: rgba(255, 255, 255, 0.32); }
+.rel-graph-empty-hint { max-width: 470px; margin-top: 10px !important; font-size: 12px !important; line-height: 1.8; color: rgba(232, 238, 244, 0.42) !important; }
 
 .fs-layout { display: flex; height: 100%; }
 .fs-sidebar { width: 260px; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; background: var(--color-surface); }
@@ -2428,7 +2437,20 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <button class="btn btn-secondary" style="font-size:12px" @click="relCancelLink">取消连线</button>
             </p>
             <div class="rel-canvas-wrap" @contextmenu.prevent="relOnCanvasContextMenu">
-              <div id="rel-3d-canvas" class="rel-3d-canvas"></div>
+              <div id="rel-3d-canvas" class="rel-3d-canvas" v-show="!relGraphEmpty"></div>
+              <div v-if="relGraphEmpty" class="rel-graph-empty" @click="relNodeMenu = null">
+                <div class="rel-graph-empty-icon">🌌</div>
+                <h3>「{{ relCurrentType }}」还没有条目</h3>
+                <p>两种方式开始梳理：</p>
+                <div class="rel-graph-empty-actions">
+                  <button class="btn btn-primary" @click="relOpenCreateEntity(relCurrentType)">＋ 手动新建条目</button>
+                  <button class="btn btn-secondary" @click="relSubView = 'analyze'">🔍 去 AI 分析</button>
+                  <button class="btn btn-secondary" @click="relMenuRefresh">🔄 刷新</button>
+                </div>
+                <p class="rel-graph-empty-hint">
+                  也可以在画布上右键新建条目；分析完成后，节点可拖拽调整位置、右键可编辑、点选可查看档案。
+                </p>
+              </div>
               <div v-if="relNodeMenu" class="rel-node-menu"
                    :style="{ left: relNodeMenu.x + 'px', top: relNodeMenu.y + 'px' }">
                 <template v-if="relNodeMenu.kind === 'relation'">
@@ -2436,11 +2458,20 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <button @click="relMenuEditRelation">✏️ 编辑关系</button>
                   <button class="danger" @click="relMenuDeleteRelation">🗑 删除关系</button>
                 </template>
+                <template v-else-if="relNodeMenu.kind === 'blank'">
+                  <div class="rel-menu-title">画布操作 · {{ relCurrentType }}</div>
+                  <button @click="relMenuCreateEntity">＋ 新建条目</button>
+                  <button @click="relMenuRefresh">🔄 刷新数据</button>
+                  <button v-if="!relGraphEmpty" @click="relMenuRelayout">✨ 重新布局</button>
+                  <button v-if="!relGraphEmpty" @click="relMenuResetView">🎯 重置视角</button>
+                  <button @click="relMenuGoAnalyze">🔍 去 AI 分析</button>
+                </template>
                 <template v-else>
                   <div class="rel-menu-title">{{ relNodeMenu.name }}</div>
                   <button @click="relMenuCreateRelation">🔗 新增关系</button>
                   <button @click="relMenuEditEntity">✏️ 编辑条目</button>
                   <button @click="relMenuViewEntity">📖 查看档案</button>
+                  <button v-if="relCurrentType === '角色'" @click="relMenuPortrait">🎨 更新肖像图</button>
                   <button class="danger" @click="relMenuDeleteEntity">🗑 删除条目</button>
                 </template>
               </div>
@@ -5466,6 +5497,8 @@ createApp({
 
     const relSelectedIsManual = computed(() => relIsManual(relEntityData.value));
 
+    const relGraphEmpty = computed(() => !((relGraphData.value.entities || []).length));
+
     const relEntityChoices = computed(() => {
       const names = [];
       (relGraphData.value.entities || []).forEach(e => { if (e.id) names.push(e.id); });
@@ -5801,30 +5834,79 @@ createApp({
     // ===== 关系图节点右键菜单 / 连线模式 =====
 
     function relOnCanvasContextMenu(event) {
-      if (!relRenderer || !relScene) return;
       // 在菜单内部右键时不处理，避免菜单被关闭
       if (event.target && event.target.closest && event.target.closest('.rel-node-menu')) return;
       const pos = relMenuPosition(event);
-      if (relPickNode(event)) {
-        relNodeMenu.value = Object.assign(pos, { kind: 'node', name: relPickedName });
-        return;
+      if (relRenderer && relScene) {
+        if (relPickNode(event)) {
+          relNodeMenu.value = Object.assign(pos, { kind: 'node', name: relPickedName });
+          return;
+        }
+        const lv = relPickLine(event);
+        if (lv && lv.rel) {
+          relNodeMenu.value = Object.assign(pos, {
+            kind: 'relation', rid: lv.rel.rid || '', from: lv.rel.from, to: lv.rel.to,
+          });
+          return;
+        }
       }
-      const lv = relPickLine(event);
-      if (lv && lv.rel) {
-        relNodeMenu.value = Object.assign(pos, {
-          kind: 'relation', rid: lv.rel.rid || '', from: lv.rel.from, to: lv.rel.to,
-        });
-        return;
-      }
-      relNodeMenu.value = null;
+      // 空白处（含无数据状态）：画布级操作
+      relNodeMenu.value = Object.assign(pos, { kind: 'blank' });
     }
 
     function relMenuPosition(event) {
       const wrap = document.querySelector('.rel-canvas-wrap');
       const rect = wrap ? wrap.getBoundingClientRect() : { left: 0, top: 0 };
-      const x = Math.min(event.clientX - rect.left, Math.max(0, (wrap ? wrap.clientWidth : 0) - 170));
-      const y = Math.min(event.clientY - rect.top, Math.max(0, (wrap ? wrap.clientHeight : 0) - 150));
+      const x = Math.min(event.clientX - rect.left, Math.max(0, (wrap ? wrap.clientWidth : 0) - 180));
+      const y = Math.min(event.clientY - rect.top, Math.max(0, (wrap ? wrap.clientHeight : 0) - 200));
       return { x: Math.max(0, x), y: Math.max(0, y) };
+    }
+
+    // ===== 画布空白处菜单 =====
+
+    function relMenuCreateEntity() {
+      relNodeMenu.value = null;
+      relOpenCreateEntity(relCurrentType.value);
+    }
+
+    async function relMenuRefresh() {
+      relNodeMenu.value = null;
+      await relLoadGraphData(relCurrentType.value);
+      await relLoadOverview();
+      showToast('关系图已刷新', 'success');
+    }
+
+    function relMenuGoAnalyze() {
+      relNodeMenu.value = null;
+      relSubView.value = 'analyze';
+    }
+
+    function relMenuRelayout() {
+      relNodeMenu.value = null;
+      // 清除本分类的手动位置，让力导向重新排布
+      const prefix = relCurrentType.value + '::';
+      Object.keys(relPinnedPositions).forEach(k => {
+        if (k.indexOf(prefix) === 0) delete relPinnedPositions[k];
+      });
+      relRender3D();
+      relSyncLinkHighlight();
+      showToast('已重新布局', 'success');
+    }
+
+    function relMenuResetView() {
+      relNodeMenu.value = null;
+      if (relScene) relScene.rotation.set(0, 0, 0);
+      if (relCamera) relCamera.position.set(0, 0, 120);
+      showToast('视角已重置', 'success');
+    }
+
+    // ===== 条目菜单 =====
+
+    async function relMenuPortrait() {
+      const name = relNodeMenu.value && relNodeMenu.value.name;
+      relNodeMenu.value = null;
+      if (!name) return;
+      await relRedrawPortrait(name);
     }
 
     function relMenuCreateRelation() {
@@ -6116,16 +6198,21 @@ createApp({
     }
 
     function relRender3D() {
-      const container = document.getElementById('rel-3d-canvas');
-      if (!container) return;
       // 释放旧场景与旧动画循环（避免 CPU 泄漏）
       relDispose3D();
-      container.innerHTML = '';
-      relGraphObjects = [];
 
       const data = relGraphData.value;
       const entities = data.entities || [];
       const relations = data.relations || [];
+
+      // 无条目：不启动 WebGL，交给 HTML 空态渲染
+      const container = document.getElementById('rel-3d-canvas');
+      if (entities.length === 0) {
+        if (container) container.innerHTML = '';
+        return;
+      }
+      if (!container) return;
+      container.innerHTML = '';
 
       // 初始化 Three.js
       const width = container.clientWidth || 800;
@@ -6179,27 +6266,6 @@ createApp({
       const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
       dirLight.position.set(50, 50, 50);
       relScene.add(dirLight);
-
-      if (entities.length === 0) {
-        const textGeo = new THREE.PlaneGeometry(240, 60);
-        const canvas = document.createElement('canvas');
-        canvas.width = 512; canvas.height = 128;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = 'rgba(255,255,255,0.55)';
-        ctx.font = '28px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('暂无数据', 256, 50);
-        ctx.fillStyle = 'rgba(255,255,255,0.35)';
-        ctx.font = '20px sans-serif';
-        ctx.fillText('点「＋ 新建条目」手动创建，或先执行 AI 分析', 256, 88);
-        const texture = new THREE.CanvasTexture(canvas);
-        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
-        const mesh = new THREE.Mesh(textGeo, material);
-        relScene.add(mesh);
-        relRenderer.domElement.addEventListener('click', relOnCanvasClick);
-        relAnimate();
-        return;
-      }
 
       // 力导向布局（保留用户拖动过的节点位置）
       const positions = relLayoutForceDirected(entities, relations);
@@ -6816,10 +6882,12 @@ createApp({
       relOpenEditRelation, relCloseRelationForm, relSaveRelation, relDeleteRelation,
       relConfirm, relDoConfirm,
       // 星图 · 关系图交互
-      relLinkMode, relLinkSource, relNodeMenu, relGraphHint,
+      relLinkMode, relLinkSource, relNodeMenu, relGraphHint, relGraphEmpty,
       relToggleLinkMode, relCancelLink, relOnCanvasContextMenu,
+      relMenuCreateEntity, relMenuRefresh, relMenuGoAnalyze,
+      relMenuRelayout, relMenuResetView,
       relMenuCreateRelation, relMenuEditRelation, relMenuDeleteRelation,
-      relMenuEditEntity, relMenuViewEntity, relMenuDeleteEntity,
+      relMenuEditEntity, relMenuViewEntity, relMenuDeleteEntity, relMenuPortrait,
       // Inspiration
       inspirationPath, inspirationFiles, inspirationContent, currentInspirationFile,
       inspirationFileLoading, showInspirationModal, inspirationInput,
