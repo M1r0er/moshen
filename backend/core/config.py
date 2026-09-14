@@ -11,6 +11,21 @@ from dotenv import load_dotenv
 
 from core.safe_io import atomic_write_text
 
+# 掩码占位符：GET /api/config 及保存后的响应用它代替真实密钥，避免明文外泄
+MASKED_API_KEY = "********"
+
+
+def _mask_key(key: str) -> str:
+    """将真实 api_key 转换为对外展示用的掩码（未配置则为空字符串）"""
+    return MASKED_API_KEY if key else ""
+
+
+def _resolve_key(incoming: str, previous: str) -> str:
+    """保存时解析 api_key：留空或原样回传掩码占位符视为“保持不变”"""
+    if not incoming or incoming == MASKED_API_KEY:
+        return previous
+    return incoming
+
 
 @dataclass
 class ModelConfig:
@@ -390,13 +405,13 @@ class ConfigManager:
         return result
 
     def get_full_config(self) -> dict:
-        """获取完整配置，用于前端展示"""
+        """获取完整配置，用于前端展示（api_key 一律掩码，不回传明文）"""
         return {
             "default_api": {
                 "models": list(self._default_api.models),
                 "model": self._default_api.model,
                 "base_url": self._default_api.base_url,
-                "api_key": self._default_api.api_key,
+                "api_key": _mask_key(self._default_api.api_key),
                 "temperature": self._default_api.temperature,
                 "max_tokens": self._default_api.max_tokens,
                 "is_configured": self._default_api.is_configured(),
@@ -408,7 +423,7 @@ class ConfigManager:
                     "models": list(cfg.models),
                     "model": cfg.model,
                     "base_url": cfg.base_url,
-                    "api_key": cfg.api_key,
+                    "api_key": _mask_key(cfg.api_key),
                     "temperature": cfg.temperature,
                     "max_tokens": cfg.max_tokens,
                     "is_configured": cfg.is_configured(),
@@ -416,8 +431,14 @@ class ConfigManager:
                 }
                 for role, cfg in self._models.items()
             },
-            "image_config": self._image_config,
-            "api_channels": list(self._api_channels),
+            "image_config": {
+                **self._image_config,
+                "api_key": _mask_key(self._image_config.get("api_key", "")),
+            },
+            "api_channels": [
+                {**ch, "api_key": _mask_key(ch.get("api_key", ""))}
+                for ch in self._api_channels
+            ],
         }
 
     def is_any_configured(self) -> bool:
@@ -452,14 +473,26 @@ class ConfigManager:
         os.makedirs(os.path.dirname(self.env_path), exist_ok=True)
         lines = ["# 墨参 MoShen 配置文件", ""]
 
+        # 保存前记录旧密钥：前端可能回传空字符串或掩码占位符（表示未修改），
+        # 此时应保留原有密钥，而不是被清空覆盖
+        prev_channel_keys = {
+            c.get("id"): c.get("api_key", "")
+            for c in self._api_channels if isinstance(c, dict)
+        }
+        prev_role_keys = {role: cfg.api_key for role, cfg in self._models.items()}
+        prev_image_key = self._image_config.get("api_key", "")
+
         # API 渠道列表
         api_channels = data.get("api_channels", [])
         if not isinstance(api_channels, list):
             api_channels = []
+        api_channels = [c for c in api_channels if isinstance(c, dict)]
+        for c in api_channels:
+            c["api_key"] = _resolve_key(c.get("api_key", ""), prev_channel_keys.get(c.get("id"), ""))
         # 过滤完全空白的渠道（保留仅填了名称/URL/Key/模型的渠道）
         api_channels = [
             c for c in api_channels
-            if isinstance(c, dict) and (
+            if (
                 (c.get("name") or "").strip()
                 or (c.get("base_url") or "").strip()
                 or (c.get("api_key") or "").strip()
@@ -512,10 +545,11 @@ class ConfigManager:
             role_data = roles.get(role, {})
             role_models = role_data.get("models", [])
             role_models = [m for m in role_models if m and m.strip()]
+            role_api_key = _resolve_key(role_data.get("api_key", ""), prev_role_keys.get(role, ""))
             lines.append(f"# {role}: {MODEL_ROLES[role]}")
             lines.append(f"{role}_MODELS={','.join(role_models)}")
             lines.append(f"{role}_BASE_URL={role_data.get('base_url', '')}")
-            lines.append(f"{role}_API_KEY={role_data.get('api_key', '')}")
+            lines.append(f"{role}_API_KEY={role_api_key}")
             role_temp = role_data.get("temperature")
             if role_temp is not None:
                 lines.append(f"{role}_TEMPERATURE={role_temp}")
@@ -526,10 +560,11 @@ class ConfigManager:
 
         # 图像生成 API 配置
         image_data = data.get("image_config", {})
+        image_api_key = _resolve_key(image_data.get("api_key", ""), prev_image_key)
         lines.append("# 图像生成 API 配置")
         lines.append(f"IMAGE_ENABLED={'True' if image_data.get('enabled') else 'False'}")
         lines.append(f"IMAGE_BASE_URL={image_data.get('base_url', '')}")
-        lines.append(f"IMAGE_API_KEY={image_data.get('api_key', '')}")
+        lines.append(f"IMAGE_API_KEY={image_api_key}")
         lines.append(f"IMAGE_MODEL={image_data.get('model', '')}")
         lines.append(f"IMAGE_SIZE={image_data.get('size', '1024x1024')}")
         lines.append(f"IMAGE_QUALITY={image_data.get('quality', 'auto')}")

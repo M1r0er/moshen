@@ -2696,7 +2696,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </div>
             <div class="api-field">
               <label class="api-field-label">API Key</label>
-              <input v-model="ch.api_key" type="password" placeholder="sk-...">
+              <input v-model="ch.api_key" type="password" :placeholder="ch._hasKey ? '留空则保持不变' : 'sk-...'">
             </div>
             <div class="api-field">
               <label class="api-field-label">模型名称</label>
@@ -2774,7 +2774,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </div>
             <div class="api-field">
               <label class="api-field-label">API Key</label>
-              <input v-model="configData.roles[key].api_key" placeholder="API Key" type="password">
+              <input v-model="configData.roles[key].api_key" :placeholder="configData.roles[key]._hasKey ? '留空则保持不变' : 'API Key'" type="password">
             </div>
             <div class="api-field">
               <label class="api-field-label">温度 / 最大 Tokens</label>
@@ -2809,7 +2809,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <input v-model="configData.image_config.base_url" placeholder="Base URL (如 https://api.openai.com/v1)" style="flex:1">
           </div>
           <div class="config-row">
-            <input v-model="configData.image_config.api_key" type="password" placeholder="API Key" style="flex:1">
+            <input v-model="configData.image_config.api_key" type="password" :placeholder="configData.image_config._hasKey ? '留空则保持不变' : 'API Key'" style="flex:1">
           </div>
           <div class="config-row">
             <input v-model="configData.image_config.model" placeholder="模型名（可留空）" style="flex:1">
@@ -5626,13 +5626,20 @@ createApp({
           if (!rolesData[key].models || rolesData[key].models.length === 0) {
             rolesData[key].models = rolesData[key].model ? [rolesData[key].model] : [''];
           }
+          // api_key 现在是掩码值，不可编辑回填：仅记录“是否已配置”，输入框留空以待用户输入新值
+          rolesData[key]._hasKey = !!rolesData[key].api_key;
+          rolesData[key].api_key = '';
         }
+        const imageConfig = data.image_config || { enabled: false, base_url: '', api_key: '', model: '', size: '1024x1024', quality: 'auto' };
+        imageConfig._hasKey = !!imageConfig.api_key;
+        imageConfig.api_key = '';
+        const apiChannels = (data.api_channels || []).map(ch => ({ ...ch, _hasKey: !!ch.api_key, api_key: '' }));
         configData.value = {
           default_api: defaultApi,
           independent_keys: data.independent_keys || false,
           roles: rolesData,
-          image_config: data.image_config || { enabled: false, base_url: '', api_key: '', model: '', size: '1024x1024', quality: 'auto' },
-          api_channels: data.api_channels || [],
+          image_config: imageConfig,
+          api_channels: apiChannels,
         };
         // 加载写作偏好
         try {
@@ -5644,7 +5651,8 @@ createApp({
     }
     async function saveConfig() {
       try {
-        // 过滤空模型名
+        // 过滤空模型名，并去掉仅用于 UI 展示的 _hasKey 标记（避免写入持久化配置）
+        const { _hasKey: _imgHasKey, ...imageConfigRest } = configData.value.image_config;
         const cleanData = {
           default_api: {
             ...configData.value.default_api,
@@ -5652,12 +5660,13 @@ createApp({
           },
           independent_keys: configData.value.independent_keys,
           roles: {},
-          image_config: configData.value.image_config,
-          api_channels: configData.value.api_channels,
+          image_config: imageConfigRest,
+          api_channels: configData.value.api_channels.map(({ _hasKey, ...rest }) => rest),
         };
         for (const key of Object.keys(configData.value.roles)) {
+          const { _hasKey, ...roleRest } = configData.value.roles[key];
           cleanData.roles[key] = {
-            ...configData.value.roles[key],
+            ...roleRest,
             models: (configData.value.roles[key].models || []).filter(m => m && m.trim()),
           };
         }
