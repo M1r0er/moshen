@@ -632,6 +632,25 @@ async def portrait_status(project_id: str):
     }
 
 
+@router.get("/{project_id}/portraits/names")
+async def portrait_names(project_id: str):
+    """列出已有肖像图的角色名（供关系图一次性判断哪些节点显示头像）
+
+    注意：必须声明在 /portraits/{name} 之前，否则会被当成 name="names"。
+    """
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
+    if project_dir is None:
+        raise HTTPException(404, "项目不存在")
+    type_dir = project_dir / "星图" / "关系" / "角色"
+    names: list[str] = []
+    if type_dir.exists():
+        exts = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+        for f in sorted(type_dir.iterdir()):
+            if f.is_file() and f.suffix.lower() in exts:
+                names.append(f.stem)
+    return {"names": names}
+
+
 @router.get("/{project_id}/portraits/{name}")
 async def get_portrait(project_id: str, name: str):
     """获取角色肖像图片"""

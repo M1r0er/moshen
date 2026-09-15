@@ -1208,6 +1208,7 @@ body {
 .rel-portrait-placeholder em { font-size: 12px; font-style: normal; }
 .rel-portrait-error { font-size: 11.5px; line-height: 1.6; color: var(--color-warning); word-break: break-all; }
 .rel-portrait-errors { margin-top: 8px; padding: 10px 13px; font-size: 12px; line-height: 1.7; border-radius: var(--radius-md); background: var(--color-warning-bg); border: 1px solid var(--color-warning); color: var(--color-text-body); word-break: break-all; }
+.rel-avatar-hint { font-size: 12px; color: var(--text-muted); }
 .rel-archive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .rel-archive-item { padding: 12px; background: var(--color-surface); border-radius: var(--radius-lg); cursor: pointer; border: 1px solid var(--color-border); transition: all 0.2s; box-shadow: var(--shadow-card); }
 .rel-archive-item:hover { border-color: var(--color-primary); box-shadow: var(--shadow-card-hover); }
@@ -1379,7 +1380,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.3</div>
+        <div class="sidebar-version">v0.7.4</div>
       </div>
     </aside>
 
@@ -2603,6 +2604,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <button class="btn btn-secondary" style="font-size:13px" @click="relOpenCreateEntity(relCurrentType)">＋ 新建条目</button>
               <button class="btn" :class="relLinkMode ? 'btn-primary' : 'btn-secondary'" style="font-size:13px"
                       @click="relToggleLinkMode">{{ relLinkMode ? '🔗 连线中…' : '🔗 连关系' }}</button>
+              <span v-if="relCurrentType === '角色' && !relPortraitNames.length" class="rel-avatar-hint">
+                生成角色肖像后，节点会显示为头像
+              </span>
               <div class="rel-legend">
                 <span><i class="dot-ai"></i>AI 生成</span>
                 <span><i class="dot-manual"></i>手动维护</span>
@@ -3701,6 +3705,7 @@ createApp({
     const relEntityContent = ref('');
     const relPortraitUrl = ref('');
     const relPortraitError = ref('');
+    const relPortraitNames = ref([]);   // 已有肖像图的角色名（关系图据此把节点画成头像）
     const relPortraitLoading = ref(false);
     const relGeneratingPortraits = ref(false);
     const relPortraitResult = ref(null);
@@ -5848,6 +5853,9 @@ createApp({
         relGraphHint.value = dangling
           ? `有 ${dangling} 条关系的端点不在「${type}」中（跨分类关系暂不在图中显示，可到对应分类查看）`
           : '';
+        // 角色分类：先拿到「哪些角色已有肖像图」，节点才会画成头像
+        if (type === '角色') await relLoadPortraitNames();
+        else relPortraitNames.value = [];
         // 触发 3D 图重绘
         setTimeout(() => relRender3D(), 50);
       } catch (e) { showToast('加载关系图失败', 'error'); }
@@ -6313,6 +6321,79 @@ createApp({
       relLoadEntity(name, relCurrentType.value);
     }
 
+    async function relLoadPortraitNames() {
+      if (!currentProjectId.value) { relPortraitNames.value = []; return; }
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/names');
+        relPortraitNames.value = data.names || [];
+      } catch (e) {
+        relPortraitNames.value = [];
+      }
+    }
+
+    // 角色头像贴图：把肖像图裁成圆形并描一圈同类色边框；图未就绪时先显示占位圆环
+    function relAvatarTexture(name, color) {
+      const S = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = S; canvas.height = S;
+      const ctx = canvas.getContext('2d');
+      const R = S * 0.46;
+      const ring = '#' + color.toString(16).padStart(6, '0');
+      const paint = (img) => {
+        ctx.clearRect(0, 0, S, S);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(S / 2, S / 2, R, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.fillStyle = '#16232F';
+        ctx.fill();
+        ctx.clip();
+        if (img) {
+          const side = Math.min(img.width, img.height);
+          ctx.drawImage(
+            img, (img.width - side) / 2, (img.height - side) / 2, side, side,
+            S * 0.06, S * 0.06, S * 0.88, S * 0.88,
+          );
+        }
+        ctx.restore();
+        ctx.beginPath();
+        ctx.arc(S / 2, S / 2, R, 0, Math.PI * 2);
+        ctx.lineWidth = S * 0.05;
+        ctx.strokeStyle = ring;
+        ctx.stroke();
+      };
+      paint(null);
+      const tex = new THREE.CanvasTexture(canvas);
+      const img = new Image();
+      img.onload = () => { paint(img); tex.needsUpdate = true; };
+      img.src = '/api/relations/' + currentProjectId.value + '/portraits/'
+        + encodeURIComponent(name) + '?v=' + relPortraitVer;
+      return tex;
+    }
+
+    // 普通节点：同色实心圆 + 白色描边 + 首字（无肖像图时的统一圆形外观）
+    function relCircleTexture(name, color) {
+      const S = 128;
+      const canvas = document.createElement('canvas');
+      canvas.width = S; canvas.height = S;
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath();
+      ctx.arc(S / 2, S / 2, S * 0.46, 0, Math.PI * 2);
+      ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+      ctx.fill();
+      ctx.lineWidth = S * 0.05;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.font = `bold ${Math.round(S * 0.42)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0,0,0,0.45)';
+      ctx.shadowBlur = 5;
+      ctx.fillText((name || '?').slice(0, 1), S / 2, S / 2 + S * 0.02);
+      return new THREE.CanvasTexture(canvas);
+    }
+
     async function relCheckPortrait(name) {
       try {
         const data = await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '/info');
@@ -6329,6 +6410,9 @@ createApp({
       try {
         await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '/redraw', { method: 'POST' });
         relPortraitUrl.value = '/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '?t=' + Date.now();
+        relPortraitVer += 1;                       // 让关系图的头像贴图重新拉取
+        await relLoadPortraitNames();
+        if (relSubView.value === 'graph') relRender3D();
         showToast('肖像已生成', 'success');
       } catch (e) {
         // 把服务端的真实原因留在面板上，避免"点了没反应却不知道原因"
@@ -6353,6 +6437,9 @@ createApp({
             if (status.done) {
               relPortraitResult.value = status.result;
               relGeneratingPortraits.value = false;
+              relPortraitVer += 1;                 // 让关系图的头像贴图重新拉取
+              await relLoadPortraitNames();
+              if (relSubView.value === 'graph') relRender3D();
               if (status.result && status.result.errors && status.result.errors.length) {
                 showToast('部分肖像生成失败', 'error');
               } else {
@@ -6373,6 +6460,24 @@ createApp({
 
     // 3D 关系图（Three.js）
     let relScene = null, relRenderer = null, relCamera = null, relControls = null;
+    let relPortraitVer = 0;   // 肖像图缓存版本：重绘后 +1，让头像贴图重新拉取
+    // 关系图物理模拟（对齐 Obsidian 关系图：持续模拟、阻尼收敛、拖动后重新加热）
+    const REL_SIM = {
+      charge: 40,        // 节点互斥强度
+      linkDist: 34,      // 关系弹簧自然长度
+      linkK: 0.004,      // 弹簧系数
+      centerK: 0.0008,   // 向心力，避免整体飘散
+      damping: 0.82,     // 速度阻尼
+      alphaDecay: 0.985,
+      alphaMin: 0.004,
+      maxSpeed: 2.2,     // 单帧最大位移，防爆
+    };
+    let relSimNodes = [];        // [{ pos: Vector3, vel: Vector2 }]
+    let relSimLinks = [];        // [{ a: idx, b: idx }]
+    let relSimAlpha = 0;
+    let relSimTick = 0;
+    let relAdjacency = {};       // name -> { neighborName: true }
+    let relHoverName = null;     // 当前悬停的节点名（用于高亮邻居）
     let relGraphObjects = [];
     let relRaycaster = null, relMouse = null;
     let relAnimationId = null;
@@ -6410,6 +6515,11 @@ createApp({
       relNodeViews = [];
       relLineViews = [];
       relLineObjects = [];
+      relSimNodes = [];
+      relSimLinks = [];
+      relSimAlpha = 0;
+      relAdjacency = {};
+      relHoverName = null;
       relDragging = false;
       relDragNode = null;
       relDragMoved = false;
@@ -6432,16 +6542,19 @@ createApp({
           const view = relDragNode;
           view.mesh.position.x += dx;
           view.mesh.position.y -= dy;
-          if (view.label) {
-            view.label.position.set(
-              view.mesh.position.x, view.mesh.position.y + view.labelOffset, view.mesh.position.z);
-          }
-          if (view.manualRing) view.manualRing.position.copy(view.mesh.position);
-          if (view.linkRing) view.linkRing.position.copy(view.mesh.position);
+          view.mesh.position.z = 0;
+          relSyncNodeVisual(view);
           relRefreshLinesFor(view.index);
+          // 同步物理模拟：被拖动的节点跟随鼠标，并重新“加热”让周围节点让位（Obsidian 手感）
+          const sim = relSimNodes[view.index];
+          if (sim) {
+            sim.pos.set(view.mesh.position.x, view.mesh.position.y, 0);
+            sim.vel.set(0, 0);
+            relSimAlpha = Math.max(relSimAlpha, 0.4);
+          }
           const key = relCurrentType.value + '::' + view.name;
           relPinnedPositions[key] = {
-            x: view.mesh.position.x, y: view.mesh.position.y, z: view.mesh.position.z,
+            x: view.mesh.position.x, y: view.mesh.position.y, z: 0,
           };
           return;
         }
@@ -6450,8 +6563,10 @@ createApp({
         const dy = e.clientY - relDragLastY;
         relDragLastX = e.clientX;
         relDragLastY = e.clientY;
-        relScene.rotation.y += dx * 0.005;
-        relScene.rotation.x += dy * 0.005;
+        // 空白处拖拽 = 平移视图（对齐 Obsidian 关系图，不再旋转场景）
+        const scale = relDragScale();
+        relCamera.position.x -= dx * scale;
+        relCamera.position.y += dy * scale;
       });
       window.addEventListener('mouseup', () => {
         relDragging = false;
@@ -6521,6 +6636,126 @@ createApp({
       });
     }
 
+    // ===== 关系图物理模拟与高亮（Obsidian 风格）=====
+
+    function relSimInit(positions, links) {
+      relSimNodes = positions.map(p => ({
+        pos: new THREE.Vector3(p.x, p.y, 0),
+        vel: new THREE.Vector2(0, 0),
+      }));
+      relSimLinks = links;
+      relSimTick = 0;
+      relSimAlpha = 0.85;   // 起始给一个中等热度，收敛更快、不会先炸开
+    }
+
+    // 把一个节点的位置同步到它的标签 / 高亮环 / 头像
+    function relSyncNodeVisual(view) {
+      const p = view.mesh.position;
+      if (view.label) view.label.position.set(p.x, p.y - view.labelOffset, p.z);
+      if (view.manualRing) view.manualRing.position.copy(p);
+      if (view.linkRing) view.linkRing.position.copy(p);
+      if (view.avatar) view.avatar.position.copy(p);
+    }
+
+    function relStepSimulation() {
+      const nodes = relSimNodes;
+      const n = nodes.length;
+      if (n < 2 || relSimAlpha < REL_SIM.alphaMin) return;
+      const alpha = relSimAlpha;
+      relSimTick++;
+
+      // 1) 节点互斥（距离截断；节点很多时隔帧计算，避免 O(n²) 拖慢主线程）
+      if (n <= 260 || relSimTick % 2 === 0) {
+        const cutoff = 220 * 220;
+        for (let i = 0; i < n; i++) {
+          const a = nodes[i];
+          for (let j = i + 1; j < n; j++) {
+            const b = nodes[j];
+            let dx = b.pos.x - a.pos.x;
+            let dy = b.pos.y - a.pos.y;
+            let d2 = dx * dx + dy * dy;
+            if (d2 > cutoff) continue;
+            if (d2 < 0.01) {
+              dx = (Math.random() - 0.5) * 0.6;
+              dy = (Math.random() - 0.5) * 0.6;
+              d2 = dx * dx + dy * dy;
+            }
+            const d = Math.sqrt(d2);
+            const f = (REL_SIM.charge * alpha) / d2;
+            const ux = (dx / d) * f;
+            const uy = (dy / d) * f;
+            a.vel.x -= ux; a.vel.y -= uy;
+            b.vel.x += ux; b.vel.y += uy;
+          }
+        }
+      }
+
+      // 2) 关系弹簧
+      for (let k = 0; k < relSimLinks.length; k++) {
+        const l = relSimLinks[k];
+        const a = nodes[l.a];
+        const b = nodes[l.b];
+        if (!a || !b) continue;
+        const dx = b.pos.x - a.pos.x;
+        const dy = b.pos.y - a.pos.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+        const f = (d - REL_SIM.linkDist) * REL_SIM.linkK * alpha;
+        const ux = (dx / d) * f;
+        const uy = (dy / d) * f;
+        a.vel.x += ux; a.vel.y += uy;
+        b.vel.x -= ux; b.vel.y -= uy;
+      }
+
+      // 3) 向心力 + 积分
+      let energy = 0;
+      for (let i = 0; i < n; i++) {
+        const nd = nodes[i];
+        nd.vel.x -= nd.pos.x * REL_SIM.centerK * alpha;
+        nd.vel.y -= nd.pos.y * REL_SIM.centerK * alpha;
+        nd.vel.multiplyScalar(REL_SIM.damping);
+        const sp = nd.vel.length();
+        if (sp > REL_SIM.maxSpeed) nd.vel.multiplyScalar(REL_SIM.maxSpeed / sp);
+        nd.pos.x += nd.vel.x;
+        nd.pos.y += nd.vel.y;
+        energy += nd.vel.lengthSq();
+        const view = relNodeViews[i];
+        if (view) view.mesh.position.set(nd.pos.x, nd.pos.y, 0);
+      }
+
+      relSimAlpha *= REL_SIM.alphaDecay;
+      if (energy < 0.02) relSimAlpha = 0;   // 收敛后停算，省 CPU
+      else if (relSimAlpha < REL_SIM.alphaMin) relSimAlpha = REL_SIM.alphaMin;
+
+      // 4) 同步可视化与连线
+      relNodeViews.forEach(v => relSyncNodeVisual(v));
+      relLineViews.forEach(lv => {
+        const a = nodes[lv.fromIdx];
+        const b = nodes[lv.toIdx];
+        if (!a || !b) return;
+        lv.line.geometry.setFromPoints([
+          new THREE.Vector3(a.pos.x, a.pos.y, 0),
+          new THREE.Vector3(b.pos.x, b.pos.y, 0),
+        ]);
+        lv.line.geometry.computeBoundingSphere();
+      });
+    }
+
+    // 悬停/选中某节点时高亮它与其一跳邻居，其余淡出（Obsidian 手感）
+    function relApplyHighlight(active) {
+      const near = active ? (relAdjacency[active] || null) : null;
+      relNodeViews.forEach(v => {
+        const lit = !active || v.name === active || (near && near[v.name]);
+        if (v.avatar) v.avatar.material.opacity = lit ? 1 : 0.12;
+        if (v.label) v.label.material.opacity = lit ? 1 : 0.15;
+      });
+      relLineViews.forEach(lv => {
+        const lit = !active || lv.rel.from === active || lv.rel.to === active;
+        lv.line.material.opacity = lit
+          ? (relIsManual(lv.rel) ? 0.85 : 0.55)
+          : 0.05;
+      });
+    }
+
     function relRender3D() {
       // 释放旧场景与旧动画循环（避免 CPU 泄漏）
       relDispose3D();
@@ -6583,103 +6818,160 @@ createApp({
           relCamera.position.z = Math.min(400, Math.max(30, relCamera.position.z + e.deltaY * 0.1));
         }
       }, { passive: false });
+
+      // 悬停高亮：高亮该节点与它的一跳邻居，其余淡出（Obsidian 关系图手感）
+      canvasEl.addEventListener('mousemove', (e) => {
+        if (relDragNode || relDragging) return;
+        const hit = relPickNode(e);
+        const next = hit ? relPickedName : null;
+        if (next === relHoverName) return;
+        relHoverName = next;
+        relApplyHighlight(next || relSelectedEntity.value || null);
+        canvasEl.style.cursor = next ? 'pointer' : 'grab';
+      });
+      canvasEl.addEventListener('mouseleave', () => {
+        relHoverName = null;
+        relApplyHighlight(relSelectedEntity.value || null);
+        canvasEl.style.cursor = 'grab';
+      });
       relEnsureGlobalHandlers();
 
-      // 光照
-      relScene.add(new THREE.AmbientLight(0x8899aa, 0.8));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-      dirLight.position.set(50, 50, 50);
-      relScene.add(dirLight);
+      // 关系图为平面圆形节点，不再需要光照（Sprite 不受灯光影响）
 
-      // 力导向布局（保留用户拖动过的节点位置）
-      const positions = relLayoutForceDirected(entities, relations);
+      // 力导向布局作为初始位置（保留用户拖动过的节点位置）；关系图为平面图，z 统一为 0
+      const positions = relLayoutForceDirected(entities, relations)
+        .map(p => ({ x: p.x, y: p.y, z: 0 }));
       entities.forEach((entity, i) => {
         const pin = relPinnedPositions[relCurrentType.value + '::' + entity.id];
-        if (pin) positions[i] = { x: pin.x, y: pin.y, z: pin.z };
+        if (pin) positions[i] = { x: pin.x, y: pin.y, z: 0 };
       });
 
-      // 创建节点（球体）
+      // 自动适配视距：让初始布局整体落在视野内（省得用户一进来就手动缩小）
+      const maxRadius = Math.max(40, ...positions.map(p => Math.sqrt(p.x * p.x + p.y * p.y)));
+      const halfFov = Math.tan((relCamera.fov * Math.PI / 180) / 2);
+      relCamera.position.z = Math.min(400, Math.max(60, (maxRadius * 1.2) / halfFov));
+
+      // 创建节点：统一的平面圆形（角色若有肖像图则用头像），全部面向镜头
       // 节点配色（对齐 UI 设计规范 §8.2：角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
       const colors = { '角色': 0xC9A86C, '世界': 0x3D8B6F, '势力': 0x6B5B95, '地点': 0x5A7D9A, '事件': 0xB38600, '道具': 0x8B6F5C };
       const baseColor = colors[relCurrentType.value] || 0x5A7D9A;
       relNodeViews = [];
 
       entities.forEach((entity, i) => {
-        const size = 1.5 + Math.min((entity.weight || 1) * 0.8, 4);
-        const geo = new THREE.SphereGeometry(size, 24, 24);
-        const mat = new THREE.MeshPhongMaterial({ color: baseColor, shininess: 80 });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(positions[i].x, positions[i].y, positions[i].z);
+        const size = 2.0 + Math.min((entity.weight || 1) * 0.9, 4.5);
+        const hasAvatar = relCurrentType.value === '角色'
+          && relPortraitNames.value.indexOf(entity.id) >= 0;
+        const dia = size * 2.4;
+
+        // 位置锚点：不参与渲染，仅用于拖拽 / 连线 / 高亮环定位
+        const mesh = new THREE.Object3D();
+        mesh.position.set(positions[i].x, positions[i].y, 0);
         mesh.userData = { name: entity.id, index: i };
         relScene.add(mesh);
-        relGraphObjects.push(mesh);
 
-        // 手动维护的条目：常亮金色线框环，与 AI 生成内容区分
+        // 手动维护的条目：金色圆环，与 AI 生成内容区分
         let manualRing = null;
         if (relIsManual(entity)) {
-          const ringGeo = new THREE.SphereGeometry(size * 1.35, 16, 16);
-          const ringMat = new THREE.MeshBasicMaterial({
-            color: 0xE8C87A, wireframe: true, transparent: true, opacity: 0.5,
-          });
-          manualRing = new THREE.Mesh(ringGeo, ringMat);
-          manualRing.position.copy(mesh.position);
+          manualRing = new THREE.Mesh(
+            new THREE.RingGeometry(size * 1.28, size * 1.44, 48),
+            new THREE.MeshBasicMaterial({
+              color: 0xE8C87A, transparent: true, opacity: 0.9,
+              side: THREE.DoubleSide, depthTest: false,
+            }),
+          );
+          manualRing.position.set(mesh.position.x, mesh.position.y, 0);
+          manualRing.renderOrder = 3;
           relScene.add(manualRing);
         }
 
         // 连线模式的起点高亮环（默认隐藏）
-        const linkGeo = new THREE.SphereGeometry(size * 1.7, 18, 18);
-        const linkMat = new THREE.MeshBasicMaterial({
-          color: 0x6EC1FF, wireframe: true, transparent: true, opacity: 0.9,
-        });
-        const linkRing = new THREE.Mesh(linkGeo, linkMat);
-        linkRing.position.copy(mesh.position);
+        const linkRing = new THREE.Mesh(
+          new THREE.RingGeometry(size * 1.5, size * 1.82, 48),
+          new THREE.MeshBasicMaterial({
+            color: 0x6EC1FF, transparent: true, opacity: 0.9,
+            side: THREE.DoubleSide, depthTest: false,
+          }),
+        );
+        linkRing.position.set(mesh.position.x, mesh.position.y, 0);
         linkRing.visible = false;
+        linkRing.renderOrder = 4;
         relScene.add(linkRing);
 
-        // 标签（Sprite）
+        // 节点本体：平面圆形 / 角色头像（Sprite 始终面向镜头）
+        const avatar = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: hasAvatar
+            ? relAvatarTexture(entity.id, baseColor)
+            : relCircleTexture(entity.id, baseColor),
+          transparent: true,
+          depthTest: false,
+        }));
+        avatar.scale.set(dia, dia, 1);
+        avatar.position.set(mesh.position.x, mesh.position.y, 0);
+        avatar.userData = { name: entity.id, index: i };
+        avatar.renderOrder = 2;
+        relScene.add(avatar);
+        relGraphObjects.push(avatar);   // 圆形/头像即射线拾取目标
+
+        // 标签（Sprite，放在节点下方）
         const labelCanvas = document.createElement('canvas');
         labelCanvas.width = 256; labelCanvas.height = 64;
         const lctx = labelCanvas.getContext('2d');
-        lctx.fillStyle = 'rgba(255,255,255,0.9)';
-        lctx.font = '24px sans-serif';
+        lctx.fillStyle = 'rgba(255,255,255,0.92)';
+        lctx.font = '28px sans-serif';
         lctx.textAlign = 'center';
-        lctx.fillText(entity.id, 128, 36);
+        lctx.fillText(entity.id, 128, 40);
         const labelTex = new THREE.CanvasTexture(labelCanvas);
-        const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true });
+        const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
         const label = new THREE.Sprite(labelMat);
-        label.position.set(positions[i].x, positions[i].y + size + 3, positions[i].z);
-        label.scale.set(20, 5, 1);
+        const labelOffset = dia / 2 + 4;
+        label.position.set(mesh.position.x, mesh.position.y - labelOffset, 0);
+        label.scale.set(26, 6.5, 1);
+        label.renderOrder = 5;
         relScene.add(label);
 
         relNodeViews.push({
-          name: entity.id, index: i, mesh, label, manualRing, linkRing,
-          labelOffset: size + 3,
+          name: entity.id, index: i, mesh, label, manualRing, linkRing, avatar, labelOffset,
         });
       });
 
-      // 创建关系线（手动维护的关系用金色区分）
+      // 创建关系线（手动维护的关系用金色区分；普通关系用冷灰蓝细线，接近 Obsidian 观感）
       relLineViews = [];
       relLineObjects = [];
+      const simLinks = [];
+      relAdjacency = {};
       relations.forEach(r => {
+        if (!relAdjacency[r.from]) relAdjacency[r.from] = {};
+        if (!relAdjacency[r.to]) relAdjacency[r.to] = {};
+        relAdjacency[r.from][r.to] = true;
+        relAdjacency[r.to][r.from] = true;
+
         const fromIdx = entities.findIndex(e => e.id === r.from);
         const toIdx = entities.findIndex(e => e.id === r.to);
         if (fromIdx < 0 || toIdx < 0) return;
         const points = [
-          new THREE.Vector3(positions[fromIdx].x, positions[fromIdx].y, positions[fromIdx].z),
-          new THREE.Vector3(positions[toIdx].x, positions[toIdx].y, positions[toIdx].z),
+          new THREE.Vector3(positions[fromIdx].x, positions[fromIdx].y, 0),
+          new THREE.Vector3(positions[toIdx].x, positions[toIdx].y, 0),
         ];
         const geo = new THREE.BufferGeometry().setFromPoints(points);
         const manual = relIsManual(r);
         const mat = new THREE.LineBasicMaterial({
-          color: manual ? 0xC9A86C : 0xffffff,
+          color: manual ? 0xC9A86C : 0x9FB4C7,
           transparent: true,
-          opacity: manual ? 0.6 : 0.25,
+          opacity: manual ? 0.6 : 0.28,
+          depthTest: false,
         });
         const line = new THREE.Line(geo, mat);
+        line.renderOrder = 1;               // 关系线画在节点之下
         relScene.add(line);
         relLineViews.push({ line, fromIdx, toIdx, rel: r });
         relLineObjects.push(line);
+        simLinks.push({ a: fromIdx, b: toIdx });
       });
+
+      // 物理模拟：以当前布局为初始状态，持续细化并在收敛后自动停算
+      relSimInit(entities.map((_, i) => positions[i]), simLinks);
+      relHoverName = null;
+      relApplyHighlight(relSelectedEntity.value || null);
 
       relRenderer.domElement.addEventListener('click', relOnCanvasClick);
       relSyncLinkHighlight();
@@ -6695,8 +6987,8 @@ createApp({
         y: (Math.random() - 0.5) * 80,
         z: (Math.random() - 0.5) * 80,
       }));
-      // 多轮迭代（节点较多时减少轮数，避免 O(n²) 同步计算长时间阻塞主线程）
-      const iterations = n > 300 ? 8 : n > 150 ? 20 : 50;
+      // 多轮迭代给出一个"能看"的初始布局，之后交给持续物理模拟细化
+      const iterations = n > 300 ? 4 : n > 150 ? 10 : 24;
       for (let iter = 0; iter < iterations; iter++) {
         for (let i = 0; i < n; i++) {
           for (let j = i + 1; j < n; j++) {
@@ -6722,7 +7014,7 @@ createApp({
           const dy = positions[toIdx].y - positions[fromIdx].y;
           const dz = positions[toIdx].z - positions[fromIdx].z;
           const dist = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
-          const force = (dist - 25) * 0.02;
+          const force = (dist - 34) * 0.02;
           positions[fromIdx].x += (dx / dist) * force;
           positions[fromIdx].y += (dy / dist) * force;
           positions[fromIdx].z += (dz / dist) * force;
@@ -6745,8 +7037,8 @@ createApp({
     function relAnimate() {
       relAnimationId = requestAnimationFrame(relAnimate);
       if (relScene && relCamera && relRenderer) {
-        // 缓慢自转（用户拖拽时暂停，避免与手动旋转冲突）
-        if (!relDragging) relScene.rotation.y += 0.001;
+        // 不再自转：只有物理模拟在推进，收敛后 relStepSimulation 内部会自动停算
+        relStepSimulation();
         relRenderer.render(relScene, relCamera);
       }
     }
@@ -7317,6 +7609,7 @@ createApp({
       relAnalyzeUploadedFile,
       relLoadGraphData, relLoadArchive, relLoadEntity, relSwitchGraphType,
       relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult, relPortraitError,
+      relPortraitNames,
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
       // 星图 · 手动维护
       relIsManual, relSelectedIsManual, relEntityChoices,
