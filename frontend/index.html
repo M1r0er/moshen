@@ -1380,7 +1380,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.4</div>
+        <div class="sidebar-version">v0.7.5</div>
       </div>
     </aside>
 
@@ -6224,8 +6224,11 @@ createApp({
 
     function relMenuResetView() {
       relNodeMenu.value = null;
-      if (relScene) relScene.rotation.set(0, 0, 0);
-      if (relCamera) relCamera.position.set(0, 0, 120);
+      // 视角复位：把轨道角度与平移中心恢复默认（相机由轨道参数驱动）
+      relOrbit.theta = 0;
+      relOrbit.phi = Math.PI / 2 - 0.2;
+      if (relOrbit.target) relOrbit.target.set(0, 0, 0);
+      relApplyCamera();
       showToast('视角已重置', 'success');
     }
 
@@ -6332,8 +6335,9 @@ createApp({
     }
 
     // 角色头像贴图：把肖像图裁成圆形并描一圈同类色边框；图未就绪时先显示占位圆环
+    // 用 512 贴图（对应 1024² 肖像图），放大时也不糊
     function relAvatarTexture(name, color) {
-      const S = 256;
+      const S = 512;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -6373,7 +6377,7 @@ createApp({
 
     // 普通节点：同色实心圆 + 白色描边 + 首字（无肖像图时的统一圆形外观）
     function relCircleTexture(name, color) {
-      const S = 128;
+      const S = 256;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -6391,6 +6395,20 @@ createApp({
       ctx.shadowColor = 'rgba(0,0,0,0.45)';
       ctx.shadowBlur = 5;
       ctx.fillText((name || '?').slice(0, 1), S / 2, S / 2 + S * 0.02);
+      return new THREE.CanvasTexture(canvas);
+    }
+
+    // 高亮圆环：透明底 + 同色描边，做成 Sprite 贴图以便在 3D 旋转时始终正对镜头
+    function relRingTexture(color, width = 0.07) {
+      const S = 512;
+      const canvas = document.createElement('canvas');
+      canvas.width = S; canvas.height = S;
+      const ctx = canvas.getContext('2d');
+      ctx.beginPath();
+      ctx.arc(S / 2, S / 2, S * (0.5 - width), 0, Math.PI * 2);
+      ctx.lineWidth = S * width;
+      ctx.strokeStyle = '#' + color.toString(16).padStart(6, '0');
+      ctx.stroke();
       return new THREE.CanvasTexture(canvas);
     }
 
@@ -6472,12 +6490,18 @@ createApp({
       alphaMin: 0.004,
       maxSpeed: 2.2,     // 单帧最大位移，防爆
     };
-    let relSimNodes = [];        // [{ pos: Vector3, vel: Vector2 }]
+    let relSimNodes = [];        // [{ pos: Vector3, vel: Vector3 }]（三维布局，恢复 3D 空间感）
     let relSimLinks = [];        // [{ a: idx, b: idx }]
     let relSimAlpha = 0;
     let relSimTick = 0;
     let relAdjacency = {};       // name -> { neighborName: true }
     let relHoverName = null;     // 当前悬停的节点名（用于高亮邻居）
+    // 相机轨道（右键拖拽旋转 / 左键拖拽平移 / 滚轮缩放；不做自动旋转）
+    const relOrbit = { theta: 0, phi: Math.PI / 2, radius: 180, target: null };
+    let relOrbitType = '';     // 记住当前视角属于哪个分类：同分类重绘不重置旋转/缩放
+    let relOrbiting = false;
+    let relOrbitMoved = false;
+    let relResizeObserver = null;
     let relGraphObjects = [];
     let relRaycaster = null, relMouse = null;
     let relAnimationId = null;
@@ -6510,7 +6534,10 @@ createApp({
         });
       }
       if (relRenderer) relRenderer.dispose();
+      if (relResizeObserver) { relResizeObserver.disconnect(); relResizeObserver = null; }
       relScene = null; relCamera = null; relRenderer = null;
+      relOrbiting = false;
+      relOrbitMoved = false;
       relGraphObjects = [];
       relNodeViews = [];
       relLineViews = [];
@@ -6542,35 +6569,48 @@ createApp({
           const view = relDragNode;
           view.mesh.position.x += dx;
           view.mesh.position.y -= dy;
-          view.mesh.position.z = 0;
           relSyncNodeVisual(view);
           relRefreshLinesFor(view.index);
           // 同步物理模拟：被拖动的节点跟随鼠标，并重新“加热”让周围节点让位（Obsidian 手感）
           const sim = relSimNodes[view.index];
           if (sim) {
-            sim.pos.set(view.mesh.position.x, view.mesh.position.y, 0);
-            sim.vel.set(0, 0);
+            sim.pos.copy(view.mesh.position);
+            sim.vel.set(0, 0, 0);
             relSimAlpha = Math.max(relSimAlpha, 0.4);
           }
           const key = relCurrentType.value + '::' + view.name;
           relPinnedPositions[key] = {
-            x: view.mesh.position.x, y: view.mesh.position.y, z: 0,
+            x: view.mesh.position.x, y: view.mesh.position.y, z: view.mesh.position.z,
           };
           return;
         }
-        if (!relDragging || !relScene) return;
         const dx = e.clientX - relDragLastX;
         const dy = e.clientY - relDragLastY;
+        // 右键按住 = 旋转视角（手动旋转，程序不会自动转）
+        if (relOrbiting && relCamera) {
+          if (Math.abs(dx) + Math.abs(dy) > 2) relOrbitMoved = true;
+          relDragLastX = e.clientX;
+          relDragLastY = e.clientY;
+          relOrbit.theta -= dx * 0.006;
+          relOrbit.phi = Math.min(Math.PI - 0.12, Math.max(0.12, relOrbit.phi - dy * 0.006));
+          relApplyCamera();
+          return;
+        }
+        if (!relDragging || !relCamera || !relOrbit.target) return;
         relDragLastX = e.clientX;
         relDragLastY = e.clientY;
-        // 空白处拖拽 = 平移视图（对齐 Obsidian 关系图，不再旋转场景）
+        // 左键空白拖拽 = 在相机的屏幕平面内平移视图中心
         const scale = relDragScale();
-        relCamera.position.x -= dx * scale;
-        relCamera.position.y += dy * scale;
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(relCamera.quaternion);
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(relCamera.quaternion);
+        relOrbit.target.addScaledVector(right, -dx * scale);
+        relOrbit.target.addScaledVector(up, dy * scale);
+        relApplyCamera();
       });
       window.addEventListener('mouseup', () => {
         relDragging = false;
         relDragNode = null;
+        relOrbiting = false;
       });
       // 点击空白处关闭节点右键菜单
       document.addEventListener('mousedown', (e) => {
@@ -6583,7 +6623,7 @@ createApp({
     function relDragScale() {
       if (!relCamera || !relRenderer) return 0.25;
       const h = relRenderer.domElement.clientHeight || 1;
-      const visible = 2 * Math.tan((relCamera.fov * Math.PI / 180) / 2) * relCamera.position.z;
+      const visible = 2 * Math.tan((relCamera.fov * Math.PI / 180) / 2) * relOrbit.radius;
       return visible / h;
     }
 
@@ -6640,12 +6680,24 @@ createApp({
 
     function relSimInit(positions, links) {
       relSimNodes = positions.map(p => ({
-        pos: new THREE.Vector3(p.x, p.y, 0),
-        vel: new THREE.Vector2(0, 0),
+        pos: new THREE.Vector3(p.x, p.y, p.z || 0),
+        vel: new THREE.Vector3(0, 0, 0),
       }));
       relSimLinks = links;
       relSimTick = 0;
       relSimAlpha = 0.85;   // 起始给一个中等热度，收敛更快、不会先炸开
+    }
+
+    // 相机轨道应用：围绕 target 以球坐标摆放相机（3D 可旋转，但不会自己转）
+    function relApplyCamera() {
+      if (!relCamera || !relOrbit.target) return;
+      const { theta, phi, radius, target } = relOrbit;
+      relCamera.position.set(
+        target.x + radius * Math.sin(phi) * Math.sin(theta),
+        target.y + radius * Math.cos(phi),
+        target.z + radius * Math.sin(phi) * Math.cos(theta),
+      );
+      relCamera.lookAt(target);
     }
 
     // 把一个节点的位置同步到它的标签 / 高亮环 / 头像
@@ -6664,33 +6716,37 @@ createApp({
       const alpha = relSimAlpha;
       relSimTick++;
 
-      // 1) 节点互斥（距离截断；节点很多时隔帧计算，避免 O(n²) 拖慢主线程）
+      // 1) 节点互斥（三维；距离截断，节点很多时隔帧计算，避免 O(n²) 拖慢主线程）
       if (n <= 260 || relSimTick % 2 === 0) {
-        const cutoff = 220 * 220;
+        const cutoff = 240 * 240;
         for (let i = 0; i < n; i++) {
           const a = nodes[i];
           for (let j = i + 1; j < n; j++) {
             const b = nodes[j];
             let dx = b.pos.x - a.pos.x;
             let dy = b.pos.y - a.pos.y;
-            let d2 = dx * dx + dy * dy;
+            let dz = b.pos.z - a.pos.z;
+            let d2 = dx * dx + dy * dy + dz * dz;
             if (d2 > cutoff) continue;
             if (d2 < 0.01) {
               dx = (Math.random() - 0.5) * 0.6;
               dy = (Math.random() - 0.5) * 0.6;
-              d2 = dx * dx + dy * dy;
+              dz = (Math.random() - 0.5) * 0.6;
+              d2 = dx * dx + dy * dy + dz * dz;
             }
             const d = Math.sqrt(d2);
             const f = (REL_SIM.charge * alpha) / d2;
             const ux = (dx / d) * f;
             const uy = (dy / d) * f;
-            a.vel.x -= ux; a.vel.y -= uy;
-            b.vel.x += ux; b.vel.y += uy;
+            const uz = (dz / d) * f;
+            a.vel.x -= ux; a.vel.y -= uy; a.vel.z -= uz;
+            b.vel.x += ux; b.vel.y += uy; b.vel.z += uz;
           }
         }
       }
 
-      // 2) 关系弹簧
+      // 2) 关系弹簧（三维，自然长度比平面略大，层次更清楚）
+      const linkDist = REL_SIM.linkDist * 1.25;
       for (let k = 0; k < relSimLinks.length; k++) {
         const l = relSimLinks[k];
         const a = nodes[l.a];
@@ -6698,33 +6754,35 @@ createApp({
         if (!a || !b) continue;
         const dx = b.pos.x - a.pos.x;
         const dy = b.pos.y - a.pos.y;
-        const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-        const f = (d - REL_SIM.linkDist) * REL_SIM.linkK * alpha;
+        const dz = b.pos.z - a.pos.z;
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.01;
+        const f = (d - linkDist) * REL_SIM.linkK * alpha;
         const ux = (dx / d) * f;
         const uy = (dy / d) * f;
-        a.vel.x += ux; a.vel.y += uy;
-        b.vel.x -= ux; b.vel.y -= uy;
+        const uz = (dz / d) * f;
+        a.vel.x += ux; a.vel.y += uy; a.vel.z += uz;
+        b.vel.x -= ux; b.vel.y -= uy; b.vel.z -= uz;
       }
 
-      // 3) 向心力 + 积分
+      // 3) 向心力 + 积分（三个方向都收敛，形成球状分布）
       let energy = 0;
       for (let i = 0; i < n; i++) {
         const nd = nodes[i];
         nd.vel.x -= nd.pos.x * REL_SIM.centerK * alpha;
         nd.vel.y -= nd.pos.y * REL_SIM.centerK * alpha;
+        nd.vel.z -= nd.pos.z * REL_SIM.centerK * alpha;
         nd.vel.multiplyScalar(REL_SIM.damping);
         const sp = nd.vel.length();
         if (sp > REL_SIM.maxSpeed) nd.vel.multiplyScalar(REL_SIM.maxSpeed / sp);
-        nd.pos.x += nd.vel.x;
-        nd.pos.y += nd.vel.y;
+        nd.pos.add(nd.vel);
         energy += nd.vel.lengthSq();
         const view = relNodeViews[i];
-        if (view) view.mesh.position.set(nd.pos.x, nd.pos.y, 0);
+        if (view) view.mesh.position.copy(nd.pos);
       }
 
       relSimAlpha *= REL_SIM.alphaDecay;
-      if (energy < 0.02) relSimAlpha = 0;   // 收敛后停算，省 CPU
-      else if (relSimAlpha < REL_SIM.alphaMin) relSimAlpha = REL_SIM.alphaMin;
+      // 收敛后彻底停算：既看总动能也看 alpha，避免在极小 alpha 下长期微抖（画面必须稳定）
+      if (energy < 0.05 || relSimAlpha < REL_SIM.alphaMin) relSimAlpha = 0;
 
       // 4) 同步可视化与连线
       relNodeViews.forEach(v => relSyncNodeVisual(v));
@@ -6732,10 +6790,7 @@ createApp({
         const a = nodes[lv.fromIdx];
         const b = nodes[lv.toIdx];
         if (!a || !b) return;
-        lv.line.geometry.setFromPoints([
-          new THREE.Vector3(a.pos.x, a.pos.y, 0),
-          new THREE.Vector3(b.pos.x, b.pos.y, 0),
-        ]);
+        lv.line.geometry.setFromPoints([a.pos.clone(), b.pos.clone()]);
         lv.line.geometry.computeBoundingSphere();
       });
     }
@@ -6783,22 +6838,43 @@ createApp({
       relCamera.position.set(0, 0, 120);
 
       relRenderer = new THREE.WebGLRenderer({ antialias: true });
+      // 按设备像素比渲染：否则在 125%/150% 缩放的屏幕上会被浏览器放大，导致整体发糊
+      relRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       relRenderer.setSize(width, height);
       container.appendChild(relRenderer.domElement);
+
+      // 容器尺寸变化时同步画布与相机宽高比，避免拉伸模糊
+      if (relResizeObserver) relResizeObserver.disconnect();
+      relResizeObserver = new ResizeObserver(() => {
+        if (!relRenderer || !relCamera) return;
+        const w = container.clientWidth || 800;
+        const h = container.clientHeight || 600;
+        relRenderer.setSize(w, h);
+        relCamera.aspect = w / h;
+        relCamera.updateProjectionMatrix();
+      });
+      relResizeObserver.observe(container);
 
       // 射线拾取器需在 mousedown 之前就绪（用于判断是否命中节点）
       relRaycaster = new THREE.Raycaster();
       relRaycaster.params.Line.threshold = 2.5; // 关系线是 1px 细线，需放宽命中阈值
       relMouse = new THREE.Vector2();
 
-      // 鼠标交互：命中节点则拖拽节点，否则拖拽旋转；滚轮缩放（three.min.js 不含 OrbitControls）
+      // 鼠标交互：左键拖节点 / 左键空白平移 / 右键旋转 / 滚轮缩放（无自动旋转）
       const canvasEl = relRenderer.domElement;
       canvasEl.style.cursor = 'grab';
       canvasEl.addEventListener('mousedown', (e) => {
-        if (e.button !== 0) return;
         relDragLastX = e.clientX;
         relDragLastY = e.clientY;
         relDragMoved = false;
+        if (e.button === 2) {
+          // 右键按住 = 旋转视图；只有真的拖动过才阻止弹出菜单
+          relOrbiting = true;
+          relOrbitMoved = false;
+          canvasEl.style.cursor = 'move';
+          return;
+        }
+        if (e.button !== 0) return;
         if (relPickNode(e)) {
           const view = relNodeViews.find(v => v.name === relPickedName);
           if (view) {
@@ -6812,16 +6888,23 @@ createApp({
         canvasEl.style.cursor = 'grabbing';
       });
       canvasEl.addEventListener('mouseup', () => { canvasEl.style.cursor = 'grab'; });
+      // 右键拖动过（旋转）就不再弹节点菜单
+      canvasEl.addEventListener('contextmenu', (e) => {
+        if (relOrbitMoved) {
+          e.stopPropagation();
+          e.preventDefault();
+          relOrbitMoved = false;
+        }
+      });
       canvasEl.addEventListener('wheel', (e) => {
         e.preventDefault();
-        if (relCamera) {
-          relCamera.position.z = Math.min(400, Math.max(30, relCamera.position.z + e.deltaY * 0.1));
-        }
+        relOrbit.radius = Math.min(600, Math.max(35, relOrbit.radius * (1 + e.deltaY * 0.0012)));
+        relApplyCamera();
       }, { passive: false });
 
       // 悬停高亮：高亮该节点与它的一跳邻居，其余淡出（Obsidian 关系图手感）
       canvasEl.addEventListener('mousemove', (e) => {
-        if (relDragNode || relDragging) return;
+        if (relDragNode || relDragging || relOrbiting) return;
         const hit = relPickNode(e);
         const next = hit ? relPickedName : null;
         if (next === relHoverName) return;
@@ -6838,18 +6921,26 @@ createApp({
 
       // 关系图为平面圆形节点，不再需要光照（Sprite 不受灯光影响）
 
-      // 力导向布局作为初始位置（保留用户拖动过的节点位置）；关系图为平面图，z 统一为 0
-      const positions = relLayoutForceDirected(entities, relations)
-        .map(p => ({ x: p.x, y: p.y, z: 0 }));
+      // 力导向布局作为初始位置（保留用户拖动过的节点位置）；保留 z 轴，维持 3D 空间感
+      const positions = relLayoutForceDirected(entities, relations);
       entities.forEach((entity, i) => {
         const pin = relPinnedPositions[relCurrentType.value + '::' + entity.id];
-        if (pin) positions[i] = { x: pin.x, y: pin.y, z: 0 };
+        if (pin) positions[i] = { x: pin.x, y: pin.y, z: pin.z || 0 };
       });
 
-      // 自动适配视距：让初始布局整体落在视野内（省得用户一进来就手动缩小）
-      const maxRadius = Math.max(40, ...positions.map(p => Math.sqrt(p.x * p.x + p.y * p.y)));
+      // 相机轨道：围绕图心，按布局半径自动给出合适视距（不做自动旋转，右键可手动转）
+      if (!relOrbit.target) relOrbit.target = new THREE.Vector3();
+      relOrbit.target.set(0, 0, 0);
+      const typeChanged = relOrbitType !== relCurrentType.value;
+      relOrbitType = relCurrentType.value;
+      if (typeChanged) {
+        relOrbit.theta = 0;
+        relOrbit.phi = Math.PI / 2 - 0.2;   // 略俯视，立体感更好
+      }
+      const maxRadius = Math.max(40, ...positions.map(p => Math.sqrt(p.x * p.x + p.y * p.y + p.z * p.z)));
       const halfFov = Math.tan((relCamera.fov * Math.PI / 180) / 2);
-      relCamera.position.z = Math.min(400, Math.max(60, (maxRadius * 1.2) / halfFov));
+      if (typeChanged) relOrbit.radius = Math.min(600, Math.max(70, (maxRadius * 1.25) / halfFov));
+      relApplyCamera();
 
       // 创建节点：统一的平面圆形（角色若有肖像图则用头像），全部面向镜头
       // 节点配色（对齐 UI 设计规范 §8.2：角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
@@ -6869,30 +6960,24 @@ createApp({
         mesh.userData = { name: entity.id, index: i };
         relScene.add(mesh);
 
-        // 手动维护的条目：金色圆环，与 AI 生成内容区分
+        // 手动维护的条目：金色圆环（Sprite，3D 旋转时始终正对镜头）
         let manualRing = null;
         if (relIsManual(entity)) {
-          manualRing = new THREE.Mesh(
-            new THREE.RingGeometry(size * 1.28, size * 1.44, 48),
-            new THREE.MeshBasicMaterial({
-              color: 0xE8C87A, transparent: true, opacity: 0.9,
-              side: THREE.DoubleSide, depthTest: false,
-            }),
-          );
-          manualRing.position.set(mesh.position.x, mesh.position.y, 0);
+          manualRing = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: relRingTexture(0xE8C87A), transparent: true, opacity: 0.9, depthTest: false,
+          }));
+          manualRing.scale.set(dia * 1.34, dia * 1.34, 1);
+          manualRing.position.copy(mesh.position);
           manualRing.renderOrder = 3;
           relScene.add(manualRing);
         }
 
         // 连线模式的起点高亮环（默认隐藏）
-        const linkRing = new THREE.Mesh(
-          new THREE.RingGeometry(size * 1.5, size * 1.82, 48),
-          new THREE.MeshBasicMaterial({
-            color: 0x6EC1FF, transparent: true, opacity: 0.9,
-            side: THREE.DoubleSide, depthTest: false,
-          }),
-        );
-        linkRing.position.set(mesh.position.x, mesh.position.y, 0);
+        const linkRing = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: relRingTexture(0x6EC1FF, 0.09), transparent: true, opacity: 0.95, depthTest: false,
+        }));
+        linkRing.scale.set(dia * 1.72, dia * 1.72, 1);
+        linkRing.position.copy(mesh.position);
         linkRing.visible = false;
         linkRing.renderOrder = 4;
         relScene.add(linkRing);
@@ -6912,20 +6997,23 @@ createApp({
         relScene.add(avatar);
         relGraphObjects.push(avatar);   // 圆形/头像即射线拾取目标
 
-        // 标签（Sprite，放在节点下方）
+        // 标签（Sprite，放在节点下方）；贴图用 512×128，缩放后文字依然锐利
         const labelCanvas = document.createElement('canvas');
-        labelCanvas.width = 256; labelCanvas.height = 64;
+        labelCanvas.width = 512; labelCanvas.height = 128;
         const lctx = labelCanvas.getContext('2d');
-        lctx.fillStyle = 'rgba(255,255,255,0.92)';
-        lctx.font = '28px sans-serif';
+        lctx.fillStyle = 'rgba(255,255,255,0.95)';
+        lctx.font = '600 56px "Microsoft YaHei", sans-serif';
         lctx.textAlign = 'center';
-        lctx.fillText(entity.id, 128, 40);
+        lctx.textBaseline = 'middle';
+        lctx.shadowColor = 'rgba(0,0,0,0.6)';
+        lctx.shadowBlur = 8;
+        lctx.fillText(entity.id, 256, 66);
         const labelTex = new THREE.CanvasTexture(labelCanvas);
         const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
         const label = new THREE.Sprite(labelMat);
         const labelOffset = dia / 2 + 4;
         label.position.set(mesh.position.x, mesh.position.y - labelOffset, 0);
-        label.scale.set(26, 6.5, 1);
+        label.scale.set(30, 7.5, 1);
         label.renderOrder = 5;
         relScene.add(label);
 
