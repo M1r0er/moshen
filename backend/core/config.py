@@ -108,6 +108,18 @@ class ConfigManager:
             return []
         return [m.strip() for m in val.split(",") if m.strip()]
 
+    @staticmethod
+    def clean_secret(value: str) -> str:
+        """清理粘贴密钥时常见的杂质：首尾空白、成对引号、误带的 Bearer 前缀
+
+        这些杂质会让服务端直接以"密钥格式不正确"拒绝，而报错很难指向真正原因，
+        所以在读写配置两端都做一次归一化。
+        """
+        s = (value or "").strip().strip('"').strip("'").strip()
+        if s.lower().startswith("bearer "):
+            s = s[7:].strip()
+        return s
+
     def _load(self):
         """从 .env 文件加载配置"""
         if os.path.exists(self.env_path):
@@ -177,11 +189,11 @@ class ConfigManager:
         # 加载图像生成 API 配置（独立于聊天 API）
         self._image_config = {
             "enabled": os.getenv("IMAGE_ENABLED", "False").lower() in ("true", "1", "yes"),
-            "base_url": os.getenv("IMAGE_BASE_URL", ""),
-            "api_key": os.getenv("IMAGE_API_KEY", ""),
-            "model": os.getenv("IMAGE_MODEL", ""),
-            "size": os.getenv("IMAGE_SIZE", "1024x1024"),
-            "quality": os.getenv("IMAGE_QUALITY", "auto"),
+            "base_url": os.getenv("IMAGE_BASE_URL", "").strip(),
+            "api_key": self.clean_secret(os.getenv("IMAGE_API_KEY", "")),
+            "model": os.getenv("IMAGE_MODEL", "").strip(),
+            "size": os.getenv("IMAGE_SIZE", "1024x1024").strip(),
+            "quality": os.getenv("IMAGE_QUALITY", "auto").strip(),
         }
 
     def reload(self):
@@ -528,11 +540,11 @@ class ConfigManager:
         image_data = data.get("image_config", {})
         lines.append("# 图像生成 API 配置")
         lines.append(f"IMAGE_ENABLED={'True' if image_data.get('enabled') else 'False'}")
-        lines.append(f"IMAGE_BASE_URL={image_data.get('base_url', '')}")
-        lines.append(f"IMAGE_API_KEY={image_data.get('api_key', '')}")
-        lines.append(f"IMAGE_MODEL={image_data.get('model', '')}")
-        lines.append(f"IMAGE_SIZE={image_data.get('size', '1024x1024')}")
-        lines.append(f"IMAGE_QUALITY={image_data.get('quality', 'auto')}")
+        lines.append(f"IMAGE_BASE_URL={image_data.get('base_url', '').strip()}")
+        lines.append(f"IMAGE_API_KEY={self.clean_secret(image_data.get('api_key', ''))}")
+        lines.append(f"IMAGE_MODEL={image_data.get('model', '').strip()}")
+        lines.append(f"IMAGE_SIZE={image_data.get('size', '1024x1024').strip()}")
+        lines.append(f"IMAGE_QUALITY={image_data.get('quality', 'auto').strip()}")
         lines.append("")
 
         atomic_write_text(self.env_path, "\n".join(lines))

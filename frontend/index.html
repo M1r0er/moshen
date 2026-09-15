@@ -1379,7 +1379,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.2</div>
+        <div class="sidebar-version">v0.7.3</div>
       </div>
     </aside>
 
@@ -3263,6 +3263,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <div class="config-row">
               <input v-model="configData.image_config.api_key" type="password" placeholder="API Key" style="flex:1">
             </div>
+            <p style="font-size:11px;color:var(--text-muted);margin:0">
+              粘贴控制台「API Key」里直接复制的密钥原文即可，不要带引号、空格或 <code>Bearer</code> 前缀；也不要填火山引擎主账号的 AK/SK。
+            </p>
             <div class="config-row">
               <input v-model="configData.image_config.model" placeholder="模型名（可留空）" style="flex:1">
               <input v-model="configData.image_config.size" placeholder="尺寸（1024x1024）" style="width:140px">

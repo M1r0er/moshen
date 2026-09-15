@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 from typing import AsyncGenerator
 import httpx
-from .config import get_config_manager, ModelConfig
+from .config import get_config_manager, ConfigManager, ModelConfig
 
 
 def new_usage_stats() -> dict:
@@ -306,9 +306,22 @@ class LLMProvider:
     def _image_endpoint(self) -> tuple[str, dict]:
         """返回 (生图 URL, image_config)，配置不可用时 URL 为空串"""
         img_cfg = self.config_manager.image_config or {}
-        base = (img_cfg.get("base_url") or "").rstrip("/")
+        base = (img_cfg.get("base_url") or "").strip().rstrip("/")
         url = base if base.endswith("/images/generations") else (f"{base}/images/generations" if base else "")
         return url, img_cfg
+
+    @staticmethod
+    def _image_auth_hint(status: int) -> str:
+        """给生图鉴权失败补一句可操作的提示（原始报错很难指向真正原因）"""
+        if status == 401:
+            return ("。请确认填的是火山方舟控制台「API Key」里直接复制的密钥原文："
+                    "不要带引号、空格或 Bearer 前缀，也不要用火山引擎主账号的 AK/SK、"
+                    "或其它产品/被编码过的密钥")
+        if status == 403:
+            return "。该密钥无权访问此模型，请在方舟控制台确认已开通模型并为该 Key 授权"
+        if status == 402:
+            return "。账户余额或配额不足"
+        return ""
 
     async def generate_image(self, prompt: str, size: str | None = None, quality: str | None = None) -> dict:
         """调用图像生成 API，返回 {"b64": "..."} 或 {"url": "..."} 或 {"error": "..."}
@@ -320,9 +333,10 @@ class LLMProvider:
         img_cfg = self.config_manager.image_config
         if not img_cfg.get("enabled"):
             return {"error": "图像生成未启用，请在设置中开启"}
+        key = ConfigManager.clean_secret(img_cfg.get("api_key"))
         url, _ = self._image_endpoint()
-        if not img_cfg.get("api_key") or not url:
-            return {"error": "图像生成 API 未配置，请设置 Base URL 和 API Key"}
+        if not key or not url:
+            return {"error": "图像生成 API 未配置，请设置 Base URL 和 API Key（注意密钥不要带引号或空格）"}
 
         size = size or img_cfg.get("size", "1024x1024")
         quality = quality or img_cfg.get("quality", "auto")
@@ -335,7 +349,7 @@ class LLMProvider:
             with_quality["quality"] = quality
 
         headers = {
-            "Authorization": f"Bearer {img_cfg['api_key']}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         }
 
@@ -355,7 +369,8 @@ class LLMProvider:
                         last_error = f"绘图 API 返回 {resp.status_code}: {self._image_error_text(resp)}"
                         continue
                     if resp.status_code in (401, 402, 403):
-                        return {"error": f"认证失败 ({resp.status_code})：{self._image_error_text(resp)}"}
+                        return {"error": f"认证失败 ({resp.status_code})：{self._image_error_text(resp)}"
+                                         + self._image_auth_hint(resp.status_code)}
                     resp.raise_for_status()
                     data = resp.json()
                     item = (data.get("data") or [{}])[0]
@@ -383,15 +398,16 @@ class LLMProvider:
         img_cfg = self.config_manager.image_config
         if not img_cfg.get("enabled"):
             return {"ok": False, "detail": "图像生成未启用"}
+        key = ConfigManager.clean_secret(img_cfg.get("api_key"))
         url, _ = self._image_endpoint()
-        if not img_cfg.get("api_key") or not url:
+        if not key or not url:
             return {"ok": False, "detail": "未配置 Base URL 或 API Key"}
 
         body = {"prompt": "probe", "n": 1, "size": "1x1"}
         if img_cfg.get("model"):
             body["model"] = img_cfg["model"]
         headers = {
-            "Authorization": f"Bearer {img_cfg['api_key']}",
+            "Authorization": f"Bearer {key}",
             "Content-Type": "application/json",
         }
         t0 = time.perf_counter()
@@ -404,7 +420,8 @@ class LLMProvider:
 
         if resp.status_code in (401, 402, 403):
             return {"ok": False, "elapsed": elapsed,
-                    "detail": f"鉴权失败 ({resp.status_code})：{self._image_error_text(resp)}"}
+                    "detail": f"鉴权失败 ({resp.status_code})：{self._image_error_text(resp)}"
+                              + self._image_auth_hint(resp.status_code)}
         if resp.status_code in (400, 404, 422):
             text = self._image_error_text(resp)
             low = text.lower()
