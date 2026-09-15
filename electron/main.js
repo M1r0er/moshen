@@ -2,7 +2,7 @@
  * 墨参 MoShen · Electron 主进程
  * 负责启动 Python 后端服务、创建桌面窗口、管理应用生命周期
  */
-const { app, BrowserWindow, shell, globalShortcut, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, globalShortcut, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const net = require('net');
 const { spawn, execSync } = require('child_process');
@@ -204,6 +204,18 @@ ipcMain.handle('dialog:selectDirectory', async () => {
  * 创建主窗口
  */
 async function createWindow() {
+  // ★ 清一次本地缓存：绿色版是覆盖式同步，若不清理，Electron 会复用升级前的
+  //   旧页面缓存（表现为左下角版本号还是老版本、新功能看不到）
+  try {
+    await session.defaultSession.clearCache();
+    if (typeof session.defaultSession.clearCodeCaches === 'function') {
+      await session.defaultSession.clearCodeCaches({});
+    }
+    console.log('已清理 HTTP / 代码缓存');
+  } catch (e) {
+    console.error('清理缓存失败:', e.message);
+  }
+
   // 查找可用端口
   backendPort = await findFreePort();
   console.log(`使用端口: ${backendPort}`);

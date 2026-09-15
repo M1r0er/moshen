@@ -160,8 +160,20 @@ from core.resource_path import get_frontend_dir
 frontend_dir = get_frontend_dir()
 
 if frontend_dir.exists():
-    # 挂载前端静态资源
-    app.mount("/static", StaticFiles(directory=str(frontend_dir)), name="static")
+    # 挂载前端静态资源（禁用缓存：绿色版升级后必须立即生效，避免复用旧页面）
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(frontend_dir)),
+        name="static",
+    )
+
+
+# 禁止 HTML/资源被 Electron 磁盘缓存复用，否则升级绿色版后仍会显示旧界面
+_NO_CACHE_HEADERS = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
 
 
 @app.get("/")
@@ -169,7 +181,7 @@ async def index():
     """返回前端首页"""
     index_path = frontend_dir / "index.html"
     if index_path.exists():
-        return FileResponse(str(index_path))
+        return FileResponse(str(index_path), headers=_NO_CACHE_HEADERS)
     return {"message": "墨参 MoShen 后端已启动，前端文件未找到"}
 
 
@@ -180,7 +192,7 @@ async def catch_all(full_path: str):
         raise HTTPException(404, "API not found")
     index_path = frontend_dir / "index.html"
     if index_path.exists():
-        return FileResponse(str(index_path))
+        return FileResponse(str(index_path), headers=_NO_CACHE_HEADERS)
     raise HTTPException(404, "Not found")
 
 

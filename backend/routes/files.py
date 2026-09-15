@@ -44,6 +44,30 @@ async def list_files(project_id: str):
     return {"files": kb.list_uploaded_files(project_id)}
 
 
+@router.get("/{project_id}/content")
+async def read_file_content(project_id: str, filename: str, max_chars: int = 200000):
+    """读取已上传文件的正文（文件页预览用，超长时截断）"""
+    if not kb.get_project(project_id):
+        raise HTTPException(404, "项目不存在")
+
+    project_dir = kb.get_project_dir(project_id)
+    if not project_dir:
+        raise HTTPException(404, "项目不存在")
+
+    filepath = resolve_within(project_dir / "uploads", filename)
+    if not filepath.exists() or not filepath.is_file():
+        raise HTTPException(404, "文件不存在")
+
+    content = kb.read_file_summary(filepath) or ""
+    limit = max(1, max_chars)
+    return {
+        "filename": filename,
+        "content": content[:limit],
+        "char_count": len(content),
+        "truncated": len(content) > limit,
+    }
+
+
 class AnalyzeRequest(BaseModel):
     project_id: str
     filename: str

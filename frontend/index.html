@@ -629,9 +629,27 @@ body {
   padding: 16px; cursor: pointer; transition: all 0.15s ease;
   box-shadow: var(--shadow-card);
 }
-.file-card:hover { box-shadow: var(--shadow-card-hover); transform: translateY(-1px); }
-.file-card-name { font-size: 14px; font-weight: 500; margin-bottom: 5px; color: var(--color-text-primary); }
+.file-card:hover { box-shadow: var(--shadow-card-hover); transform: translateY(-1px); border-color: var(--color-primary); }
+.file-card-name { font-size: 14px; font-weight: 500; margin-bottom: 5px; color: var(--color-text-primary); word-break: break-all; }
 .file-card-meta { font-size: 12px; color: var(--color-text-weak); }
+.file-card-tools { display: flex; gap: 8px; margin-top: 12px; }
+.file-detail-modal { max-width: 880px; width: 880px; }
+.file-detail-meta { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; }
+.file-detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); }
+.file-detail-msg { margin: 12px 0 0; padding: 9px 13px; font-size: 12.5px; border-radius: var(--radius-md); background: var(--color-primary-light); border: 1px solid var(--border-accent); color: var(--color-text-body); }
+.file-detail-body { margin-top: 14px; max-height: 440px; overflow: auto; }
+.file-detail-pre { margin: 0; padding: 14px; font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); color: var(--color-text-body); background: var(--color-input-bg); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
+.file-detail-report { font-size: 13.5px; line-height: 1.8; color: var(--color-text-body); }
+.file-detail-report h1, .file-detail-report h2, .file-detail-report h3 { font-size: 14.5px; margin: 14px 0 8px; color: var(--color-text-primary); }
+.file-detail-report pre { background: var(--color-input-bg); padding: 10px; border-radius: var(--radius-md); overflow-x: auto; }
+.file-detail-report table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.file-detail-report th, .file-detail-report td { border: 1px solid var(--color-border); padding: 6px 9px; }
+.file-detail-empty { padding: 26px; text-align: center; font-size: 13px; color: var(--text-muted); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); }
+.dissect-item { padding: 14px; margin-bottom: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+.dissect-title { font-size: 13.5px; font-weight: 600; margin-bottom: 8px; color: var(--color-text-primary); }
+.dissect-row { font-size: 12.5px; line-height: 1.75; color: var(--color-text-body); margin-bottom: 4px; word-break: break-word; }
+.dissect-row b { color: var(--color-text-secondary); }
+.dissect-err { font-size: 12.5px; color: var(--color-warning); }
 
 /* ===== Outline Page ===== */
 .outline-container { display: flex; flex-direction: column; height: 100%; }
@@ -2092,14 +2110,94 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <span style="font-size:13px;color:var(--text-muted)">支持 txt / md / docx 格式</span>
             </div>
             <div class="files-grid">
-              <div v-for="f in fileList" :key="f.filename" class="file-card">
+              <div v-for="f in fileList" :key="f.filename" class="file-card" @click="openFileDetail(f)">
                 <div class="file-card-name">{{ f.filename }}</div>
-                <div class="file-card-meta">{{ f.size }} 字 · {{ f.modified }}</div>
-                <button class="btn-icon" style="margin-top:10px" @click="relAnalyzeUploadedFile(f.filename)">🌌 生成星图</button>
+                <div class="file-card-meta">{{ f.size }} 字节 · {{ f.modified }}</div>
+                <div class="file-card-tools">
+                  <button class="btn-icon" @click.stop="openFileDetail(f)">📄 打开</button>
+                  <button class="btn-icon" @click.stop="relAnalyzeUploadedFile(f.filename)">🌌 星图分析</button>
+                </div>
               </div>
             </div>
             <div v-if="fileList.length === 0" style="color:var(--text-muted);font-size:13px">暂无文件</div>
           </template>
+        </div>
+
+        <!-- ========== 文件详情 / 文件操作 ========== -->
+        <div class="modal-overlay" v-if="fileDetail" @click.self="closeFileDetail">
+          <div class="modal file-detail-modal">
+            <div class="modal-title">📄 {{ fileDetail.filename }}</div>
+            <div class="modal-body">
+              <div class="file-detail-meta">
+                {{ fileDetail.size }} 字节 · 上传于 {{ fileDetail.modified }}
+              </div>
+
+              <div class="file-detail-actions">
+                <button class="btn btn-secondary" style="font-size:13px" @click="loadFileContent">
+                  📄 打开文件
+                </button>
+                <button class="btn btn-secondary" style="font-size:13px" @click="relAnalyzeUploadedFile(fileDetail.filename)">
+                  🌌 星图分析
+                </button>
+                <select class="field-select" v-model="fileAnalyzeType" style="width:auto">
+                  <option value="full">全面诊断</option>
+                  <option value="style">文风诊断</option>
+                  <option value="logic">逻辑诊断</option>
+                  <option value="conflict">冲突值分布</option>
+                </select>
+                <button class="btn btn-secondary" style="font-size:13px" :disabled="fileAnalyzing" @click="runFileAnalyze">
+                  {{ fileAnalyzing ? '拆文中…' : '🔍 拆文分析' }}
+                </button>
+                <input class="field-input" type="number" min="0" max="500" v-model.number="fileDissectChapters"
+                       style="width:86px" title="蒸馏的最大章节数，0 = 全部">
+                <button class="btn btn-secondary" style="font-size:13px" :disabled="fileDissecting" @click="runFileDissect">
+                  {{ fileDissecting ? '蒸馏中…' : '📚 蒸馏学习' }}
+                </button>
+              </div>
+
+              <div v-if="fileDetailMsg" class="file-detail-msg">{{ fileDetailMsg }}</div>
+
+              <div class="file-detail-body">
+                <pre v-if="fileDetailMode === 'content'" class="file-detail-pre">{{ fileDetailContent || '（文件内容为空）' }}</pre>
+
+                <div v-else-if="fileDetailMode === 'report'" class="file-detail-report"
+                     v-html="renderMarkdown(fileDetailReport)"></div>
+
+                <template v-else-if="fileDetailMode === 'dissect'">
+                  <div v-if="fileDissectResults.length === 0" class="file-detail-empty">未解析到章节结构</div>
+                  <div v-for="(r, i) in fileDissectResults" :key="i" class="dissect-item">
+                    <div class="dissect-title">第 {{ r.chapter }} 章 {{ r.title }}</div>
+                    <div v-if="r.error" class="dissect-err">分析失败：{{ r.error }}</div>
+                    <template v-else>
+                      <div v-if="r.chapter_outline" class="dissect-row"><b>章纲：</b>{{ r.chapter_outline }}</div>
+                      <div v-if="r.story_line" class="dissect-row"><b>故事线：</b>{{ r.story_line }}</div>
+                      <div v-if="r.conflict_level" class="dissect-row"><b>冲突等级：</b>{{ r.conflict_level }}</div>
+                      <div v-if="r.rhythm" class="dissect-row">
+                        <b>节奏：</b>
+                        {{ [r.rhythm.core_content, r.rhythm.emotion_tone, r.rhythm.beat_detail].filter(Boolean).join(' / ') }}
+                      </div>
+                      <div v-if="r.highlights && r.highlights.length" class="dissect-row">
+                        <b>亮点：</b>{{ r.highlights.join('；') }}
+                      </div>
+                      <div v-if="r.satisfaction_points && r.satisfaction_points.length" class="dissect-row">
+                        <b>爽点：</b>{{ r.satisfaction_points.join('；') }}
+                      </div>
+                      <div v-if="r.foreshadowing && r.foreshadowing.length" class="dissect-row">
+                        <b>伏笔：</b>{{ r.foreshadowing.join('；') }}
+                      </div>
+                    </template>
+                  </div>
+                </template>
+
+                <div v-else class="file-detail-empty">
+                  点击「打开文件」预览正文，或选择上方操作（星图分析 / 拆文分析 / 蒸馏学习）。
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" @click="closeFileDetail">关闭</button>
+            </div>
+          </div>
         </div>
 
         <!-- ===== 写作页 ===== -->
@@ -3357,6 +3455,16 @@ createApp({
     // Files
     const fileList = ref([]);
     const fileInput = ref(null);
+    const fileDetail = ref(null);            // 当前打开的文件（null = 弹窗关闭）
+    const fileDetailMode = ref('');          // content | report | dissect
+    const fileDetailContent = ref('');
+    const fileDetailReport = ref('');
+    const fileDetailMsg = ref('');
+    const fileAnalyzeType = ref('full');     // style | logic | conflict | full
+    const fileAnalyzing = ref(false);
+    const fileDissectChapters = ref(20);
+    const fileDissecting = ref(false);
+    const fileDissectResults = ref([]);
 
     // Inspiration
     const inspirationPath = ref('');
@@ -5526,6 +5634,7 @@ createApp({
 
     function relAnalyzeUploadedFile(filename) {
       if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      closeFileDetail();
       relSource.value = 'uploads';
       relIncremental.value = true;
       relSubView.value = 'analyze';
@@ -6624,6 +6733,90 @@ createApp({
       e.target.value = '';
     }
 
+    // ===== 文件详情 / 文件操作 =====
+    function openFileDetail(f) {
+      fileDetail.value = f;
+      fileDetailMode.value = '';
+      fileDetailContent.value = '';
+      fileDetailReport.value = '';
+      fileDissectResults.value = [];
+      fileDetailMsg.value = '';
+    }
+
+    function closeFileDetail() {
+      fileDetail.value = null;
+      fileDetailMsg.value = '';
+    }
+
+    async function loadFileContent() {
+      if (!fileDetail.value) return;
+      fileDetailMsg.value = '正在读取文件…';
+      try {
+        const q = '?filename=' + encodeURIComponent(fileDetail.value.filename) + '&max_chars=200000';
+        const data = await apiJSON('/api/files/' + currentProjectId.value + '/content' + q);
+        fileDetailContent.value = data.content || '';
+        fileDetailMode.value = 'content';
+        fileDetailMsg.value = data.truncated
+          ? `文件共 ${data.char_count} 字，此处预览前 20 万字`
+          : `已读取 ${data.char_count} 字`;
+      } catch (e) {
+        fileDetailMsg.value = '读取失败：' + (e.message || e);
+      }
+    }
+
+    async function runFileAnalyze() {
+      if (!fileDetail.value || fileAnalyzing.value) return;
+      fileAnalyzing.value = true;
+      fileDetailMsg.value = '正在拆文分析…';
+      try {
+        const data = await apiJSON('/api/files/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: currentProjectId.value,
+            filename: fileDetail.value.filename,
+            analysis_type: fileAnalyzeType.value,
+          }),
+        });
+        fileDetailReport.value = data.report || '';
+        fileDetailMode.value = 'report';
+        fileDetailMsg.value = data.saved_as ? `分析完成，报告已保存为 ${data.saved_as}` : '分析完成';
+      } catch (e) {
+        fileDetailMsg.value = '拆文分析失败：' + (e.message || e);
+      } finally {
+        fileAnalyzing.value = false;
+      }
+    }
+
+    async function runFileDissect() {
+      if (!fileDetail.value || fileDissecting.value) return;
+      fileDissecting.value = true;
+      fileDetailMsg.value = '正在蒸馏学习，逐章提取事实卡…';
+      try {
+        const data = await apiJSON('/api/files/dissect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: currentProjectId.value,
+            filename: fileDetail.value.filename,
+            max_chapters: fileDissectChapters.value || 0,
+          }),
+        });
+        fileDissectResults.value = data.results || [];
+        if (data.error) {
+          fileDetailMsg.value = '蒸馏失败：' + data.error;
+        } else {
+          fileDetailMsg.value = `共识别 ${data.total_chapters} 章，已分析 ${data.analyzed} 章`
+            + (fileDissectResults.value.length < data.analyzed ? `（下方预览前 ${fileDissectResults.value.length} 章）` : '');
+        }
+        fileDetailMode.value = 'dissect';
+      } catch (e) {
+        fileDetailMsg.value = '蒸馏学习失败：' + (e.message || e);
+      } finally {
+        fileDissecting.value = false;
+      }
+    }
+
     // ===== Config =====
     async function openSettings() {
       try {
@@ -6918,6 +7111,9 @@ createApp({
       knowledgeList, currentKnowledge, knowledgeMode, searchQuery, searchType,
       analyzing, isDragging, editingKnowledge, knowledgeFileInput,
       fileList, fileInput,
+      fileDetail, fileDetailMode, fileDetailContent, fileDetailReport, fileDetailMsg,
+      fileAnalyzeType, fileAnalyzing, fileDissectChapters, fileDissecting, fileDissectResults,
+      openFileDetail, closeFileDetail, loadFileContent, runFileAnalyze, runFileDissect,
       showConfigModal, configData, writingPrefs, modelRoles, testingConfig,
       toastMsg, toastType,
       showToast, selectWorkspace, browseWorkspace, loadProjects, selectProject, createProject,
