@@ -858,9 +858,11 @@ body {
 }
 
 /* ===== Modals ===== */
+/* 弹层可滚动：内容高于视口时（如设置页）底部按钮仍能滚动到，而不是被裁掉 */
 .modal-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: var(--color-mask); display: flex; align-items: center; justify-content: center;
+  background: var(--color-mask); display: flex; align-items: flex-start; justify-content: center;
+  padding: 24px 16px; overflow-y: auto;
   z-index: 1000;
   animation: fadeIn 0.15s ease;
 }
@@ -869,6 +871,7 @@ body {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg); padding: 24px; min-width: 400px; max-width: 560px;
+  margin: auto;
   box-shadow: var(--shadow-toast);
   animation: modalIn 0.2s ease;
 }
@@ -3244,60 +3247,60 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <div v-else style="padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm);text-align:center;font-size:13px;color:var(--text-muted)">
           四角色配置已禁用，统一使用默认 API（不同职能仍使用不同提示词）
         </div>
-      </div>
 
-      <!-- 图像生成 API 配置 -->
-      <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-          <label style="font-weight:600;font-size:14px">🎨 图像生成 API（肖像绘制）</label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);margin-left:auto;cursor:pointer">
-            <input type="checkbox" v-model="configData.image_config.enabled"> 启用
-          </label>
+        <!-- 图像生成 API 配置 -->
+        <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+            <label style="font-weight:600;font-size:14px">🎨 图像生成 API（肖像绘制）</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-muted);margin-left:auto;cursor:pointer">
+              <input type="checkbox" v-model="configData.image_config.enabled"> 启用
+            </label>
+          </div>
+          <div v-if="configData.image_config.enabled" style="display:flex;flex-direction:column;gap:8px">
+            <div class="config-row">
+              <input v-model="configData.image_config.base_url" placeholder="Base URL (如 https://api.openai.com/v1)" style="flex:1">
+            </div>
+            <div class="config-row">
+              <input v-model="configData.image_config.api_key" type="password" placeholder="API Key" style="flex:1">
+            </div>
+            <div class="config-row">
+              <input v-model="configData.image_config.model" placeholder="模型名（可留空）" style="flex:1">
+              <input v-model="configData.image_config.size" placeholder="尺寸（1024x1024）" style="width:140px">
+              <select v-model="configData.image_config.quality" style="width:100px">
+                <option value="auto">自动</option>
+                <option value="standard">标准</option>
+                <option value="hd">高清</option>
+              </select>
+            </div>
+            <p style="font-size:11px;color:var(--text-muted);margin:0">用于星图功能的人物肖像绘制。需兼容 OpenAI /images/generations 接口。Base URL 可填到 <code>/v1</code>，也可直接填完整的 <code>/images/generations</code> 地址。</p>
+          </div>
         </div>
-        <div v-if="configData.image_config.enabled" style="display:flex;flex-direction:column;gap:8px">
-          <div class="config-row">
-            <input v-model="configData.image_config.base_url" placeholder="Base URL (如 https://api.openai.com/v1)" style="flex:1">
-          </div>
-          <div class="config-row">
-            <input v-model="configData.image_config.api_key" type="password" placeholder="API Key" style="flex:1">
-          </div>
-          <div class="config-row">
-            <input v-model="configData.image_config.model" placeholder="模型名（可留空）" style="flex:1">
-            <input v-model="configData.image_config.size" placeholder="尺寸（1024x1024）" style="width:140px">
-            <select v-model="configData.image_config.quality" style="width:100px">
-              <option value="auto">自动</option>
-              <option value="standard">标准</option>
-              <option value="hd">高清</option>
-            </select>
-          </div>
-          <p style="font-size:11px;color:var(--text-muted);margin:0">用于星图功能的人物肖像绘制。需兼容 OpenAI /images/generations 接口。Base URL 可填到 <code>/v1</code>，也可直接填完整的 <code>/images/generations</code> 地址。</p>
-        </div>
-      </div>
 
-      <!-- 连通性自检 -->
-      <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <label style="font-weight:600;font-size:14px">🔌 连通性自检</label>
-          <span style="font-size:12px;color:var(--text-muted);margin-left:auto">
-            {{ connTestedCount }} / {{ connRows.length }} 项已检测
-          </span>
-        </div>
-        <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">
-          逐个 ping 通「实际会被使用」的接口。生图用无效尺寸探测，不会真实出图、不产生费用。
-        </p>
-        <div class="conn-list">
-          <div v-for="row in connRows" :key="row.key" class="conn-row">
-            <span class="conn-dot" :class="connState(row.key)"></span>
-            <span class="conn-name">{{ row.name }}</span>
-            <span class="conn-model">{{ connResults[row.key] && connResults[row.key].model ? connResults[row.key].model : '—' }}</span>
-            <span class="conn-detail">{{ connDetail(row.key) }}</span>
-            <button class="btn-icon" :disabled="testingConfig" @click="runConnectivityCheck(row.target)">检测</button>
+        <!-- 连通性自检 -->
+        <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <label style="font-weight:600;font-size:14px">🔌 连通性自检</label>
+            <span style="font-size:12px;color:var(--text-muted);margin-left:auto">
+              {{ connTestedCount }} / {{ connRows.length }} 项已检测
+            </span>
           </div>
-          <div v-if="!configData.independent_keys" class="conn-row conn-hint">
-            <span class="conn-dot idle"></span>
-            <span class="conn-name">职能独立 Key 未启用</span>
-            <span class="conn-model">—</span>
-            <span class="conn-detail">各职能均沿用「通用（默认渠道）」</span>
+          <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">
+            逐个 ping 通「实际会被使用」的接口。生图用无效尺寸探测，不会真实出图、不产生费用。
+          </p>
+          <div class="conn-list">
+            <div v-for="row in connRows" :key="row.key" class="conn-row">
+              <span class="conn-dot" :class="connState(row.key)"></span>
+              <span class="conn-name">{{ row.name }}</span>
+              <span class="conn-model">{{ connResults[row.key] && connResults[row.key].model ? connResults[row.key].model : '—' }}</span>
+              <span class="conn-detail">{{ connDetail(row.key) }}</span>
+              <button class="btn-icon" :disabled="testingConfig" @click="runConnectivityCheck(row.target)">检测</button>
+            </div>
+            <div v-if="!configData.independent_keys" class="conn-row conn-hint">
+              <span class="conn-dot idle"></span>
+              <span class="conn-name">职能独立 Key 未启用</span>
+              <span class="conn-model">—</span>
+              <span class="conn-detail">各职能均沿用「通用（默认渠道）」</span>
+            </div>
           </div>
         </div>
       </div>
