@@ -1183,6 +1183,18 @@ body {
 .rel-menu-title { padding: 6px 12px 8px; margin-bottom: 4px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--color-border); word-break: break-all; }
 .rel-link-hint { margin: 10px 0 0; font-size: 12.5px; color: var(--color-primary); display: flex; align-items: center; gap: 8px; }
 .rel-manual-hint { margin: 0 0 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius-md); background: var(--color-primary-light); border: 1px solid var(--border-accent); color: var(--color-text-body); }
+.rel-upload-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--color-text-body); }
+.rel-upload-actions { display: flex; gap: 6px; }
+.rel-upload-list { max-height: 260px; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-input-bg); }
+.rel-upload-item { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--color-text-body); }
+.rel-upload-item:hover { background: var(--color-primary-light); }
+.rel-upload-name { flex: 1; word-break: break-all; }
+.rel-upload-meta { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; }
+.rel-upload-tag { padding: 1px 7px; font-size: 11px; border-radius: 9px; white-space: nowrap; color: var(--text-muted); border: 1px solid var(--color-border); }
+.rel-upload-tag.done { color: var(--color-success); border-color: var(--color-success); }
+.rel-upload-tag.changed { color: var(--color-warning); border-color: var(--color-warning); }
+.rel-upload-tag.new { color: var(--color-primary); border-color: var(--border-accent); }
+.rel-upload-empty { padding: 12px; font-size: 12.5px; color: var(--text-muted); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-md); }
 .rel-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .rel-form-grid .full { grid-column: 1 / -1; }
 .rel-form-field { display: flex; flex-direction: column; gap: 6px; }
@@ -1321,7 +1333,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.0</div>
+        <div class="sidebar-version">v0.7.1</div>
       </div>
     </aside>
 
@@ -2083,6 +2095,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <div v-for="f in fileList" :key="f.filename" class="file-card">
                 <div class="file-card-name">{{ f.filename }}</div>
                 <div class="file-card-meta">{{ f.size }} 字 · {{ f.modified }}</div>
+                <button class="btn-icon" style="margin-top:10px" @click="relAnalyzeUploadedFile(f.filename)">🌌 生成星图</button>
               </div>
             </div>
             <div v-if="fileList.length === 0" style="color:var(--text-muted);font-size:13px">暂无文件</div>
@@ -2374,10 +2387,44 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <div class="form-row">
                 <label>文本来源</label>
-                <select v-model="relSource">
+                <select v-model="relSource" @change="relOnSourceChange">
                   <option value="chapters">写作模块章节</option>
+                  <option value="uploads">已上传文件</option>
                   <option value="text">粘贴文本</option>
                 </select>
+              </div>
+              <div v-if="relSource === 'uploads'" class="form-row">
+                <div class="rel-upload-head">
+                  <span>选择文件（共 {{ relUploadFiles.length }} 个，已选 {{ relSelectedFiles.length }} 个）</span>
+                  <div class="rel-upload-actions">
+                    <button type="button" class="btn-icon" @click="relLoadUploads">🔄 刷新</button>
+                    <button type="button" class="btn-icon" @click="relToggleAllUploads">
+                      {{ relAllUploadsSelected ? '全不选' : '全选' }}
+                    </button>
+                  </div>
+                </div>
+                <div v-if="relLoadingUploads" class="rel-upload-empty">加载中…</div>
+                <template v-else>
+                  <div v-if="relUploadFiles.length === 0" class="rel-upload-empty">
+                    暂无已上传文件，请先到「文件」页面上传 txt / md / docx 文档。
+                  </div>
+                  <div v-else class="rel-upload-list">
+                    <label v-for="f in relUploadFiles" :key="f.filename" class="rel-upload-item">
+                      <input type="checkbox" :value="f.filename" v-model="relSelectedFiles">
+                      <span class="rel-upload-name">{{ f.filename }}</span>
+                      <span class="rel-upload-meta">{{ f.char_count }} 字</span>
+                      <span v-if="f.analyzed" class="rel-upload-tag done">已分析</span>
+                      <span v-else-if="f.changed" class="rel-upload-tag changed">内容有更新</span>
+                      <span v-else class="rel-upload-tag new">未分析</span>
+                    </label>
+                  </div>
+                </template>
+              </div>
+              <div v-if="relSource === 'uploads'" class="form-row">
+                <label class="rel-check">
+                  <input type="checkbox" v-model="relIncremental">
+                  增量模式：跳过已分析且内容未变化的文件
+                </label>
               </div>
               <div v-if="relSource === 'text'" class="form-row">
                 <label>小说文本</label>
@@ -3426,8 +3473,12 @@ createApp({
     // ===== Relations (星图) =====
     const relSubView = ref('analyze'); // analyze | graph | archive
     const relPreset = ref('standard'); // fast | standard | deep
-    const relSource = ref('chapters'); // chapters | text
+    const relSource = ref('chapters'); // chapters | text | uploads
     const relTextInput = ref('');
+    const relUploadFiles = ref([]);      // 已上传文件 + 星图分析状态
+    const relSelectedFiles = ref([]);    // 勾选的文件名
+    const relIncremental = ref(true);    // 增量：跳过已分析且未变化的文件
+    const relLoadingUploads = ref(false);
     const relAnalyzing = ref(false);
     const relProgressMsgs = ref([]);
     const relOverview = ref([]);
@@ -3533,6 +3584,9 @@ createApp({
       await loadSettings();
       await loadOutline();
       await loadFiles();
+      // 切换项目后重置星图已上传文件的选择
+      relUploadFiles.value = [];
+      relSelectedFiles.value = [];
       // 加载项目工作区路径
       await loadProjectWorkspace();
       // 加载对话列表并自动选中最近的对话
@@ -5437,6 +5491,48 @@ createApp({
       } catch (e) { /* ignore */ }
     }
 
+    // ===== 星图 · 已上传文件 =====
+    const relAllUploadsSelected = computed(() =>
+      relUploadFiles.value.length > 0 &&
+      relSelectedFiles.value.length === relUploadFiles.value.length);
+
+    async function relLoadUploads() {
+      if (!currentProjectId.value) { relUploadFiles.value = []; relSelectedFiles.value = []; return; }
+      relLoadingUploads.value = true;
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/uploads');
+        relUploadFiles.value = data.files || [];
+        const names = relUploadFiles.value.map(f => f.filename);
+        relSelectedFiles.value = relSelectedFiles.value.filter(n => names.indexOf(n) >= 0);
+        // 首次载入默认全选：配合「增量模式」只处理新增/变化的文件
+        if (relSelectedFiles.value.length === 0 && names.length) relSelectedFiles.value = names.slice();
+      } catch (e) {
+        relUploadFiles.value = [];
+        relSelectedFiles.value = [];
+      } finally {
+        relLoadingUploads.value = false;
+      }
+    }
+
+    function relToggleAllUploads() {
+      relSelectedFiles.value = relAllUploadsSelected.value
+        ? []
+        : relUploadFiles.value.map(f => f.filename);
+    }
+
+    function relOnSourceChange() {
+      if (relSource.value === 'uploads') relLoadUploads();
+    }
+
+    function relAnalyzeUploadedFile(filename) {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      relSource.value = 'uploads';
+      relIncremental.value = true;
+      relSubView.value = 'analyze';
+      activeTab.value = 'relations';
+      relLoadUploads().then(() => { relSelectedFiles.value = [filename]; });
+    }
+
     function relRequestAnalyze() {
       if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
       if (relManualTotal.value > 0) { relShowAnalyzeConfirm.value = true; return; }
@@ -5450,6 +5546,10 @@ createApp({
 
     async function relStartAnalyze(overwriteManual) {
       if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      if (relSource.value === 'uploads' && relSelectedFiles.value.length === 0) {
+        showToast('请至少勾选一个已上传文件（可点「全选」）', 'error');
+        return;
+      }
       relAnalyzing.value = true;
       relProgressMsgs.value = [];
       try {
@@ -5457,6 +5557,8 @@ createApp({
           preset: relPreset.value,
           source: relSource.value,
           text: relTextInput.value,
+          files: relSource.value === 'uploads' ? relSelectedFiles.value : [],
+          incremental: relIncremental.value,
           mode: overwriteManual ? 'overwrite_manual' : 'preserve',
         };
         await apiJSON('/api/relations/' + currentProjectId.value + '/analyze', {
@@ -5483,6 +5585,7 @@ createApp({
             relAnalyzing.value = false;
             relEventSource.close();
             relLoadOverview();
+            if (relSource.value === 'uploads') relLoadUploads();
           }
         } catch (_) { /* ignore */ }
       };
@@ -6761,7 +6864,10 @@ createApp({
       if (tab === 'files' && currentProjectId.value) loadFiles();
       if (tab === 'writing' && currentProjectId.value) loadWritingIndex();
       if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
-      if (tab === 'relations' && currentProjectId.value) relLoadOverview();
+      if (tab === 'relations' && currentProjectId.value) {
+        relLoadOverview();
+        if (relSource.value === 'uploads') relLoadUploads();
+      }
       // 离开星图页时释放 3D 场景与动画循环
       if (tab !== 'relations') {
         relDispose3D();
@@ -6779,6 +6885,7 @@ createApp({
         relDispose3D();
         relClearGraphUi();
       }
+      if (v === 'analyze' && relSource.value === 'uploads' && currentProjectId.value) relLoadUploads();
     });
 
     return {
@@ -6870,6 +6977,9 @@ createApp({
       relSelectedEntity, relEntityContent, RELATION_TYPES,
       relStartAnalyze, relRequestAnalyze, relConfirmAnalyze,
       relShowAnalyzeConfirm, relManualTotal,
+      relUploadFiles, relSelectedFiles, relIncremental, relLoadingUploads,
+      relAllUploadsSelected, relLoadUploads, relToggleAllUploads, relOnSourceChange,
+      relAnalyzeUploadedFile,
       relLoadGraphData, relLoadArchive, relLoadEntity, relSwitchGraphType,
       relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult,
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,

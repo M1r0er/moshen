@@ -5,6 +5,7 @@
 import asyncio
 import hashlib
 import json
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -36,8 +37,10 @@ class AnalyzeRequest(BaseModel):
     preset: str = "standard"  # fast | standard | deep
     full: bool = False  # AI 结果是否从零重新生成（手动内容仍受保护）
     mode: str = "preserve"  # preserve | overwrite_manual
-    source: str = "chapters"  # chapters | text
+    source: str = "chapters"  # chapters | text | uploads
     text: str = ""  # source=text 时的文本内容
+    files: list[str] = []  # source=uploads 时选中的文件名（空 = 全部）
+    incremental: bool = True  # source=uploads 时跳过已分析且内容未变的文件
 
 
 class AnalyzeTextRequest(BaseModel):
@@ -151,10 +154,74 @@ def _load_type_data(project_id: str, type_: str) -> dict:
     return data
 
 
+def _collect_upload_chapters(
+    project_dir: Path,
+    files: list[str],
+    incremental: bool,
+    read_files: dict,
+) -> tuple[list[dict], dict[str, str], list[str]]:
+    """收集 uploads 目录下已上传文档的文本，并按章节切分为分析块
+
+    Args:
+        project_dir: 项目根目录
+        files: 选中的文件名（空表示全部分析）
+        incremental: 是否跳过「已分析且内容未变化」的文件
+        read_files: 星图 state.json 中记录的「文件名 -> 内容哈希」映射
+
+    Returns:
+        (章节块列表, 本次分析成功的文件哈希映射, 跳过说明列表)
+    """
+    upload_dir = project_dir / "uploads"
+    if not upload_dir.exists():
+        return [], {}, ["项目 uploads 目录不存在，请先在「文件」页上传文档"]
+
+    wanted = {name for name in files if name}
+    targets = [
+        f for f in sorted(upload_dir.iterdir())
+        if f.is_file() and not f.name.startswith(".") and (not wanted or f.name in wanted)
+    ]
+    if not targets:
+        return [], {}, ["未找到匹配的上传文件"]
+
+    kb = get_project_kb_manager()
+    chapters: list[dict] = []
+    analyzed: dict[str, str] = {}
+    skipped: list[str] = []
+
+    for f in targets:
+        try:
+            content = kb.read_file_summary(f) or ""
+        except Exception as e:
+            skipped.append(f"{f.name}：读取失败（{e}）")
+            continue
+        if not content.strip():
+            skipped.append(f"{f.name}：内容为空")
+            continue
+
+        digest = hashlib.md5(content.encode("utf-8")).hexdigest()
+        if incremental and read_files.get(f.name) == digest:
+            skipped.append(f"{f.name}：已分析过且内容未变化")
+            continue
+
+        parts = split_by_chapters(content)
+        if parts and len(parts) >= 2:
+            for i, p in enumerate(parts):
+                name = p["heading"] or f"第{i + 1}部分"
+                chapters.append({"name": f"{f.name} · {name}", "content": p["text"]})
+        else:
+            chapters.append({"name": f.name, "content": content})
+        analyzed[f.name] = digest
+
+    return chapters, analyzed, skipped
+
+
 async def _run_analysis(project_id: str, req: AnalyzeRequest):
     """后台执行关系图谱分析"""
     project_dir = _get_project_dir(project_id)
     state = _load_state(project_dir)
+    read_files = state.setdefault("read_files", {})
+    analyzed_files: dict[str, str] = {}
+    skipped: list[str] = []
 
     # 收集待分析文本
     if req.source == "text" and req.text.strip():
@@ -167,6 +234,11 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
                 chapters.append({"name": name, "content": p["text"]})
         else:
             chapters.append({"name": "全文", "content": text})
+    elif req.source == "uploads":
+        # 从「文件」页已上传的文档提取文本
+        chapters, analyzed_files, skipped = _collect_upload_chapters(
+            project_dir, req.files, req.incremental, read_files,
+        )
     else:
         # 从写作模块获取章节
         all_chapters = get_project_kb_manager().get_all_chapters_text(project_id)
@@ -179,8 +251,17 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
             if c.get("content", "").strip()
         ]
 
+    for note in skipped[:8]:
+        _push_message(project_id, f"跳过：{note}")
+    if len(skipped) > 8:
+        _push_message(project_id, f"…另有 {len(skipped) - 8} 个文件被跳过")
+
     if not chapters:
-        _push_message(project_id, "没有可分析的文本内容")
+        if req.source == "uploads":
+            _push_message(project_id, "没有可分析的上传文件内容")
+        else:
+            _push_message(project_id, "没有可分析的文本内容")
+        _push_message(project_id, "分析完成")
         return
 
     overwrite_manual = req.mode == "overwrite_manual"
@@ -189,9 +270,13 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
     if req.full:
         _push_message(project_id, "全量重析：AI 不参考现有数据，只做新增（现有内容不会被改动）")
 
-    _push_message(project_id, f"开始分析，共 {len(chapters)} 个章节块")
+    if req.source == "uploads" and analyzed_files:
+        _push_message(project_id, f"已读取 {len(analyzed_files)} 个上传文件，共 {len(chapters)} 个文本块")
+    else:
+        _push_message(project_id, f"开始分析，共 {len(chapters)} 个章节块")
 
     total_protected = 0
+    failed = False
     # 逐类型分析
     for type_ in TYPES:
         analyzer = RelationGraphAnalyzer(type_=type_, protect=not overwrite_manual)
@@ -246,11 +331,21 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
             for note in (report.get("skipped") or [])[:5]:
                 _push_message(project_id, f"「{type_}」跳过：{note}")
         except Exception as e:
+            failed = True
             _push_message(project_id, f"「{type_}」分析失败：{str(e)}")
 
     if total_protected:
         _push_message(project_id, f"已保护 {total_protected} 项手动内容（未被 AI 覆盖）")
 
+    # 上传文件的增量状态：仅在全部类型分析成功时记录，失败则下次可重试
+    if req.source == "uploads" and analyzed_files:
+        if failed:
+            _push_message(project_id, "有分类分析失败，本次文件未记入已分析状态，可稍后重试")
+        else:
+            read_files.update(analyzed_files)
+            _push_message(project_id, f"已记录 {len(analyzed_files)} 个文件的已分析状态")
+
+    state["read_files"] = read_files
     _save_state(project_dir, state)
     _push_message(project_id, "分析完成")
 
@@ -301,6 +396,38 @@ async def analyze_text(project_id: str, req: AnalyzeTextRequest):
         project_id,
         AnalyzeRequest(preset=req.preset, source="text", text=req.text, mode=req.mode),
     )
+
+
+@router.get("/{project_id}/uploads")
+async def list_upload_files(project_id: str):
+    """列出项目已上传文件及其星图分析状态（供星图选择分析对象）"""
+    project_dir = _get_project_dir(project_id)
+    read_files = _load_state(project_dir).get("read_files") or {}
+
+    upload_dir = project_dir / "uploads"
+    files = []
+    if upload_dir.exists():
+        kb = get_project_kb_manager()
+        for f in sorted(upload_dir.iterdir()):
+            if not f.is_file() or f.name.startswith("."):
+                continue
+            stat = f.stat()
+            try:
+                content = kb.read_file_summary(f) or ""
+            except Exception:
+                content = ""
+            digest = hashlib.md5(content.encode("utf-8")).hexdigest()
+            recorded = read_files.get(f.name)
+            files.append({
+                "filename": f.name,
+                "ext": f.suffix.lower(),
+                "size": stat.st_size,
+                "char_count": len(content),
+                "modified": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(stat.st_mtime)),
+                "analyzed": recorded == digest,
+                "changed": bool(recorded) and recorded != digest,
+            })
+    return {"files": files}
 
 
 @router.get("/{project_id}/progress")
