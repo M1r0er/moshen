@@ -1172,7 +1172,7 @@ body {
 .rel-tabs button { padding: 8px 16px; border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text-body); border-radius: var(--radius-md); cursor: pointer; font-size: 14px; transition: all 0.15s ease; }
 .rel-tabs button:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
 .rel-tabs button.active { background: var(--color-primary); color: var(--color-text-inverse); border-color: var(--color-primary); }
-.rel-subview { flex: 1; overflow: auto; padding: 20px; }
+.rel-subview { flex: 1; overflow: auto; padding: 20px; scrollbar-gutter: stable; }
 .rel-analyze-form { max-width: 700px; display: flex; flex-direction: column; gap: 16px; }
 .rel-analyze-form .form-row { display: flex; flex-direction: column; gap: 6px; }
 .rel-analyze-form select, .rel-analyze-form textarea { padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: var(--color-input-bg); color: var(--color-text-body); font-size: 14px; }
@@ -1209,7 +1209,17 @@ body {
 .rel-portrait-error { font-size: 11.5px; line-height: 1.6; color: var(--color-warning); word-break: break-all; }
 .rel-portrait-errors { margin-top: 8px; padding: 10px 13px; font-size: 12px; line-height: 1.7; border-radius: var(--radius-md); background: var(--color-warning-bg); border: 1px solid var(--color-warning); color: var(--color-text-body); word-break: break-all; }
 .rel-avatar-hint { font-size: 12px; color: var(--text-muted); }
-.rel-archive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+/* 固定列数：列数不再随滚动条出现/消失而跳动（配合 .rel-subview 的 scrollbar-gutter） */
+.rel-archive-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 1180px) { .rel-archive-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 980px) { .rel-archive-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.rel-archive-more { margin-top: 12px; display: flex; justify-content: center; }
+/* 关系图自定义背景图弹窗 */
+.rel-bg-hint { margin: 0 0 10px; font-size: 13px; line-height: 1.7; color: var(--color-text-body); }
+.rel-bg-preview { height: 210px; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; background: #0F1720; display: flex; align-items: center; justify-content: center; }
+.rel-bg-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rel-bg-empty { font-size: 13px; color: var(--text-muted); }
+.rel-bg-state { margin-top: 10px; font-size: 12.5px; color: var(--text-muted); }
 .rel-archive-item { padding: 12px; background: var(--color-surface); border-radius: var(--radius-lg); cursor: pointer; border: 1px solid var(--color-border); transition: all 0.2s; box-shadow: var(--shadow-card); }
 .rel-archive-item:hover { border-color: var(--color-primary); box-shadow: var(--shadow-card-hover); }
 .rel-archive-item.active { border-color: var(--color-primary); background: var(--color-primary-light); }
@@ -1399,7 +1409,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.7</div>
+        <div class="sidebar-version">v0.7.8</div>
       </div>
     </aside>
 
@@ -2663,6 +2673,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <button @click="relMenuRefresh">🔄 刷新数据</button>
                   <button v-if="!relGraphEmpty" @click="relMenuRelayout">✨ 重新布局</button>
                   <button v-if="!relGraphEmpty" @click="relMenuResetView">🎯 重置视角</button>
+                  <button @click="relMenuBackground">🖼 更换背景图</button>
                   <button @click="relMenuGoAnalyze">🔍 去 AI 分析</button>
                 </template>
                 <template v-else>
@@ -2734,12 +2745,17 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               这里是星图的完整设定库：可手动新增条目、改分类、补档案、加关系。手动维护的内容在重新分析时不会被覆盖。
             </p>
             <div class="rel-archive-list">
-              <div v-for="e in relArchiveEntities" :key="e.id"
+              <div v-for="e in relArchiveVisible" :key="e.id"
                    :class="{ active: relSelectedEntity === e.id }"
                    class="rel-archive-item" @click="relLoadEntity(e.id, relArchiveType)">
                 <strong>{{ e.id }}<span v-if="relIsManual(e)" class="rel-badge-manual" style="margin-left:6px">手动</span></strong>
                 <span class="rel-archive-summary">{{ e.summary }}</span>
               </div>
+            </div>
+            <div v-if="relArchiveHasMore" class="rel-archive-more">
+              <button class="btn btn-secondary" style="font-size:13px" @click="relToggleArchiveMore">
+                {{ relArchiveExpanded ? '收起' : '显示更多（共 ' + relArchiveEntities.length + ' 条）' }}
+              </button>
             </div>
             <div v-if="!relArchiveEntities.length" class="empty-state">
               <div class="empty-state-icon">📖</div>
@@ -2918,6 +2934,46 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
       <div class="modal-footer">
         <button class="btn btn-secondary" @click="relConfirm = null">取消</button>
         <button class="btn btn-primary" @click="relDoConfirm">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 星图 · 更换关系图背景图 Modal ========== -->
+  <div class="modal-overlay" v-if="relBgModal" @click.self="relBgModal = false">
+    <div class="modal" style="max-width:520px">
+      <div class="modal-title">更换关系图背景图</div>
+      <div class="modal-body">
+        <p class="rel-bg-hint">
+          当前页：<strong>{{ relCurrentType }}</strong>。可只应用到本页，也可应用到全部页面
+          （角色、世界、势力、地点、事件、道具一起同步）。
+        </p>
+        <div class="rel-bg-preview">
+          <img v-if="relBgPickUrl" :src="relBgPickUrl" alt="待应用的背景图">
+          <img v-else-if="relBgTypeUrl" :src="relBgTypeUrl" alt="本页背景图">
+          <img v-else-if="relBgAllUrl" :src="relBgAllUrl" alt="全部页面背景图">
+          <div v-else class="rel-bg-empty">当前使用默认深色背景</div>
+        </div>
+        <div class="rel-bg-state">
+          <template v-if="relBgPickUrl">待应用：{{ relBgPickName }}（点下方按钮选择生效范围）</template>
+          <template v-else-if="relBgScope === 'type'">本页已使用自定义背景图</template>
+          <template v-else-if="relBgScope === 'all'">本页跟随「全部页面」的背景图</template>
+          <template v-else-if="relBgTypeIsNone">本页已设为不使用背景图</template>
+          <template v-else>本页未设置背景图</template>
+        </div>
+        <input type="file" id="rel-bg-file-input" style="display:none"
+               accept="image/png,image/jpeg,image/webp,image/gif" @change="relBgOnFile">
+      </div>
+      <div class="modal-footer" style="flex-wrap:wrap;gap:10px;justify-content:flex-start">
+        <button class="btn btn-secondary" :disabled="relBgBusy" @click="relBgOpenPicker">🖼 选择图片…</button>
+        <button class="btn btn-primary" :disabled="relBgBusy || !relBgPickUrl" @click="relBgUpload('current')">
+          应用到本页
+        </button>
+        <button class="btn btn-secondary" :disabled="relBgBusy || !relBgPickUrl" @click="relBgUpload('all')">
+          应用到全部
+        </button>
+        <button class="btn btn-secondary" :disabled="relBgBusy" @click="relBgClear('current')">本页恢复默认</button>
+        <button class="btn btn-secondary" :disabled="relBgBusy" @click="relBgClear('all')">全部恢复默认</button>
+        <button class="btn btn-secondary" style="margin-left:auto" @click="relBgModal = false">关闭</button>
       </div>
     </div>
   </div>
@@ -3743,6 +3799,16 @@ createApp({
     const relGraphData = ref({ entities: [], relations: [], timeline: [] });
     const relArchiveType = ref('角色');
     const relArchiveEntities = ref([]);
+    // 档案库默认只展示两行（列数 × 2），点「显示更多」再展开全部
+    const relArchiveExpanded = ref(false);
+    const relArchiveCols = ref(5);
+    const relArchiveRowSize = computed(() => relArchiveCols.value * 2);
+    const relArchiveVisible = computed(() => {
+      const list = relArchiveEntities.value || [];
+      return relArchiveExpanded.value ? list : list.slice(0, relArchiveRowSize.value);
+    });
+    const relArchiveHasMore = computed(() =>
+      relArchiveExpanded.value || (relArchiveEntities.value || []).length > relArchiveRowSize.value);
     const relSelectedEntity = ref(null);
     const relEntityContent = ref('');
     const relPortraitUrl = ref('');
@@ -5899,6 +5965,7 @@ createApp({
         // 角色分类：先拿到「哪些角色已有肖像图」，节点才会画成头像
         if (type === '角色') await relLoadPortraitNames();
         else relPortraitNames.value = [];
+        await relLoadBackground();   // 读取该页的自定义背景图（本页优先，其次全部页面）
         // 触发 3D 图重绘
         setTimeout(() => relRender3D(), 50);
       } catch (e) { showToast('加载关系图失败', 'error'); }
@@ -5909,6 +5976,8 @@ createApp({
       try {
         const data = await apiJSON('/api/relations/' + currentProjectId.value + '/data?type=' + encodeURIComponent(type));
         relArchiveEntities.value = (data.data && data.data.entities) || [];
+        relArchiveExpanded.value = false;                 // 换分类后回到「两行」的收起状态
+        nextTick(relMeasureArchiveCols);                  // 量一次实际列数，两行 = 列数 × 2
         relSelectedEntity.value = null;
         relEntityData.value = null;
         relEntityOwnerType.value = '';
@@ -5916,6 +5985,22 @@ createApp({
         relPortraitUrl.value = '';
         relPortraitError.value = '';
       } catch (e) { showToast('加载档案失败', 'error'); }
+    }
+
+    // 档案库「显示更多」：展开/收起全部条目
+    function relToggleArchiveMore() {
+      relArchiveExpanded.value = !relArchiveExpanded.value;
+      if (relArchiveExpanded.value) nextTick(relMeasureArchiveCols);
+    }
+
+    // 读取档案库网格的实际列数（媒体查询 / 窗口宽度变化后都能拿到正确值）
+    function relMeasureArchiveCols() {
+      const el = document.querySelector('.rel-archive-list');
+      if (!el) return;
+      const tracks = getComputedStyle(el).gridTemplateColumns;
+      if (!tracks || tracks === 'none') return;
+      const n = tracks.split(' ').filter(Boolean).length;
+      if (n > 0 && n !== relArchiveCols.value) relArchiveCols.value = n;
     }
 
     async function relLoadEntity(name, type) {
@@ -6511,6 +6596,8 @@ createApp({
     // 悬停：卡片跟随光标纵向移动，左右按条目在关系图中的位置决定
     function relShowHoverCard(name, event) {
       if (!name) { relRestoreCard(); return; }
+      // 已选中的条目始终保持钉住态：选中之后卡片就不再跟随光标移动
+      if (relSelectedEntity.value === name) { relShowPinnedCard(); return; }
       const pos = relNodeClientXY(name);
       const anchorX = event ? event.clientX : (pos ? pos.x : 0);
       const anchorY = event ? event.clientY : (pos ? pos.y : 0);
@@ -6567,6 +6654,126 @@ createApp({
       relHoverName = null;
       relHideHoverCard();
       relApplyHighlight(null);
+    }
+
+    // ===== 关系图自定义背景图 =====
+    const relBgModal = ref(false);
+    const relBgBusy = ref(false);
+    const relBgScope = ref('none');      // none | type | all：当前页背景的生效来源
+    const relBgTypeUrl = ref('');        // 本页单独设置的背景图
+    const relBgAllUrl = ref('');         // 「全部页面」的背景图
+    const relBgTypeIsNone = ref(false);  // 本页被显式设为不使用背景图
+    const relBgPickUrl = ref('');        // 已选择、待应用的本地预览地址
+    const relBgPickName = ref('');
+    let relBgPickFile = null;            // 待上传的文件
+    let relBgResolvedUrl = '';           // 当前页最终生效的背景图 URL
+    let relBgTexture = null;             // 场景背景贴图（切换时需要释放）
+    let relBgToken = 0;                  // 异步加载令牌，避免过期回调覆盖新背景
+
+    // 把背景图应用到 3D 场景（空 URL = 内置深色背景）
+    function relApplySceneBackground(url) {
+      if (!relScene) return;
+      const token = ++relBgToken;
+      if (relBgTexture) { relBgTexture.dispose(); relBgTexture = null; }
+      if (!url) { relScene.background = new THREE.Color(0x0F1720); return; }
+      const loader = new THREE.TextureLoader();
+      loader.load(url, (tex) => {
+        if (!relScene || token !== relBgToken) { tex.dispose(); return; }
+        tex.colorSpace = THREE.SRGBColorSpace;
+        relBgTexture = tex;
+        relScene.background = tex;
+      }, undefined, () => {
+        if (relScene && token === relBgToken) relScene.background = new THREE.Color(0x0F1720);
+      });
+    }
+
+    // 读取当前分类的背景图配置并应用（本页优先，其次「全部页面」）
+    async function relLoadBackground() {
+      if (!currentProjectId.value) { relBgResolvedUrl = ''; return; }
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value
+          + '/background?type=' + encodeURIComponent(relCurrentType.value));
+        const v = '?v=' + Date.now();
+        relBgScope.value = data.scope || 'none';
+        relBgTypeUrl.value = data.type_url ? data.type_url + v : '';
+        relBgAllUrl.value = data.all_url ? data.all_url + v : '';
+        relBgTypeIsNone.value = !!data.type_is_none;
+        relBgResolvedUrl = data.url ? data.url + v : '';
+        relApplySceneBackground(relBgResolvedUrl);
+      } catch (e) {
+        relBgResolvedUrl = '';
+      }
+    }
+
+    function relMenuBackground() {
+      relNodeMenu.value = null;
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      if (relBgPickUrl.value) { URL.revokeObjectURL(relBgPickUrl.value); relBgPickUrl.value = ''; }
+      relBgPickName.value = '';
+      relBgPickFile = null;
+      relBgBusy.value = false;
+      relBgModal.value = true;
+      relLoadBackground();
+    }
+
+    function relBgOpenPicker() {
+      const el = document.getElementById('rel-bg-file-input');
+      if (el) el.click();
+    }
+
+    function relBgOnFile(e) {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';   // 允许重复选择同一张图
+      if (!file) return;
+      if (!/^image\/(png|jpeg|webp|gif)$/.test(file.type)) {
+        showToast('仅支持 png / jpg / webp / gif 图片', 'error');
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) { showToast('图片过大（上限 20MB）', 'error'); return; }
+      if (relBgPickUrl.value) URL.revokeObjectURL(relBgPickUrl.value);
+      relBgPickFile = file;
+      relBgPickName.value = file.name;
+      relBgPickUrl.value = URL.createObjectURL(file);
+    }
+
+    async function relBgUpload(scope) {
+      if (!relBgPickFile) { showToast('请先选择一张图片', 'error'); return; }
+      relBgBusy.value = true;
+      try {
+        const form = new FormData();
+        form.append('file', relBgPickFile);
+        form.append('scope', scope === 'all' ? 'all' : 'current');
+        form.append('type', relCurrentType.value);
+        await apiJSON('/api/relations/' + currentProjectId.value + '/background', {
+          method: 'POST', body: form,
+        });
+        await relLoadBackground();
+        relBgModal.value = false;
+        if (relBgPickUrl.value) { URL.revokeObjectURL(relBgPickUrl.value); relBgPickUrl.value = ''; }
+        relBgPickName.value = '';
+        relBgPickFile = null;
+        showToast(scope === 'all' ? '背景图已应用到全部页面' : '背景图已应用到本页', 'success');
+      } catch (e) {
+        showToast('设置背景图失败: ' + (e.message || e), 'error');
+      } finally {
+        relBgBusy.value = false;
+      }
+    }
+
+    async function relBgClear(scope) {
+      if (!currentProjectId.value) return;
+      relBgBusy.value = true;
+      try {
+        await apiJSON('/api/relations/' + currentProjectId.value + '/background?scope='
+          + (scope === 'all' ? 'all' : 'current')
+          + '&type=' + encodeURIComponent(relCurrentType.value), { method: 'DELETE' });
+        await relLoadBackground();
+        showToast(scope === 'all' ? '已恢复全部默认背景' : '本页已恢复默认背景', 'success');
+      } catch (e) {
+        showToast('恢复默认失败: ' + (e.message || e), 'error');
+      } finally {
+        relBgBusy.value = false;
+      }
     }
 
     async function relLoadPortraitNames() {
@@ -6812,6 +7019,9 @@ createApp({
       relDragNode = null;
       relDragMoved = false;
       relPickedName = null;
+      // 场景背景贴图不在 traverse 里，需要单独释放；同时让在途的异步加载失效
+      relBgToken++;
+      if (relBgTexture) { relBgTexture.dispose(); relBgTexture = null; }
     }
 
     // 全局鼠标监听只绑定一次，避免每次渲染重复注册导致监听器泄漏
@@ -7337,6 +7547,7 @@ createApp({
       relHoverName = null;
       relApplyHighlight(relSelectedEntity.value || null);
       relRestoreCard();   // 重绘后若仍有选中条目，把预览卡重新钉回去
+      relApplySceneBackground(relBgResolvedUrl);   // 应用该页的自定义背景图（无则用深色背景）
 
       relRenderer.domElement.addEventListener('click', relOnCanvasClick);
       relSyncLinkHighlight();
@@ -7877,6 +8088,11 @@ createApp({
       if (v === 'analyze' && relSource.value === 'uploads' && currentProjectId.value) relLoadUploads();
     });
 
+    // 窗口尺寸变化后重新量档案库列数（两行 = 列数 × 2，窗口变窄列数会变）
+    window.addEventListener('resize', () => {
+      if (relSubView.value === 'archive') relMeasureArchiveCols();
+    });
+
     return {
       apiStatus, apiStatusClass, apiStatusLabel, workspacePath, workspaceInput, showWorkspaceModal,
       locale, writingLanguage, t, setUiLocale, setWritingLanguage, loadI18nPrefs,
@@ -7967,6 +8183,7 @@ createApp({
       // Relations (星图)
       relSubView, relPreset, relSource, relTextInput, relAnalyzing, relProgressMsgs,
       relOverview, relCurrentType, relGraphData, relArchiveType, relArchiveEntities,
+      relArchiveExpanded, relArchiveVisible, relArchiveHasMore, relToggleArchiveMore,
       relSelectedEntity, relEntityContent, RELATION_TYPES,
       relStartAnalyze, relRequestAnalyze, relConfirmAnalyze,
       relShowAnalyzeConfirm, relManualTotal,
@@ -7990,6 +8207,10 @@ createApp({
       relToggleLinkMode, relCancelLink, relOnCanvasContextMenu,
       relMenuCreateEntity, relMenuRefresh, relMenuGoAnalyze,
       relMenuRelayout, relMenuResetView,
+      // 星图 · 自定义背景图
+      relMenuBackground, relBgModal, relBgBusy, relBgScope, relBgTypeUrl, relBgAllUrl,
+      relBgTypeIsNone, relBgPickUrl, relBgPickName, relBgOpenPicker, relBgOnFile,
+      relBgUpload, relBgClear,
       relMenuCreateRelation, relMenuEditRelation, relMenuDeleteRelation,
       relMenuEditEntity, relMenuViewEntity, relMenuDeleteEntity, relMenuPortrait,
       // Inspiration

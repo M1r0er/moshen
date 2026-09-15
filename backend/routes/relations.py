@@ -7,8 +7,9 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -1053,6 +1054,167 @@ async def update_relation(
     data = update_json(path, mutate, default=_empty_type(type))
     persist_type_data(project_dir, type, data)
     return {"success": True, "rid": rid}
+
+
+# ===== 关系图自定义背景图 =====
+# 配置存在 星图/关系/背景.json：
+#   {"all": "bg_xxx.png", "角色": "bg_yyy.png", "世界": ""}
+# - 某分类有键 → 用该分类的图（空字符串表示「本页显式不用图」）
+# - 某分类无键 → 回退到 all
+# - 两者都没有 → 使用内置深色背景
+
+BG_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+BG_MAX_BYTES = 20 * 1024 * 1024   # 单张背景图上限
+BG_MIME = {
+    ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".webp": "image/webp", ".gif": "image/gif",
+}
+
+
+def _bg_dir(project_dir: Path) -> Path:
+    return project_dir / "星图" / "关系" / "背景"
+
+
+def _bg_config_path(project_dir: Path) -> Path:
+    return project_dir / "星图" / "关系" / "背景.json"
+
+
+def _read_bg_config(project_dir: Path) -> dict:
+    path = _bg_config_path(project_dir)
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_bg_config(project_dir: Path, cfg: dict) -> None:
+    path = _bg_config_path(project_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(path, cfg)
+
+
+def _bg_url(project_id: str, name: str) -> str:
+    return f"/api/relations/{project_id}/background/file/{name}" if name else ""
+
+
+def _bg_file_exists(project_dir: Path, name: str) -> bool:
+    return bool(name) and (_bg_dir(project_dir) / name).is_file()
+
+
+def _prune_bg_files(project_dir: Path, cfg: dict) -> None:
+    """清理已不再被任何分类引用的背景图文件"""
+    bg_dir = _bg_dir(project_dir)
+    if not bg_dir.exists():
+        return
+    used = {str(v) for v in cfg.values() if v}
+    for f in bg_dir.iterdir():
+        if f.is_file() and f.name not in used:
+            try:
+                f.unlink()
+            except OSError:
+                pass
+
+
+@router.get("/{project_id}/background")
+async def get_background(project_id: str, type: str = "角色"):
+    """读取关系图背景图配置（本页优先，其次「全部」）"""
+    project_dir = _get_project_dir(project_id)
+    _check_type(type)
+    cfg = _read_bg_config(project_dir)
+
+    type_name = str(cfg.get(type) or "") if type in cfg else ""
+    all_name = str(cfg.get("all") or "")
+    if type_name and not _bg_file_exists(project_dir, type_name):
+        type_name = ""
+    if all_name and not _bg_file_exists(project_dir, all_name):
+        all_name = ""
+
+    name = type_name if type in cfg else all_name
+    if name and not _bg_file_exists(project_dir, name):
+        name = ""
+    scope = "none"
+    if name:
+        scope = "type" if name == type_name else "all"
+    return {
+        "url": _bg_url(project_id, name),
+        "scope": scope,
+        "type_url": _bg_url(project_id, type_name),
+        "type_is_none": type in cfg and not type_name,   # 本页被显式设为「不用图」
+        "all_url": _bg_url(project_id, all_name),
+    }
+
+
+@router.get("/{project_id}/background/file/{name}")
+async def get_background_file(project_id: str, name: str):
+    """读取背景图文件"""
+    project_dir = _get_project_dir(project_id)
+    safe = name.replace("/", "").replace("\\", "").replace("..", "")
+    path = _bg_dir(project_dir) / safe
+    if not path.is_file():
+        raise HTTPException(404, "背景图不存在")
+    return FileResponse(str(path), media_type=BG_MIME.get(path.suffix.lower()))
+
+
+@router.post("/{project_id}/background")
+async def set_background(
+    project_id: str,
+    file: UploadFile = File(...),
+    scope: str = Form("current"),
+    type: str = Form("角色"),
+):
+    """上传并设置关系图背景图：scope=current 只应用本页，scope=all 应用到全部页面"""
+    project_dir = _get_project_dir(project_id)
+    if scope not in ("current", "all"):
+        raise HTTPException(400, "scope 只能是 current 或 all")
+    if scope == "current":
+        _check_type(type)
+
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in BG_EXTS:
+        raise HTTPException(400, "仅支持 png / jpg / jpeg / webp / gif 图片")
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(400, "图片内容为空")
+    if len(raw) > BG_MAX_BYTES:
+        raise HTTPException(400, f"图片过大（上限 {BG_MAX_BYTES // (1024 * 1024)}MB）")
+
+    bg_dir = _bg_dir(project_dir)
+    bg_dir.mkdir(parents=True, exist_ok=True)
+    name = f"bg_{int(time.time())}_{uuid4().hex[:8]}{ext}"
+    (bg_dir / name).write_bytes(raw)
+
+    if scope == "all":
+        # 应用到全部：清掉各页单独设置（含「本页不用图」），统一使用这一张
+        cfg: dict = {"all": name}
+    else:
+        cfg = _read_bg_config(project_dir)
+        cfg[type] = name
+    _write_bg_config(project_dir, cfg)
+    _prune_bg_files(project_dir, cfg)
+    return {"url": _bg_url(project_id, name), "scope": "type" if scope == "current" else "all"}
+
+
+@router.delete("/{project_id}/background")
+async def clear_background(project_id: str, scope: str = "current", type: str = "角色"):
+    """恢复默认背景：scope=current 本页不再显示背景图，scope=all 清空全部设置"""
+    project_dir = _get_project_dir(project_id)
+    if scope not in ("current", "all"):
+        raise HTTPException(400, "scope 只能是 current 或 all")
+    if scope == "current":
+        _check_type(type)
+
+    cfg = _read_bg_config(project_dir)
+    if scope == "all":
+        cfg = {}
+    else:
+        # 空值 = 本页显式不使用背景图（即使「全部」设置了也覆盖）
+        cfg[type] = ""
+    _write_bg_config(project_dir, cfg)
+    _prune_bg_files(project_dir, cfg)
+    return {"success": True}
 
 
 @router.delete("/{project_id}/relation/{rid}")
