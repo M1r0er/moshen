@@ -4,10 +4,10 @@
 """
 from analysis.base import BaseTextAnalyzer
 from analysis.foreshadowing_analyzer import ForeshadowingAnalyzer
-from analysis.relation_graph_analyzer import RelationGraphAnalyzer
+from analysis.relation_graph_analyzer import RelationGraphMultiAnalyzer
 
 __all__ = [
     "BaseTextAnalyzer",
     "ForeshadowingAnalyzer",
-    "RelationGraphAnalyzer",
+    "RelationGraphMultiAnalyzer",
 ]

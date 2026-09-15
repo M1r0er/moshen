@@ -48,6 +48,9 @@ ENTITY_FIELDS = [
 # 纯用户所有字段：AI 永不写入、永不覆盖（档案正文由用户维护）
 USER_OWNED_FIELDS = ["profile"]
 
+# 现有数据过大时，回传给模型的最小字段集（完整字段仍保存在本地）
+CONDENSED_ENTITY_FIELDS = ["id", "aliases", "summary", "identity"]
+
 
 def new_rid() -> str:
     """生成关系条目的稳定唯一标识"""
@@ -471,89 +474,182 @@ def strip_manual_protection(previous: Any) -> Any:
     return out
 
 
-def master_prompt(type_: str, previous: Any, chapters_text: str) -> list[dict]:
-    """构建关系图谱分析的 prompt（更新模式：只输出变更补丁）"""
-    if previous:
-        prev = (
-            f'以下是当前"{type_}"设定库的现状（JSON）：\n'
-            f'{json.dumps(previous, ensure_ascii=False, indent=2)}\n\n'
+def condense_previous(prev_map: dict) -> dict:
+    """现有数据过大时的精简表示
+
+    只保留"去重重名 / 判断变更 / 关系端点"所需的最小字段。完整档案仍保存在本地，
+    只是不再逐批回传，避免现有数据随剧情推进无限膨胀、每次请求都超出模型上下文。
+    """
+    out: dict[str, dict] = {}
+    for t in TYPES:
+        d = prev_map.get(t) or {}
+        entities = []
+        for e in d.get("entities", []) or []:
+            item = {k: e.get(k) for k in CONDENSED_ENTITY_FIELDS if e.get(k) not in (None, "", [])}
+            if item.get("id"):
+                entities.append(item)
+        relations = [
+            {"from": r.get("from"), "to": r.get("to"), "type": r.get("type", "")}
+            for r in d.get("relations", []) or [] if r.get("from") and r.get("to")
+        ]
+        timeline = [
+            {"time": x.get("time", ""), "event": x.get("event", "")}
+            for x in d.get("timeline", []) or [] if x.get("event")
+        ]
+        out[t] = {"type": t, "entities": entities, "relations": relations, "timeline": timeline}
+    return out
+
+
+def multi_type_prompt(
+    previous_by_type: dict | None,
+    chapters_text: str,
+    blind: bool = False,
+    condensed: bool = False,
+) -> list[dict]:
+    """构建「全类型单轮」分析 prompt：一次调用同时产出 6 个分类的变更补丁
+
+    旧的实现是"每批 × 每类型"各跑一次（200 章约 71 批 × 6 类 = 426 次调用），
+    同一段正文被重复送进模型 6 遍。改为单轮后批次数不变、调用次数降为 1/6，
+    正文 token 总量也随之降到 1/6。
+
+    condensed=True 表示 previous_by_type 已是精简形式（见 condense_previous），
+    需要在提示词中说明"未列出的字段已存在，不要回传"。
+    """
+    previous_by_type = previous_by_type or {}
+
+    # ---- 现有数据：只列出确实有内容的分区，避免给新项目塞 6 份空数据 ----
+    if blind:
+        prev_block = (
+            "本次不提供现有数据，请只提交新增内容（entities_add / relations_add / timeline_add），"
+            "不要输出任何 update / remove。\n\n"
         )
     else:
-        prev = "本次不提供现有数据，请只提交新增内容。\n\n"
+        sections = []
+        for t in TYPES:
+            d = previous_by_type.get(t)
+            if not d or not (d.get("entities") or d.get("relations") or d.get("timeline")):
+                continue
+            sections.append(f'#### 现有「{t}」数据\n{json.dumps(d, ensure_ascii=False)}')
+        prev_block = (
+            "以下是各分类设定库的现状（JSON）：\n\n" + "\n\n".join(sections) + "\n\n"
+            if sections
+            else "目前 6 个分类都还没有任何数据，本次全部按新增处理。\n\n"
+        )
 
-    # 明确告知模型哪些条目被用户手动维护（禁止改动）
-    locked_rule = ""
-    if isinstance(previous, dict):
+    # ---- 用户手动维护的内容（禁止改动）----
+    manual_notes: list[str] = []
+    for t in TYPES:
+        d = previous_by_type.get(t) or {}
         locked_e = [
-            str(e.get("id")) for e in previous.get("entities", []) or [] if has_manual_content(e)
+            str(e.get("id")) for e in d.get("entities", []) or [] if has_manual_content(e)
         ]
         locked_r = [
             f'{r.get("from")}→{r.get("to")}'
-            for r in previous.get("relations", []) or [] if has_manual_content(r)
+            for r in d.get("relations", []) or [] if has_manual_content(r)
         ]
-        if locked_e or locked_r:
-            notes = []
-            if locked_e:
-                notes.append("用户手动维护的条目：" + "、".join(locked_e))
-            if locked_r:
-                notes.append("用户手动维护的关系：" + "、".join(locked_r))
-            locked_rule = (
-                "10. 以下内容由作者本人手动维护，属最高优先级：\n   - "
-                + "\n   - ".join(notes)
-                + "\n   **禁止**把它们放进 entities_update / entities_remove / "
-                "relations_update / relations_remove；只有当它们尚未存在（即不在现有数据里）时，"
-                "才可以用 entities_add / relations_add 补充。"
-            )
+        if locked_e:
+            manual_notes.append(f"「{t}」手动条目：" + "、".join(locked_e))
+        if locked_r:
+            manual_notes.append(f"「{t}」手动关系：" + "、".join(locked_r))
 
-    type_rule = TYPE_RULES.get(type_, f'只收录与「{type_}」相关的条目。')
-    if locked_rule:
-        type_rule = type_rule + "\n" + locked_rule
+    locked_rule = ""
+    if manual_notes and not blind:
+        locked_rule = (
+            "\n12. 以下内容由作者本人手动维护，属最高优先级：\n   - "
+            + "\n   - ".join(manual_notes)
+            + "\n   **禁止**把它们放进 entities_update / entities_remove / "
+            "relations_update / relations_remove；只有当它们尚未存在（即不在现有数据里）时，"
+            "才可以用 entities_add / relations_add 补充。"
+        )
 
-    system = f"""你是资深小说文本分析引擎，负责长期维护一份「{type_}」设定库。
+    type_blocks = "\n\n".join(f"【{t}】\n{TYPE_RULES[t]}" for t in TYPES)
+
+    condensed_note = ""
+    if condensed:
+        condensed_note = (
+            "\n13. 本次「现有数据」是**精简形式**：只列出条目名/别名/摘要/身份与关系端点。"
+            "未列出的字段（外貌、性格、档案正文等）已经存在且不会丢失，"
+            "除非本批文本明确提出改动，否则不要把这类字段重新放进 entities_update 的 set 里。"
+        )
+
+    system = f"""你是资深小说文本分析引擎，同时维护 6 份题材设定库：角色、世界、势力、地点、事件、道具。
 你只输出合法 JSON，不输出任何其他文字、解释或 Markdown 围栏。
 
-你的任务**不是重写整份设定库**，而是只提交一份「变更补丁」：
-把从新章节里读到的**新增、修订、作废**，以最小改动的方式写出来。
+你的任务**不是重写设定库**，而是只提交一份「变更补丁」：
+把从新章节里读到的**新增、修订、作废**，按分类以最小改动的方式写出来。
 未被你提及的内容会被原样保留，因此不必、也禁止为了"完整"而回传旧内容。
 
-输出结构（所有键都必须出现，没有内容的写空数组 []）：
+输出结构（6 个分类键都必须出现；每个分类内部 7 个补丁键都必须出现，没有内容的写空数组 []）：
 {{
-  "entities_add": [{{"id": "条目名", "aliases": ["别名"], "summary": "一句话概括", "weight": 1, "category": "本质归属", "gender": "", "age": "", "identity": "", "appearance": "", "personality": "", "reason": "新增依据"}}],
-  "entities_update": [{{"id": "已有条目名", "set": {{"identity": "新的身份"}}, "aliases_add": ["新别名"], "reason": "依据（章节/情节）"}}],
-  "entities_remove": [{{"id": "条目名", "reason": "作废依据"}}],
-  "relations_add": [{{"from": "条目A", "to": "条目B", "type": "关系类别", "detail": "具体经过", "time": "", "reason": ""}}],
-  "relations_update": [{{"from": "条目A", "to": "条目B", "set": {{"detail": "新的描述"}}, "reason": ""}}],
-  "relations_remove": [{{"from": "条目A", "to": "条目B", "reason": ""}}],
-  "timeline_add": [{{"time": "时间", "event": "事件描述", "refs": ["涉及条目id"]}}]
+  "角色": {{
+    "entities_add": [{{"id": "条目名", "aliases": ["别名"], "summary": "一句话概括", "weight": 1, "category": "人物", "gender": "", "age": "", "identity": "", "appearance": "", "personality": "", "reason": "新增依据"}}],
+    "entities_update": [{{"id": "已有条目名", "set": {{"identity": "新的身份"}}, "aliases_add": ["新别名"], "reason": "依据"}}],
+    "entities_remove": [{{"id": "条目名", "reason": "作废依据"}}],
+    "relations_add": [{{"from": "条目A", "to": "条目B", "type": "关系类别", "detail": "具体经过", "time": "", "reason": ""}}],
+    "relations_update": [{{"from": "条目A", "to": "条目B", "set": {{"detail": "新的描述"}}, "reason": ""}}],
+    "relations_remove": [{{"from": "条目A", "to": "条目B", "reason": ""}}],
+    "timeline_add": [{{"time": "时间", "event": "事件描述", "refs": ["涉及条目id"]}}]
+  }},
+  "世界": {{"entities_add": [], "entities_update": [], "entities_remove": [], "relations_add": [], "relations_update": [], "relations_remove": [], "timeline_add": []}},
+  "势力": {{"entities_add": [], "entities_update": [], "entities_remove": [], "relations_add": [], "relations_update": [], "relations_remove": [], "timeline_add": []}},
+  "地点": {{"entities_add": [], "entities_update": [], "entities_remove": [], "relations_add": [], "relations_update": [], "relations_remove": [], "timeline_add": []}},
+  "事件": {{"entities_add": [], "entities_update": [], "entities_remove": [], "relations_add": [], "relations_update": [], "relations_remove": [], "timeline_add": []}},
+  "道具": {{"entities_add": [], "entities_update": [], "entities_remove": [], "relations_add": [], "relations_update": [], "relations_remove": [], "timeline_add": []}}
 }}
 
-收录边界（重要）：
-{type_rule}
+六大分类的收录边界（判断归属必须严格按此区分；一个条目只能归入一个分类）：
+{type_blocks}
 
 硬性规则：
-1. **只写变化**。与现有数据一致的条目、字段、关系一律不要出现在输出里；四类数组可以同时为空。
-2. **禁止整体重写**。要修订已有条目，只能放进 entities_update，且 set 里**只放真正发生变化的字段**。
+1. **只写变化**。与现有数据一致的条目、字段、关系一律不要出现在输出里；每个分类的 7 个数组可以同时为空。
+2. **禁止整体重写**。要修订已有条目，只能放进它所属分类的 entities_update，且 set 里**只放真正发生变化的字段**。
    例：某角色升官，只写 {{"id":"某某","set":{{"identity":"新任官职"}},"reason":"第12章受封"}}，不要附带其它字段。
 3. **不要回传未变化的旧内容**：你没提到的字段会被原样保留，不会丢失，这一点无需担心。
 4. **删除要克制且写明依据**。只有新文本明确推翻时才用 entities_remove / relations_remove
    （人物死亡、身份彻底转变、设定被废弃、上一轮确属误建），并在 reason 里写清依据；拿不准就不要删。
-5. entities_update / entities_remove / relations_update / relations_remove 的 id 与 from/to，
-   必须与「现有数据」中的写法完全一致。
-6. 关系按最直接类别记录；同一对条目只保留一条关系（同一对要改就放 relations_update）。
-7. category 标注条目的本质归属：人物/世界/势力/地点/事件/道具 之一。
-8. gender/age/identity/appearance/personality 仅对「人物」类条目填写，其他类型留空字符串。
-9. 判断不了归属或信息不足时：宁缺毋滥，不硬造条目；summary 写"待补充"。
-   另外 entities_add 中**不要**填写 profile 字段（档案正文由作者本人维护）。"""
+5. entities_update / entities_remove 的 id，以及 relations_update / relations_remove 的 from/to，
+   必须与「现有数据」中**对应分类**的写法完全一致。
+6. **分类归属由你判断**：同一个实体只出现在它所属的那一个分类里，不要重复收录到多个分类。
+7. 关系写在 from 条目所属分类的补丁里；跨分类关系（如 角色→势力）也写进 from 所属分类，允许存在。
+8. 关系按最直接类别记录；同一对条目只保留一条关系（同一对要改就放 relations_update）。
+9. category 标注条目的本质归属：人物/世界/势力/地点/事件/道具 之一。
+10. gender/age/identity/appearance/personality 仅对「角色」类条目填写，其他分类留空字符串。
+11. 判断不了归属或信息不足时：宁缺毋滥，不硬造条目；summary 写"待补充"。
+    另外 entities_add 中**不要**填写 profile 字段（档案正文由作者本人维护）。
+12. 时间线统一写进 timeline_add（放「事件」分类里即可），refs 填涉及的条目 id。{locked_rule}{condensed_note}"""
 
     user = (
-        f"{prev}以下是新章节文本：\n---\n{chapters_text}\n---\n"
-        "请只输出变更补丁 JSON（没有变化就四个数组都留空）。"
+        f"{prev_block}以下是新章节文本：\n---\n{chapters_text}\n---\n"
+        "请只输出变更补丁 JSON（6 个分类键都要有；某个分类没有变化就把它的 7 个数组都留空）。"
     )
 
     return [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
     ]
+
+
+def multi_prompt_overhead() -> int:
+    """固定提示词部分的大致字符数（供分批时的上下文预算估算）"""
+    return len(multi_type_prompt({}, "", blind=False)[0]["content"])
+
+
+def validate_multi_patch(raw: Any) -> dict[str, dict]:
+    """把模型返回的「6 分类补丁」规范化：每个分类都过一遍 validate_patch
+
+    容错：某个分类缺失 / 不是对象时按"该分类无变化"处理，不影响其它分类。
+    """
+    src = raw if isinstance(raw, dict) else {}
+    if not any(isinstance(src.get(t), dict) for t in TYPES):
+        import logging
+        logging.warning(
+            "「全类型单轮」响应中未找到任何分类键，已按无变化处理。顶层键：%s",
+            list(src.keys())[:10],
+        )
+    return {
+        t: validate_patch(t, src.get(t) if isinstance(src.get(t), dict) else {})
+        for t in TYPES
+    }
 
 
 def persist_type_data(project_dir: Path, type_: str, data: dict) -> None:
@@ -599,21 +695,30 @@ def persist_type_data(project_dir: Path, type_: str, data: dict) -> None:
                 pass
 
 
-class RelationGraphAnalyzer(BaseTextAnalyzer):
-    """关系图谱分析器（更新模式）
+class RelationGraphMultiAnalyzer(BaseTextAnalyzer):
+    """关系图谱分析器（全类型单轮）
 
-    分析小说章节文本，产出「变更补丁」，再增量应用到现有设定库上。
+    一次 LLM 调用同时产出 6 个分类的「变更补丁」，再分别增量应用到各分类的现有数据上。
+    相比"每批 × 每类型"逐轮解析，调用次数与正文 token 均降为 1/6。
     """
 
     name = "关系图谱分析"
 
-    def __init__(self, type_: str = "角色", protect: bool = True):
+    # 现有数据超过此字符数时，改为精简形式回传（完整数据仍在本地，仅影响送进模型的上下文）
+    CONDENSE_THRESHOLD = 60000
+
+    def __init__(self, protect: bool = True):
         super().__init__()
-        self.type = type_
         # protect=False 时解除手动内容保护（"覆盖手动内容"模式，需用户显式确认）
         self.protect = protect
-        # 最近一次合并的变更报告（供进度流播报）
-        self.last_report: dict = {}
+        # 最近一次合并的变更报告 / 本次任务的累计报告（供进度流播报）
+        self.last_reports: dict[str, dict] = {}
+        self.condensed_used = False
+        self.totals: dict[str, dict] = {
+            t: {"added": 0, "updated": 0, "removed": 0, "noop": 0,
+                "protected_entities": 0, "protected_relations": 0, "protected_fields": 0}
+            for t in TYPES
+        }
 
     def get_role(self) -> str:
         return "NOVEL_ANALYZER"
@@ -622,33 +727,63 @@ class RelationGraphAnalyzer(BaseTextAnalyzer):
         """不强制 response_format，部分 API 提供商不兼容"""
         return None
 
+    def _prompt_previous(self, previous: Any) -> tuple[dict, bool]:
+        """按现有数据体积决定回传完整数据还是精简数据"""
+        prev_map = previous if isinstance(previous, dict) else {}
+        if not prev_map:
+            return {}, False
+        raw = json.dumps(prev_map, ensure_ascii=False)
+        if len(raw) <= self.CONDENSE_THRESHOLD:
+            return prev_map, False
+        return condense_previous(prev_map), True
+
+    def prompt_previous_size(self, previous: Any) -> int:
+        """按实际回传体积估算，避免现有数据膨胀后批次被无谓压缩"""
+        prev, _ = self._prompt_previous(previous)
+        return len(json.dumps(prev, ensure_ascii=False)) if prev else 0
+
     def build_prompt(self, text: str, previous: Any, ctx: dict) -> list[dict]:
         # blind 模式（全量重析）：不把现有数据交给模型，只让它提交新增
         ctx = ctx or {}
-        return master_prompt(self.type, None if ctx.get("blind") else previous, text)
+        if ctx.get("blind"):
+            return multi_type_prompt(None, text, blind=True)
+        prev, condensed = self._prompt_previous(previous)
+        if condensed:
+            self.condensed_used = True
+        return multi_type_prompt(prev, text, blind=False, condensed=condensed)
 
     def parse_result(self, raw: str) -> Any:
-        # LLM 返回空内容时，返回空补丁（可能本批无变化）
+        # LLM 返回空内容时，返回全空补丁（可能本批无变化）
         if not raw or not raw.strip():
-            return validate_patch(self.type, {})
+            return validate_multi_patch({})
         data = self._parse_json(raw)
         if data is None:
             snippet = raw[:500] if raw else "(空)"
             import logging
             logging.warning(f"{self.name} JSON解析失败，原始内容前500字: {snippet}")
             raise ValueError(f"LLM 返回内容无法解析为 JSON（前200字: {snippet[:200]}）")
-        return validate_patch(self.type, data)
+        return validate_multi_patch(data)
 
     def validate(self, data: Any) -> bool:
-        """校验补丁结构：至少含一个已知补丁键"""
-        return isinstance(data, dict) and any(k in data for k in PATCH_KEYS)
+        """校验：6 个分类都必须在结果里"""
+        return isinstance(data, dict) and all(t in data for t in TYPES)
 
     def merge(self, previous: Any, new: Any) -> Any:
-        """更新模式：把变更补丁增量应用到现有数据上（现有数据为骨架）"""
-        data, report = apply_patch(previous, new, protect=self.protect)
-        self.last_report = report
-        return data
+        """把 6 分类补丁分别增量应用到对应分类的现有数据上（现有数据为骨架）"""
+        prev_map = previous if isinstance(previous, dict) else {}
+        out: dict[str, dict] = {}
+        self.last_reports = {}
+        for t in TYPES:
+            base = prev_map.get(t) if isinstance(prev_map.get(t), dict) else empty_data(t)
+            data, report = apply_patch(base, new.get(t) or {}, protect=self.protect)
+            out[t] = data
+            self.last_reports[t] = report
+            totals = self.totals[t]
+            for k in totals:
+                totals[k] += int(report.get(k) or 0)
+        return out
 
     async def save(self, data: dict, project_dir: Path, ctx: dict) -> None:
-        """保存关系脉络主文件 + 条目档案子文件"""
-        persist_type_data(project_dir, self.type, data)
+        """保存 6 个分类的关系脉络主文件 + 条目档案子文件"""
+        for t in TYPES:
+            persist_type_data(project_dir, t, data.get(t) or empty_data(t))

@@ -13,14 +13,16 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.safe_io import atomic_write_json, update_json
+from core.llm_provider import get_llm_provider
 from knowledge.project_kb import get_project_kb_manager
 from knowledge.relation_graph_render import to_file_name
 from analysis.relation_graph_analyzer import (
     TYPES,
-    RelationGraphAnalyzer,
+    RelationGraphMultiAnalyzer,
     count_protected,
     empty_data,
     ensure_rids,
+    multi_prompt_overhead,
     new_rid,
     persist_type_data,
     strip_manual_protection,
@@ -29,8 +31,26 @@ from analysis.chapter_split import split_by_chapters
 
 router = APIRouter(prefix="/api/relations", tags=["relations"])
 
+# 分析档位 → 单个批次的目标字符数
+# 批次越大调用次数越少（更快、更省），批次越小抽取粒度越细（更全、更贵）
+PRESET_BATCH_CHARS = {"fast": 20000, "standard": 12000, "deep": 6000}
+# 批次下限与单次请求的上下文上限（字符），用于自动收缩批次避免超出模型上下文
+MIN_BATCH_CHARS = 3000
+MAX_PROMPT_CHARS = 100000
+
 # 后台任务状态：project_id -> {"task": asyncio.Task, "messages": deque, "listeners": set}
 _tasks: dict[str, dict] = {}
+
+
+def _fmt_elapsed(seconds: float) -> str:
+    """把秒数格式化为易读的时长"""
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    m, s = divmod(int(seconds), 60)
+    if m < 60:
+        return f"{m}分{s}秒"
+    h, m = divmod(m, 60)
+    return f"{h}小时{m}分"
 
 
 class AnalyzeRequest(BaseModel):
@@ -270,25 +290,15 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
     if req.full:
         _push_message(project_id, "全量重析：AI 不参考现有数据，只做新增（现有内容不会被改动）")
 
-    if req.source == "uploads" and analyzed_files:
-        _push_message(project_id, f"已读取 {len(analyzed_files)} 个上传文件，共 {len(chapters)} 个文本块")
-    else:
-        _push_message(project_id, f"开始分析，共 {len(chapters)} 个章节块")
-
+    # 各分类现有数据作为补丁基底（同时统计手动内容用于播报）
+    base_map: dict[str, dict] = {}
     total_protected = 0
-    failed = False
-    # 逐类型分析
     for type_ in TYPES:
-        analyzer = RelationGraphAnalyzer(type_=type_, protect=not overwrite_manual)
-        type_dir = project_dir / "星图" / "关系" / type_
-        local = _read_master_data(type_dir)
-
-        # 补丁应用的基底（现有数据为骨架）
+        local = _read_master_data(project_dir / "星图" / "关系" / type_)
         if overwrite_manual and local:
-            base = strip_manual_protection(local)
+            base_map[type_] = strip_manual_protection(local)
         else:
-            base = local if local else empty_data(type_)
-
+            base_map[type_] = local if local else empty_data(type_)
         ent_n, rel_n = count_protected(local)
         total_protected += ent_n + rel_n
         if ent_n or rel_n:
@@ -297,30 +307,64 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
                 f"「{type_}」检测到 {ent_n} 条手动条目、{rel_n} 条手动关系，将予以保护",
             )
 
-        _push_message(project_id, f"正在分析「{type_}」…")
-        try:
-            # 更新模式：每批产出变更补丁，链式应用到现有数据上
-            data = await analyzer.analyze_batched(
-                chapters,
-                project_id=project_id,
-                preset=req.preset,
-                previous=base,
-                ctx={
-                    "project_id": project_id,
-                    "previous_data": base,
-                    "blind": bool(req.full),
-                },
-                progress_cb=lambda msg: _push_message(project_id, msg),
-            )
-            await analyzer.save(data, project_dir, {"previous_data": local})
+    batch_chars = PRESET_BATCH_CHARS.get(req.preset, PRESET_BATCH_CHARS["standard"])
+    if req.source == "uploads" and analyzed_files:
+        _push_message(
+            project_id,
+            f"已读取 {len(analyzed_files)} 个上传文件，共 {len(chapters)} 个文本块；"
+            f"档位「{req.preset}」单批约 {batch_chars} 字",
+        )
+    else:
+        _push_message(
+            project_id,
+            f"开始分析，共 {len(chapters)} 个章节块；档位「{req.preset}」单批约 {batch_chars} 字",
+        )
+    _push_message(project_id, "本轮为全类型单轮解析：每个批次一次调用，同时产出 6 个分类的变更")
 
-            report = analyzer.last_report or {}
-            summary = (
+    analyzer = RelationGraphMultiAnalyzer(protect=not overwrite_manual)
+    llm = get_llm_provider()
+    llm.reset_stats()
+    started = time.perf_counter()
+    failed = False
+    data: dict[str, dict] = {}
+
+    try:
+        data = await analyzer.analyze_batched(
+            chapters,
+            project_id=project_id,
+            preset=req.preset,
+            previous=base_map,
+            ctx={
+                "project_id": project_id,
+                "previous_data": base_map,
+                "blind": bool(req.full),
+            },
+            progress_cb=lambda msg: _push_message(project_id, msg),
+            batch_chars=batch_chars,
+            min_batch_chars=MIN_BATCH_CHARS,
+            max_prompt_chars=MAX_PROMPT_CHARS,
+            overhead_chars=multi_prompt_overhead(),
+        )
+        await analyzer.save(data, project_dir, {"previous_data": base_map})
+
+        if analyzer.condensed_used:
+            _push_message(
+                project_id,
+                "现有数据较大，已改用精简形式（条目名/别名/摘要/身份 + 关系端点）回传给模型，"
+                "本地完整档案不受影响",
+            )
+
+        for type_ in TYPES:
+            report = analyzer.totals.get(type_) or {}
+            tdata = data.get(type_) or {}
+            _push_message(
+                project_id,
                 f"「{type_}」完成：新增 {report.get('added', 0)} 项、"
                 f"更新 {report.get('updated', 0)} 项、删除 {report.get('removed', 0)} 项；"
-                f"现共 {len(data.get('entities', []))} 个条目，{len(data.get('relations', []))} 条关系"
+                f"现共 {len(tdata.get('entities', []))} 个条目、"
+                f"{len(tdata.get('relations', []))} 条关系、"
+                f"{len(tdata.get('timeline', []))} 条时间线",
             )
-            _push_message(project_id, summary)
             if report.get("protected_entities") or report.get("protected_fields") or report.get("protected_relations"):
                 _push_message(
                     project_id,
@@ -328,19 +372,31 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
                     f"{report.get('protected_fields', 0)} 个手动字段、"
                     f"{report.get('protected_relations', 0)} 条手动关系未被改动",
                 )
-            for note in (report.get("skipped") or [])[:5]:
-                _push_message(project_id, f"「{type_}」跳过：{note}")
-        except Exception as e:
-            failed = True
-            _push_message(project_id, f"「{type_}」分析失败：{str(e)}")
+    except Exception as e:
+        failed = True
+        _push_message(project_id, f"分析失败：{str(e)}")
 
     if total_protected:
         _push_message(project_id, f"已保护 {total_protected} 项手动内容（未被 AI 覆盖）")
 
-    # 上传文件的增量状态：仅在全部类型分析成功时记录，失败则下次可重试
+    # 逐次调用的耗时与 token 消耗汇总（数据同时写入 ~/.moshen/logs/llm-usage.jsonl）
+    stats = llm.stats
+    elapsed = time.perf_counter() - started
+    cost_line = (
+        f"本次任务：{stats['calls']} 次模型调用，总耗时 {_fmt_elapsed(elapsed)}"
+        f"（模型往返 {_fmt_elapsed(stats['elapsed'])}）；"
+        f"输入 {stats['prompt_tokens']} tokens，输出 {stats['completion_tokens']} tokens"
+    )
+    if stats["usage_missing"]:
+        cost_line += f"（有 {stats['usage_missing']} 次服务端未返回用量）"
+    if stats["failed_calls"]:
+        cost_line += f"；失败 {stats['failed_calls']} 次"
+    _push_message(project_id, cost_line)
+
+    # 上传文件的增量状态：仅在整轮分析成功时记录，失败则下次可重试
     if req.source == "uploads" and analyzed_files:
         if failed:
-            _push_message(project_id, "有分类分析失败，本次文件未记入已分析状态，可稍后重试")
+            _push_message(project_id, "分析失败，本次文件未记入已分析状态，可稍后重试")
         else:
             read_files.update(analyzed_files)
             _push_message(project_id, f"已记录 {len(analyzed_files)} 个文件的已分析状态")

@@ -5,6 +5,7 @@
 """
 from abc import ABC, abstractmethod
 from pathlib import Path
+import time
 from typing import Any, Callable, Optional
 
 from core.llm_provider import get_llm_provider
@@ -89,6 +90,13 @@ class BaseTextAnalyzer(ABC):
         """
         return None
 
+    def prompt_previous_size(self, previous: Any) -> int:
+        """previous 在 prompt 中实际占用的字符数
+
+        子类可覆盖（例如把过大的现有数据精简后再回传），保证分批预算按真实请求体积计算。
+        """
+        return len(str(previous)) if previous else 0
+
     # ===== 基类提供的能力 =====
 
     async def _call_llm(
@@ -170,20 +178,31 @@ class BaseTextAnalyzer(ABC):
         ctx: Optional[dict] = None,
         progress_cb: Optional[Callable[[str], None]] = None,
         batch_chars: int = 8000,
+        min_batch_chars: int = 3000,
+        max_prompt_chars: int = 100000,
+        overhead_chars: int = 0,
     ) -> Any:
         """分批分析（按章节边界合并批次，前批结果作为后批 previous）
 
         Args:
             chapters: [{"name": "...", "content": "..."}]
-            batch_chars: 目标批大小（字符）
+            batch_chars: 目标批大小（字符）。越小批次越多、粒度越细，代价是调用次数与花费上升
+            min_batch_chars: 批次下限；现有数据过大时也不会把批次压到比这更小
+            max_prompt_chars: 单次请求上下文上限（字符）；据此自动收缩批次，避免超出模型上下文
+            overhead_chars: 每次请求中固定部分（系统提示词等）的大致字符数
         """
         ctx = ctx or {}
         ctx.setdefault("project_id", project_id)
         ctx.setdefault("preset", preset)
 
-        # 计算预算：batch_chars - previous 大小 - 冗余
-        prev_size = len(str(previous)) if previous else 0
-        budget = max(8000, batch_chars - prev_size - 2000)
+        # 批次预算：以 batch_chars 为目标，但不超过上下文上限（扣掉现有数据与固定提示词开销）
+        prev_size = self.prompt_previous_size(previous)
+        allowed = max_prompt_chars - prev_size - overhead_chars - 1000
+        budget = max(min_batch_chars, min(batch_chars, allowed))
+        if budget < batch_chars and progress_cb:
+            progress_cb(
+                f"现有数据较大（约 {prev_size // 1000}K 字符），单批自动收缩为 {budget} 字符以适配模型上下文"
+            )
 
         # 按 budget 合并章节为批次
         batches: list[list[dict]] = []
@@ -210,8 +229,11 @@ class BaseTextAnalyzer(ABC):
             text = "\n\n".join(
                 f"【{c.get('name', '')}】\n{c.get('content', '')}" for c in batch
             )
+            started = time.perf_counter()
             data = await self.analyze(
                 text, project_id, preset, previous=data, ctx=ctx, progress_cb=progress_cb
             )
+            if progress_cb:
+                progress_cb(f"批次 {i + 1}/{total} 完成，用时 {time.perf_counter() - started:.1f}s")
 
         return data

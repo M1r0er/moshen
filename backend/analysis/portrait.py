@@ -182,7 +182,8 @@ async def generate_portraits(
     drawn = 0
     skipped = 0
     failed = 0
-    errors = []
+    errors: list[str] = []
+    error_groups: dict[str, list[str]] = {}
 
     for entity in entities:
         eid = entity.get("id", "")
@@ -203,9 +204,14 @@ async def generate_portraits(
                 progress_cb(f"肖像「{eid}」已保存（.{ext}）")
         except Exception as e:
             failed += 1
-            errors.append(f"{eid}: {type(e).__name__}: {str(e)[:100]}")
+            # 配置级故障（如模型未开通、鉴权失败）会让所有条目报同样的错，按原因归并
+            msg = f"{type(e).__name__}: {str(e)[:300]}"
+            error_groups.setdefault(msg, []).append(eid)
             if progress_cb:
-                progress_cb(f"肖像「{eid}」失败：{str(e)[:80]}")
+                progress_cb(f"肖像「{eid}」失败：{str(e)[:120]}")
+
+    for msg, ids in error_groups.items():
+        errors.append(f"{msg}（影响 {len(ids)} 个条目）" if len(ids) > 1 else f"{ids[0]}: {msg}")
 
     return {"drawn": drawn, "skipped": skipped, "failed": failed, "errors": errors}
 

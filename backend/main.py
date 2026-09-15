@@ -4,6 +4,7 @@ FastAPI 主入口
 """
 import os
 import sys
+import time
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 # 确保可以导入同目录下的模块
 sys.path.insert(0, str(Path(__file__).parent))
 
-from core.config import get_config_manager
+from core.config import get_config_manager, MODEL_ROLES
 from routes.chat import router as chat_router
 from routes.project import router as project_router
 from routes.files import router as files_router
@@ -29,7 +30,7 @@ from routes.session import router as session_router
 from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 
-app = FastAPI(title="墨参 MoShen", version="0.7.1", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.7.2", description="小说写作助手")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -121,36 +122,78 @@ async def save_config(req: ConfigUpdateRequest):
     return {"success": True, **mgr.get_full_config()}
 
 
-@app.post("/api/config/test")
-async def test_config(body: dict):
-    """测试模型连接"""
-    from core.llm_provider import LLMProvider
-    from core.config import ModelConfig
+class ConfigTestRequest(BaseModel):
+    """连通性自检请求
 
-    role = body.get("role", "DIALOGUE_PARTNER")
+    target: role（单个职能，默认）| image（生图模型）| all（全部一次性自检）
+    """
+    target: str = "role"
+    role: str | None = None
+
+
+async def _probe_role(role: str) -> dict:
+    """探测某个职能（或 DEFAULT 通用）的聊天接口是否可用"""
+    from core.llm_provider import LLMProvider
+
     mgr = get_config_manager()
     cfg = mgr.get_model(role)
-
+    label = "通用（默认渠道）" if role == "DEFAULT" else MODEL_ROLES.get(role, role)
     if cfg is None:
-        return {"success": False, "error": "未找到可用配置"}
+        return {"target": "role", "role": role, "name": label, "configured": False,
+                "success": False, "detail": "未找到可用配置，请先填写 Base URL 与 API Key"}
 
+    provider = LLMProvider()
+    t0 = time.perf_counter()
+    base = {"target": "role", "role": role, "name": label, "configured": True,
+            "model": cfg.model, "base_url": cfg.base_url}
     try:
-        provider = LLMProvider()
         result = await provider.generate(
             [{"role": "user", "content": "请回复'连接成功'四个字"}],
             role=role,
             max_tokens=20,
         )
-        return {"success": True, "response": result.strip()}
+        return {**base, "success": True, "detail": (result or "").strip() or "已连通",
+                "elapsed": round(time.perf_counter() - t0, 2)}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        return {**base, "success": False, "detail": str(e)[:300],
+                "elapsed": round(time.perf_counter() - t0, 2)}
+
+
+async def _probe_image() -> dict:
+    """探测生图模型是否可用（使用无效尺寸探测，不真实出图、不产生费用）"""
+    from core.llm_provider import LLMProvider
+
+    cfg = get_config_manager().image_config or {}
+    configured = bool(cfg.get("enabled") and cfg.get("api_key") and cfg.get("base_url"))
+    base = {"target": "image", "name": "生图模型（肖像绘制）",
+            "model": cfg.get("model") or "", "base_url": cfg.get("base_url") or "",
+            "configured": configured}
+    if not configured:
+        return {**base, "success": False, "detail": "未启用，或未填写 Base URL / API Key"}
+    res = await LLMProvider().probe_image()
+    return {**base, "success": bool(res.get("ok")), "detail": res.get("detail", ""),
+            "elapsed": res.get("elapsed")}
+
+
+@app.post("/api/config/test")
+async def test_config(req: ConfigTestRequest):
+    """测试模型连通性：单个职能 / 生图 / 全部"""
+    if req.target == "image":
+        return await _probe_image()
+    if req.target == "all":
+        items = [await _probe_role("DEFAULT")]
+        for role in MODEL_ROLES:
+            items.append(await _probe_role(role))
+        items.append(await _probe_image())
+        return {"success": all(i.get("success") for i in items), "items": items}
+    return await _probe_role(req.role or "DIALOGUE_PARTNER")
 
 
 # ===== 健康检查 =====
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.7.1"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.7.2"}
 
 
 # ===== 前端静态文件 =====

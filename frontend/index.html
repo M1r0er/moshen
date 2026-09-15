@@ -911,6 +911,16 @@ body {
 .api-field-label { font-size: 12px; color: var(--color-text-secondary); font-weight: 500; }
 .api-field input { width: 100%; padding: 8px 12px; background: var(--color-input-bg); border: 1px solid var(--color-border-strong); color: var(--color-text-body); border-radius: var(--radius-md); font-size: 13px; transition: all 0.15s; }
 .api-field input:focus { outline: none; border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
+.conn-list { display: flex; flex-direction: column; gap: 4px; }
+.conn-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--radius-md); background: var(--color-surface); border: 1px solid var(--color-border); font-size: 12.5px; }
+.conn-row.conn-hint { background: transparent; border-style: dashed; color: var(--text-muted); }
+.conn-dot { flex: 0 0 9px; width: 9px; height: 9px; border-radius: 50%; background: var(--color-border-strong); }
+.conn-dot.ok { background: var(--color-success); box-shadow: 0 0 0 3px var(--color-success-bg); }
+.conn-dot.fail { background: #c0392b; box-shadow: 0 0 0 3px #fdecec; }
+.conn-dot.warn { background: var(--color-warning); box-shadow: 0 0 0 3px var(--color-warning-bg); }
+.conn-name { flex: 0 0 190px; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conn-model { flex: 0 0 150px; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conn-detail { flex: 1; min-width: 0; color: var(--color-text-secondary); word-break: break-all; }
 .config-status { font-size: 12px; padding: 0 8px; height: 22px; display: inline-flex; align-items: center; border-radius: var(--radius-xs); font-weight: 400; }
 .config-status.ok { background: var(--color-success-bg); color: var(--color-success); }
 .config-status.miss { background: var(--color-error-bg); color: var(--color-error); }
@@ -1177,15 +1187,30 @@ body {
 .rel-type-bar button.active { background: var(--color-primary); color: var(--color-text-inverse); border-color: var(--color-primary); }
 .rel-3d-canvas { width: 100%; height: 500px; border-radius: var(--radius-lg); overflow: hidden; background: #0F1720; border: 1px solid var(--color-border); }
 .rel-entity-panel { margin-top: 16px; padding: 16px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); max-height: 400px; overflow-y: auto; box-shadow: var(--shadow-card); }
-.rel-entity-md { white-space: pre-wrap; font-size: 14px; line-height: 1.7; }
+.rel-entity-md { font-size: 14px; line-height: 1.75; color: var(--color-text-body); word-break: break-word; }
+.rel-entity-body { display: flex; gap: 18px; align-items: flex-start; }
+.rel-entity-body .rel-markdown { flex: 1; min-width: 0; }
+.rel-markdown h1 { font-size: 17px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--color-border); color: var(--color-text-primary); }
+.rel-markdown h2 { font-size: 14.5px; margin: 16px 0 8px; color: var(--color-text-primary); }
+.rel-markdown h3 { font-size: 13.5px; margin: 12px 0 6px; color: var(--color-text-primary); }
+.rel-markdown p { margin: 6px 0; }
+.rel-markdown blockquote { margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--border-accent); background: var(--color-primary-light); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; color: var(--color-text-secondary); font-size: 13px; }
+.rel-markdown ul { margin: 6px 0; padding-left: 20px; }
+.rel-markdown li { margin: 3px 0; }
+.rel-markdown strong { color: var(--color-text-primary); }
+.rel-portrait-slot { flex: 0 0 200px; width: 200px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-input-bg); }
+.rel-portrait-img { width: 100%; max-width: 200px; max-height: 240px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--color-border); }
+.rel-portrait-placeholder { width: 100%; height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius-sm); color: var(--text-muted); }
+.rel-portrait-placeholder span { font-size: 30px; opacity: 0.6; }
+.rel-portrait-placeholder em { font-size: 12px; font-style: normal; }
+.rel-portrait-error { font-size: 11.5px; line-height: 1.6; color: var(--color-warning); word-break: break-all; }
+.rel-portrait-errors { margin-top: 8px; padding: 10px 13px; font-size: 12px; line-height: 1.7; border-radius: var(--radius-md); background: var(--color-warning-bg); border: 1px solid var(--color-warning); color: var(--color-text-body); word-break: break-all; }
 .rel-archive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .rel-archive-item { padding: 12px; background: var(--color-surface); border-radius: var(--radius-lg); cursor: pointer; border: 1px solid var(--color-border); transition: all 0.2s; box-shadow: var(--shadow-card); }
 .rel-archive-item:hover { border-color: var(--color-primary); box-shadow: var(--shadow-card-hover); }
 .rel-archive-item.active { border-color: var(--color-primary); background: var(--color-primary-light); }
 .rel-archive-item strong { display: block; margin-bottom: 4px; }
 .rel-archive-summary { font-size: 12px; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.rel-portrait-box { display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:12px; }
-.rel-portrait-img { max-width:200px; max-height:200px; border-radius:var(--radius-sm); border:1px solid var(--border-color); }
 .rel-entity-detail { margin-top: 20px; padding: 20px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); max-height: 500px; overflow-y: auto; box-shadow: var(--shadow-card); }
 .rel-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rel-toolbar .rel-type-bar { padding: 0; }
@@ -1351,7 +1376,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.1</div>
+        <div class="sidebar-version">v0.7.2</div>
       </div>
     </aside>
 
@@ -2478,9 +2503,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <div class="form-row">
                 <label>分析档位</label>
                 <select v-model="relPreset">
-                  <option value="fast">快速</option>
-                  <option value="standard">标准</option>
-                  <option value="deep">深度</option>
+                  <option value="fast">快速（单批 2 万字，调用最少、最省）</option>
+                  <option value="standard">标准（单批 1.2 万字）</option>
+                  <option value="deep">深度（单批 6 千字，抽取最细、最贵）</option>
                 </select>
               </div>
               <div class="form-row">
@@ -2560,6 +2585,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <span v-if="relPortraitResult" style="margin-left:12px;font-size:12px;color:var(--text-muted)">
                   新增 {{ relPortraitResult.drawn }} 张，跳过 {{ relPortraitResult.skipped }} 张，失败 {{ relPortraitResult.failed }} 张
                 </span>
+                <div v-if="relPortraitResult && relPortraitResult.errors && relPortraitResult.errors.length" class="rel-portrait-errors">
+                  <div v-for="(er, i) in relPortraitResult.errors" :key="i">⚠️ {{ er }}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -2630,7 +2658,17 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">✏️ 编辑条目</button>
                 <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">🔗 加关系</button>
               </div>
-              <pre class="rel-entity-md">{{ relEntityContent }}</pre>
+              <div class="rel-entity-body">
+                <div v-if="relEntityOwnerType === '角色'" class="rel-portrait-slot">
+                  <img v-if="relPortraitUrl" :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
+                  <div v-else class="rel-portrait-placeholder"><span>🖼</span><em>暂无肖像</em></div>
+                  <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
+                    {{ relPortraitLoading ? '生成中…' : (relPortraitUrl ? '🔄 重绘肖像' : '🎨 生成肖像') }}
+                  </button>
+                  <div v-if="relPortraitError" class="rel-portrait-error">{{ relPortraitError }}</div>
+                </div>
+                <div class="rel-entity-md rel-markdown" v-html="renderMarkdown(relEntityContent)"></div>
+              </div>
             </div>
           </div>
 
@@ -2667,18 +2705,17 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">🔗 加关系</button>
                 <button class="btn btn-secondary" style="font-size:12px" @click="relDeleteEntity(relSelectedEntity)">🗑 删除</button>
               </div>
-              <div v-if="relPortraitUrl" class="rel-portrait-box">
-                <img :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
-                <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
-                  {{ relPortraitLoading ? '重绘中…' : '🔄 重绘肖像' }}
-                </button>
+              <div class="rel-entity-body">
+                <div v-if="relEntityOwnerType === '角色'" class="rel-portrait-slot">
+                  <img v-if="relPortraitUrl" :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
+                  <div v-else class="rel-portrait-placeholder"><span>🖼</span><em>暂无肖像</em></div>
+                  <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
+                    {{ relPortraitLoading ? '生成中…' : (relPortraitUrl ? '🔄 重绘肖像' : '🎨 生成肖像') }}
+                  </button>
+                  <div v-if="relPortraitError" class="rel-portrait-error">{{ relPortraitError }}</div>
+                </div>
+                <div class="rel-entity-md rel-markdown" v-html="renderMarkdown(relEntityContent)"></div>
               </div>
-              <div v-else-if="relArchiveType === '角色'" style="margin-bottom:12px">
-                <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px">
-                  {{ relPortraitLoading ? '生成中…' : '🎨 生成肖像' }}
-                </button>
-              </div>
-              <pre class="rel-entity-md">{{ relEntityContent }}</pre>
             </div>
           </div>
         </div>
@@ -3233,13 +3270,41 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <option value="hd">高清</option>
             </select>
           </div>
-          <p style="font-size:11px;color:var(--text-muted);margin:0">用于星图功能的人物肖像绘制。需兼容 OpenAI /images/generations 接口。</p>
+          <p style="font-size:11px;color:var(--text-muted);margin:0">用于星图功能的人物肖像绘制。需兼容 OpenAI /images/generations 接口。Base URL 可填到 <code>/v1</code>，也可直接填完整的 <code>/images/generations</code> 地址。</p>
+        </div>
+      </div>
+
+      <!-- 连通性自检 -->
+      <div style="margin-top:16px;padding:12px;background:var(--bg-tertiary);border-radius:var(--radius-sm)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <label style="font-weight:600;font-size:14px">🔌 连通性自检</label>
+          <span style="font-size:12px;color:var(--text-muted);margin-left:auto">
+            {{ connTestedCount }} / {{ connRows.length }} 项已检测
+          </span>
+        </div>
+        <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px">
+          逐个 ping 通「实际会被使用」的接口。生图用无效尺寸探测，不会真实出图、不产生费用。
+        </p>
+        <div class="conn-list">
+          <div v-for="row in connRows" :key="row.key" class="conn-row">
+            <span class="conn-dot" :class="connState(row.key)"></span>
+            <span class="conn-name">{{ row.name }}</span>
+            <span class="conn-model">{{ connResults[row.key] && connResults[row.key].model ? connResults[row.key].model : '—' }}</span>
+            <span class="conn-detail">{{ connDetail(row.key) }}</span>
+            <button class="btn-icon" :disabled="testingConfig" @click="runConnectivityCheck(row.target)">检测</button>
+          </div>
+          <div v-if="!configData.independent_keys" class="conn-row conn-hint">
+            <span class="conn-dot idle"></span>
+            <span class="conn-name">职能独立 Key 未启用</span>
+            <span class="conn-model">—</span>
+            <span class="conn-detail">各职能均沿用「通用（默认渠道）」</span>
+          </div>
         </div>
       </div>
 
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="testConfig" :disabled="testingConfig">
-          {{ testingConfig ? '测试中...' : '测试连接' }}
+        <button class="btn btn-secondary" @click="runConnectivityCheck('all')" :disabled="testingConfig">
+          {{ testingConfig ? '检测中…' : '测试连通性' }}
         </button>
         <button class="btn btn-secondary" @click="showConfigModal = false">取消</button>
         <button class="btn btn-primary" @click="saveConfig">保存</button>
@@ -3493,8 +3558,40 @@ createApp({
       STRUCTURE_ANALYST: '大纲结构、节奏诊断',
       KNOWLEDGE_BUILDER: '知识提取、拆书',
       DIALOGUE_PARTNER: '日常对话、创意讨论',
+      NOVEL_ANALYZER: '关系图谱分析',
+      IMAGE_GENERATOR: '肖像提示词生成',
     };
     const testingConfig = ref(false);
+    // 连通性自检结果：key = DEFAULT / 角色名 / IMAGE
+    const connResults = ref({});
+
+    const connRows = computed(() => {
+      const rows = [{ key: 'DEFAULT', name: '通用（默认渠道）', target: 'DEFAULT' }];
+      if (configData.value.independent_keys) {
+        (configData.value.available_roles || Object.keys(modelRoles)).forEach(r => {
+          rows.push({ key: r, name: `${r}（${modelRoles[r] || ''}）`, target: r });
+        });
+      }
+      rows.push({ key: 'IMAGE', name: '生图模型（肖像绘制）', target: 'IMAGE' });
+      return rows;
+    });
+
+    const connTestedCount = computed(() =>
+      connRows.value.filter(r => connResults.value[r.key]).length);
+
+    function connState(key) {
+      const r = connResults.value[key];
+      if (!r) return 'idle';
+      if (r.configured === false) return 'warn';
+      return r.success ? 'ok' : 'fail';
+    }
+
+    function connDetail(key) {
+      const r = connResults.value[key];
+      if (!r) return '未检测';
+      const t = r.elapsed != null ? `（${r.elapsed}s）` : '';
+      return (r.success ? '✅ ' : '❌ ') + (r.detail || '') + t;
+    }
 
     // Chat model/role selectors
     const selectedModel = ref('auto');
@@ -3597,6 +3694,7 @@ createApp({
     const relSelectedEntity = ref(null);
     const relEntityContent = ref('');
     const relPortraitUrl = ref('');
+    const relPortraitError = ref('');
     const relPortraitLoading = ref(false);
     const relGeneratingPortraits = ref(false);
     const relPortraitResult = ref(null);
@@ -4431,6 +4529,7 @@ createApp({
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/^&gt;\s?(.*)$/gm, '<blockquote>$1</blockquote>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
         .replace(/^\- (.+)$/gm, '<li>$1</li>')
@@ -5758,6 +5857,7 @@ createApp({
         relEntityOwnerType.value = '';
         relEntityContent.value = '';
         relPortraitUrl.value = '';
+        relPortraitError.value = '';
       } catch (e) { showToast('加载档案失败', 'error'); }
     }
 
@@ -5773,6 +5873,7 @@ createApp({
         relEntityContent.value = data.content || '';
         // 加载肖像（仅角色类型）
         relPortraitUrl.value = '';
+        relPortraitError.value = '';
         if (relEntityOwnerType.value === '角色') {
           await relCheckPortrait(name);
         }
@@ -5909,6 +6010,7 @@ createApp({
         relEntityData.value = null;
         relEntityContent.value = '';
         relPortraitUrl.value = '';
+        relPortraitError.value = '';
         await relLoadOverview();
         if (relSubView.value === 'graph') {
           await relLoadGraphData(relCurrentType.value);
@@ -5949,6 +6051,7 @@ createApp({
           relEntityData.value = null;
           relEntityContent.value = '';
           relPortraitUrl.value = '';
+          relPortraitError.value = '';
           relClearGraphUi();
           await relReloadCurrentView();
         } catch (e) {
@@ -6216,11 +6319,14 @@ createApp({
     async function relRedrawPortrait(name) {
       if (!name) return;
       relPortraitLoading.value = true;
+      relPortraitError.value = '';
       try {
         await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '/redraw', { method: 'POST' });
         relPortraitUrl.value = '/api/relations/' + currentProjectId.value + '/portraits/' + encodeURIComponent(name) + '?t=' + Date.now();
         showToast('肖像已生成', 'success');
       } catch (e) {
+        // 把服务端的真实原因留在面板上，避免"点了没反应却不知道原因"
+        relPortraitError.value = '生成失败：' + (e.message || e);
         showToast('肖像生成失败: ' + (e.message || e), 'error');
       } finally {
         relPortraitLoading.value = false;
@@ -6821,6 +6927,8 @@ createApp({
     async function openSettings() {
       try {
         const data = await apiJSON('/api/config');
+        // 配置可能已变化，历史连通性结果作废
+        connResults.value = {};
         // 确保每个 API 配置都有 models 数组（兼容旧格式 model 字符串）
         const defaultApi = data.default_api || {};
         if (!defaultApi.models || defaultApi.models.length === 0) {
@@ -6887,18 +6995,42 @@ createApp({
         await loadChatModels();
       } catch (e) { showToast('保存失败', 'error'); }
     }
-    async function testConfig() {
+    async function runConnectivityCheck(target) {
+      if (testingConfig.value) return;
       testingConfig.value = true;
       try {
-        const data = await apiJSON('/api/config/test', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'DIALOGUE_PARTNER' }),
-        });
-        if (data.success) showToast('连接成功: ' + data.response, 'success');
-        else showToast('连接失败: ' + data.error, 'error');
-      } catch (e) { showToast('测试失败', 'error'); }
-      testingConfig.value = false;
+        if (target === 'all') {
+          const data = await apiJSON('/api/config/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: 'all' }),
+          });
+          const next = { ...connResults.value };
+          (data.items || []).forEach(it => {
+            next[it.target === 'image' ? 'IMAGE' : (it.role || 'DEFAULT')] = it;
+          });
+          connResults.value = next;
+          showToast(data.success ? '全部连通' : '存在未通过项，详见「连通性自检」', data.success ? 'success' : 'error');
+        } else if (target === 'IMAGE') {
+          const data = await apiJSON('/api/config/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: 'image' }),
+          });
+          connResults.value = { ...connResults.value, IMAGE: data };
+        } else {
+          const data = await apiJSON('/api/config/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target: 'role', role: target }),
+          });
+          connResults.value = { ...connResults.value, [target]: data };
+        }
+      } catch (e) {
+        showToast('连通性检测失败: ' + (e.message || e), 'error');
+      } finally {
+        testingConfig.value = false;
+      }
     }
 
     // ===== API 渠道管理 =====
@@ -7115,6 +7247,7 @@ createApp({
       fileAnalyzeType, fileAnalyzing, fileDissectChapters, fileDissecting, fileDissectResults,
       openFileDetail, closeFileDetail, loadFileContent, runFileAnalyze, runFileDissect,
       showConfigModal, configData, writingPrefs, modelRoles, testingConfig,
+      connResults, connRows, connTestedCount, connState, connDetail, runConnectivityCheck,
       toastMsg, toastType,
       showToast, selectWorkspace, browseWorkspace, loadProjects, selectProject, createProject,
       startRename, confirmRename, deleteProject,
@@ -7177,7 +7310,7 @@ createApp({
       relAllUploadsSelected, relLoadUploads, relToggleAllUploads, relOnSourceChange,
       relAnalyzeUploadedFile,
       relLoadGraphData, relLoadArchive, relLoadEntity, relSwitchGraphType,
-      relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult,
+      relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult, relPortraitError,
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
       // 星图 · 手动维护
       relIsManual, relSelectedIsManual, relEntityChoices,
@@ -7199,7 +7332,7 @@ createApp({
       inspirationFileLoading, showInspirationModal, inspirationInput,
       loadInspiration, readInspirationFile, confirmInspiration, browseInspiration,
       inspirationFileIcon, formatFileSize,
-      uploadFile, openSettings, saveConfig, testConfig,
+      uploadFile, openSettings, saveConfig, runConnectivityCheck,
       addApiChannel, setDefaultChannel, applyChannelToRole,
       applyChannelToRoleById,
     };
