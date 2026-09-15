@@ -2580,8 +2580,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 </div>
               </div>
 
-              <!-- 肖像批量生成 -->
-              <div v-if="relOverview.length" style="margin-top:12px">
+              <!-- 肖像批量生成（只要有项目就显示按钮；暂无角色数据时点击会就地提示原因） -->
+              <div v-if="currentProjectId" style="margin-top:12px">
                 <button class="btn btn-secondary" :disabled="relGeneratingPortraits" @click="relGenerateAllPortraits" style="font-size:13px">
                   {{ relGeneratingPortraits ? '肖像生成中…' : '🎨 生成角色肖像' }}
                 </button>
@@ -7317,7 +7317,7 @@ createApp({
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
       // 星图 · 手动维护
       relIsManual, relSelectedIsManual, relEntityChoices,
-      relEntityData, relEntityForm, relEntityMode, relSavingEntity,
+      relEntityData, relEntityOwnerType, relEntityForm, relEntityMode, relSavingEntity,
       relRelationForm, relRelationMode, relSavingRelation,
       relOpenCreateEntity, relOpenEditEntity, relCloseEntityForm, relSaveEntity,
       relDeleteEntity, relOpenCreateRelation, relOpenCreateRelationFrom,
