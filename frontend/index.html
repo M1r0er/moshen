@@ -1227,6 +1227,23 @@ body {
 .rel-node-menu button { display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; color: var(--color-text-body); font-size: 13.5px; border-radius: var(--radius-sm); cursor: pointer; }
 .rel-node-menu button:hover { background: var(--color-primary-light); color: var(--color-primary); }
 .rel-node-menu button.danger:hover { background: #fdecec; color: #c0392b; }
+/* 悬停预览卡：纵向矩形，上方大图 + 下方条目简介（鼠标停在节点上时出现，不拦截鼠标事件） */
+.rel-hover-card { position: absolute; z-index: 25; width: 268px; pointer-events: none; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-card-hover); overflow: hidden; animation: relHoverIn 0.13s ease-out; }
+@keyframes relHoverIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.rel-hover-media { position: relative; width: 100%; height: 268px; background: radial-gradient(circle at 50% 40%, #1E303F 0%, #121C26 100%); display: flex; align-items: center; justify-content: center; }
+.rel-hover-media img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+.rel-hover-initial { width: 138px; height: 138px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 66px; font-weight: 600; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,0.5); border: 3px solid rgba(255,255,255,0.5); box-shadow: 0 6px 22px rgba(0,0,0,0.35); }
+.rel-hover-body { padding: 12px 15px 15px; }
+.rel-hover-name { display: flex; align-items: center; gap: 8px; font-size: 16.5px; font-weight: 700; color: var(--color-text-primary); line-height: 1.3; }
+.rel-hover-name > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rel-hover-cat { flex: 0 0 auto; padding: 1px 8px; font-size: 11px; font-weight: 500; border-radius: 10px; background: var(--color-primary-light); color: var(--color-primary); border: 1px solid var(--border-accent); }
+.rel-hover-summary { margin-top: 7px; font-size: 13px; line-height: 1.65; color: var(--color-text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.rel-hover-profile { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--color-border); font-size: 12.5px; line-height: 1.72; color: var(--text-muted); display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+.rel-hover-details { margin-top: 9px; padding-top: 9px; border-top: 1px dashed var(--color-border); display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.6; color: var(--text-muted); }
+.rel-hover-details div { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rel-hover-details b { margin-right: 6px; font-weight: 600; color: var(--color-text-secondary); }
+.rel-hover-meta { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-hover-meta span { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--color-input-bg); border: 1px solid var(--color-border); color: var(--color-text-secondary); }
 .rel-menu-title { padding: 6px 12px 8px; margin-bottom: 4px; font-size: 12px; color: var(--text-muted); border-bottom: 1px solid var(--color-border); word-break: break-all; }
 .rel-link-hint { margin: 10px 0 0; font-size: 12.5px; color: var(--color-primary); display: flex; align-items: center; gap: 8px; }
 .rel-manual-hint { margin: 0 0 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius-md); background: var(--color-primary-light); border: 1px solid var(--border-accent); color: var(--color-text-body); }
@@ -1380,7 +1397,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.5</div>
+        <div class="sidebar-version">v0.7.6</div>
       </div>
     </aside>
 
@@ -2655,6 +2672,28 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <button class="danger" @click="relMenuDeleteEntity">🗑 删除条目</button>
                 </template>
               </div>
+              <!-- 悬停预览：纵向矩形卡片，大图 + 简介 -->
+              <div v-if="relHoverInfo && !relNodeMenu" class="rel-hover-card"
+                   :style="{ left: relHoverInfo.x + 'px', top: relHoverInfo.y + 'px' }">
+                <div class="rel-hover-media">
+                  <img v-if="relHoverInfo.portrait" :src="relHoverInfo.portrait" :alt="relHoverInfo.name">
+                  <div v-else class="rel-hover-initial" :style="{ background: relHoverInfo.color }">{{ relHoverInfo.initial }}</div>
+                </div>
+                <div class="rel-hover-body">
+                  <div class="rel-hover-name">
+                    <span>{{ relHoverInfo.name }}</span>
+                    <span class="rel-hover-cat">{{ relHoverInfo.cat }}</span>
+                  </div>
+                  <div v-if="relHoverInfo.summary" class="rel-hover-summary">{{ relHoverInfo.summary }}</div>
+                  <div v-if="relHoverInfo.profile" class="rel-hover-profile">{{ relHoverInfo.profile }}</div>
+                  <div v-if="relHoverInfo.details.length" class="rel-hover-details">
+                    <div v-for="(d, i) in relHoverInfo.details" :key="i"><b>{{ d.k }}</b>{{ d.v }}</div>
+                  </div>
+                  <div v-if="relHoverInfo.meta.length" class="rel-hover-meta">
+                    <span v-for="(m, i) in relHoverInfo.meta" :key="i">{{ m }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             <p v-if="relGraphHint" class="rel-link-hint" style="color:var(--text-muted)">{{ relGraphHint }}</p>
             <div v-if="relEntityContent" class="rel-entity-panel">
@@ -3706,6 +3745,7 @@ createApp({
     const relPortraitUrl = ref('');
     const relPortraitError = ref('');
     const relPortraitNames = ref([]);   // 已有肖像图的角色名（关系图据此把节点画成头像）
+    const relHoverInfo = ref(null);     // 悬停预览卡内容（null = 不显示）
     const relPortraitLoading = ref(false);
     const relGeneratingPortraits = ref(false);
     const relPortraitResult = ref(null);
@@ -6324,6 +6364,80 @@ createApp({
       relLoadEntity(name, relCurrentType.value);
     }
 
+    // 分类配色（对齐 UI 设计规范 §8.2：角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
+    const REL_TYPE_COLORS = { '角色': 0xC9A86C, '世界': 0x3D8B6F, '势力': 0x6B5B95, '地点': 0x5A7D9A, '事件': 0xB38600, '道具': 0x8B6F5C };
+
+    function relTypeHex(type) {
+      const v = REL_TYPE_COLORS[type] || 0x5A7D9A;
+      return '#' + v.toString(16).padStart(6, '0');
+    }
+
+    // 把档案 Markdown 压成纯文本摘要（预览卡只显示文字，不做 Markdown 渲染）
+    function relPlainText(text, maxLen) {
+      let s = String(text == null ? '' : text);
+      s = s.replace(/^#{1,6}\s*/gm, '').replace(/^>\s?/gm, '');
+      s = s.replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+      s = s.replace(/[*_`~]/g, '').replace(/\s*\n+\s*/g, ' ').trim();
+      if (s.length > maxLen) s = s.slice(0, maxLen) + '…';
+      return s;
+    }
+
+    // 悬停预览卡：数据取自已加载的图数据，不额外请求接口
+    function relShowHoverCard(name, event) {
+      const wrap = document.querySelector('.rel-canvas-wrap');
+      if (!wrap || !name) { relHoverInfo.value = null; return; }
+      const type = relCurrentType.value;
+      const ent = (relGraphData.value.entities || []).find(e => e.id === name) || {};
+      const hasPortrait = type === '角色' && relPortraitNames.value.indexOf(name) >= 0;
+      const rect = wrap.getBoundingClientRect();
+      const cw = wrap.clientWidth || 0;
+      const ch = wrap.clientHeight || 0;
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      // 卡片默认落在光标右侧，空间不足时翻到左侧；垂直方向居中并夹在容器内
+      const CW = 268, CH = 440, gap = 18;
+      let x = px + gap;
+      if (x + CW > cw - 10) x = px - gap - CW;
+      x = Math.max(10, Math.min(x, Math.max(10, cw - CW - 10)));
+      let y = Math.max(10, Math.min(py - CH / 2, Math.max(10, ch - CH - 10)));
+
+      const meta = [];
+      const relCount = (relGraphData.value.relations || [])
+        .filter(r => r.from === name || r.to === name).length;
+      if (relCount) meta.push('关系 ' + relCount);
+      if (ent.gender) meta.push(ent.gender);
+      if (ent.age) meta.push(ent.age);
+      if (ent.locked || ent.source === 'manual') meta.push('手动维护');
+
+      // profile 是用户手写字段，AI 通常不填；这里用结构化字段补出「人物简介」正文
+      const aliases = Array.isArray(ent.aliases) ? ent.aliases.join('、') : (ent.aliases || '');
+      const details = [];
+      if (ent.identity) details.push({ k: '身份', v: relPlainText(ent.identity, 80) });
+      if (ent.appearance) details.push({ k: '外貌', v: relPlainText(ent.appearance, 110) });
+      if (ent.personality) details.push({ k: '性格', v: relPlainText(ent.personality, 110) });
+      if (aliases) details.push({ k: '别名', v: relPlainText(aliases, 80) });
+
+      relHoverInfo.value = {
+        name,
+        cat: type,
+        color: relTypeHex(type),
+        initial: (name || '?').slice(0, 1),
+        portrait: hasPortrait
+          ? '/api/relations/' + currentProjectId.value + '/portraits/'
+            + encodeURIComponent(name) + '?v=' + relPortraitVer
+          : '',
+        summary: relPlainText(ent.summary, 200),
+        profile: relPlainText(ent.profile || ent.story, 420),
+        details,
+        meta,
+        x, y,
+      };
+    }
+
+    function relHideHoverCard() {
+      if (relHoverInfo.value) relHoverInfo.value = null;
+    }
+
     async function relLoadPortraitNames() {
       if (!currentProjectId.value) { relPortraitNames.value = []; return; }
       try {
@@ -6335,9 +6449,9 @@ createApp({
     }
 
     // 角色头像贴图：把肖像图裁成圆形并描一圈同类色边框；图未就绪时先显示占位圆环
-    // 用 512 贴图（对应 1024² 肖像图），放大时也不糊
+    // 用 1024 贴图（与 1024² 肖像图 1:1），放大到全屏也不糊
     function relAvatarTexture(name, color) {
-      const S = 512;
+      const S = 1024;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -6372,12 +6486,12 @@ createApp({
       img.onload = () => { paint(img); tex.needsUpdate = true; };
       img.src = '/api/relations/' + currentProjectId.value + '/portraits/'
         + encodeURIComponent(name) + '?v=' + relPortraitVer;
-      return tex;
+      return relSharpenTexture(tex);
     }
 
     // 普通节点：同色实心圆 + 白色描边 + 首字（无肖像图时的统一圆形外观）
     function relCircleTexture(name, color) {
-      const S = 256;
+      const S = 512;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -6395,12 +6509,12 @@ createApp({
       ctx.shadowColor = 'rgba(0,0,0,0.45)';
       ctx.shadowBlur = 5;
       ctx.fillText((name || '?').slice(0, 1), S / 2, S / 2 + S * 0.02);
-      return new THREE.CanvasTexture(canvas);
+      return relSharpenTexture(new THREE.CanvasTexture(canvas));
     }
 
     // 高亮圆环：透明底 + 同色描边，做成 Sprite 贴图以便在 3D 旋转时始终正对镜头
     function relRingTexture(color, width = 0.07) {
-      const S = 512;
+      const S = 1024;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -6409,7 +6523,7 @@ createApp({
       ctx.lineWidth = S * width;
       ctx.strokeStyle = '#' + color.toString(16).padStart(6, '0');
       ctx.stroke();
-      return new THREE.CanvasTexture(canvas);
+      return relSharpenTexture(new THREE.CanvasTexture(canvas));
     }
 
     async function relCheckPortrait(name) {
@@ -6504,6 +6618,7 @@ createApp({
     let relResizeObserver = null;
     let relGraphObjects = [];
     let relRaycaster = null, relMouse = null;
+    let relMaxAniso = 1;         // 渲染器支持的最大各向异性过滤级别（提升贴图清晰度）
     let relAnimationId = null;
     // 鼠标交互状态（拖拽旋转 / 滚轮缩放）
     let relDragging = false, relDragLastX = 0, relDragLastY = 0, relGlobalHandlersBound = false;
@@ -6514,6 +6629,20 @@ createApp({
     let relLineViews = [];        // [{ line, fromIdx, toIdx, rel }]
     let relLineObjects = [];      // 关系线 Mesh 列表（供射线拾取）
     const relPinnedPositions = {}; // "type::name" -> {x,y,z}，会话内记住用户拖动后的位置
+
+    // 目标像素比：跟随设备像素比（页面缩放会一起变化），上限 3，兼容 4K/高缩放屏
+    function relDesiredPixelRatio() {
+      return Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+    }
+
+    // 贴图清晰化：各向异性过滤 + sRGB 色彩空间，斜视与缩小时都更锐利、颜色更准
+    function relSharpenTexture(tex) {
+      if (!tex) return tex;
+      tex.anisotropy = relMaxAniso;
+      if (THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      return tex;
+    }
 
     // 释放 3D 场景与动画循环（重复渲染或离开视图时必须调用，否则会叠加多个 rAF 循环）
     function relDispose3D() {
@@ -6547,6 +6676,7 @@ createApp({
       relSimAlpha = 0;
       relAdjacency = {};
       relHoverName = null;
+      relHideHoverCard();
       relDragging = false;
       relDragNode = null;
       relDragMoved = false;
@@ -6837,10 +6967,13 @@ createApp({
       relCamera = new THREE.PerspectiveCamera(60, width / height, 0.1, 2000);
       relCamera.position.set(0, 0, 120);
 
-      relRenderer = new THREE.WebGLRenderer({ antialias: true });
+      relRenderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
       // 按设备像素比渲染：否则在 125%/150% 缩放的屏幕上会被浏览器放大，导致整体发糊
-      relRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      // 上限放到 3，兼容 4K / 200%+ 缩放屏与页面缩放，避免被截断后又被放大
+      relRenderer.setPixelRatio(relDesiredPixelRatio());
       relRenderer.setSize(width, height);
+      relRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      relMaxAniso = relRenderer.capabilities.getMaxAnisotropy() || 1;   // 斜视时贴图更锐利
       container.appendChild(relRenderer.domElement);
 
       // 容器尺寸变化时同步画布与相机宽高比，避免拉伸模糊
@@ -6849,6 +6982,7 @@ createApp({
         if (!relRenderer || !relCamera) return;
         const w = container.clientWidth || 800;
         const h = container.clientHeight || 600;
+        relRenderer.setPixelRatio(relDesiredPixelRatio());   // 窗口换到另一块屏时同步 DPR
         relRenderer.setSize(w, h);
         relCamera.aspect = w / h;
         relCamera.updateProjectionMatrix();
@@ -6867,6 +7001,7 @@ createApp({
         relDragLastX = e.clientX;
         relDragLastY = e.clientY;
         relDragMoved = false;
+        relHideHoverCard();   // 一开始拖动就收起预览卡，避免挡视线
         if (e.button === 2) {
           // 右键按住 = 旋转视图；只有真的拖动过才阻止弹出菜单
           relOrbiting = true;
@@ -6898,24 +7033,29 @@ createApp({
       });
       canvasEl.addEventListener('wheel', (e) => {
         e.preventDefault();
+        relHideHoverCard();
         relOrbit.radius = Math.min(600, Math.max(35, relOrbit.radius * (1 + e.deltaY * 0.0012)));
         relApplyCamera();
       }, { passive: false });
 
-      // 悬停高亮：高亮该节点与它的一跳邻居，其余淡出（Obsidian 关系图手感）
+      // 悬停：高亮该节点与它的一跳邻居 + 弹出纵向预览卡（Obsidian 关系图手感）
       canvasEl.addEventListener('mousemove', (e) => {
-        if (relDragNode || relDragging || relOrbiting) return;
+        if (relDragNode || relDragging || relOrbiting) { relHideHoverCard(); return; }
         const hit = relPickNode(e);
         const next = hit ? relPickedName : null;
-        if (next === relHoverName) return;
-        relHoverName = next;
-        relApplyHighlight(next || relSelectedEntity.value || null);
+        if (next !== relHoverName) {
+          relHoverName = next;
+          relApplyHighlight(next || relSelectedEntity.value || null);
+        }
         canvasEl.style.cursor = next ? 'pointer' : 'grab';
+        if (next) relShowHoverCard(next, e);
+        else relHideHoverCard();
       });
       canvasEl.addEventListener('mouseleave', () => {
         relHoverName = null;
         relApplyHighlight(relSelectedEntity.value || null);
         canvasEl.style.cursor = 'grab';
+        relHideHoverCard();
       });
       relEnsureGlobalHandlers();
 
@@ -6943,9 +7083,8 @@ createApp({
       relApplyCamera();
 
       // 创建节点：统一的平面圆形（角色若有肖像图则用头像），全部面向镜头
-      // 节点配色（对齐 UI 设计规范 §8.2：角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
-      const colors = { '角色': 0xC9A86C, '世界': 0x3D8B6F, '势力': 0x6B5B95, '地点': 0x5A7D9A, '事件': 0xB38600, '道具': 0x8B6F5C };
-      const baseColor = colors[relCurrentType.value] || 0x5A7D9A;
+      // 节点配色见 REL_TYPE_COLORS（角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
+      const baseColor = REL_TYPE_COLORS[relCurrentType.value] || 0x5A7D9A;
       relNodeViews = [];
 
       entities.forEach((entity, i) => {
@@ -6997,18 +7136,18 @@ createApp({
         relScene.add(avatar);
         relGraphObjects.push(avatar);   // 圆形/头像即射线拾取目标
 
-        // 标签（Sprite，放在节点下方）；贴图用 512×128，缩放后文字依然锐利
+        // 标签（Sprite，放在节点下方）；贴图用 1024×256，缩放后文字依然锐利
         const labelCanvas = document.createElement('canvas');
-        labelCanvas.width = 512; labelCanvas.height = 128;
+        labelCanvas.width = 1024; labelCanvas.height = 256;
         const lctx = labelCanvas.getContext('2d');
-        lctx.fillStyle = 'rgba(255,255,255,0.95)';
-        lctx.font = '600 56px "Microsoft YaHei", sans-serif';
+        lctx.fillStyle = 'rgba(255,255,255,0.97)';
+        lctx.font = '600 112px "Microsoft YaHei", sans-serif';
         lctx.textAlign = 'center';
         lctx.textBaseline = 'middle';
-        lctx.shadowColor = 'rgba(0,0,0,0.6)';
-        lctx.shadowBlur = 8;
-        lctx.fillText(entity.id, 256, 66);
-        const labelTex = new THREE.CanvasTexture(labelCanvas);
+        lctx.shadowColor = 'rgba(0,0,0,0.65)';
+        lctx.shadowBlur = 16;
+        lctx.fillText(entity.id, 512, 132);
+        const labelTex = relSharpenTexture(new THREE.CanvasTexture(labelCanvas));
         const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
         const label = new THREE.Sprite(labelMat);
         const labelOffset = dia / 2 + 4;
@@ -7697,7 +7836,7 @@ createApp({
       relAnalyzeUploadedFile,
       relLoadGraphData, relLoadArchive, relLoadEntity, relSwitchGraphType,
       relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult, relPortraitError,
-      relPortraitNames,
+      relPortraitNames, relHoverInfo,
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
       // 星图 · 手动维护
       relIsManual, relSelectedIsManual, relEntityChoices,
