@@ -1229,6 +1229,8 @@ body {
 .rel-node-menu button.danger:hover { background: #fdecec; color: #c0392b; }
 /* 悬停预览卡：纵向矩形，上方大图 + 下方条目简介（鼠标停在节点上时出现，不拦截鼠标事件） */
 .rel-hover-card { position: absolute; z-index: 25; width: 268px; pointer-events: none; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-card-hover); overflow: hidden; animation: relHoverIn 0.13s ease-out; }
+/* 选中态：卡片钉在所选条目旁边（不跟随光标），用主色描边区分 */
+.rel-hover-card.pinned { border-color: var(--color-primary); box-shadow: 0 0 0 2px var(--color-primary-light), var(--shadow-card-hover); }
 @keyframes relHoverIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 .rel-hover-media { position: relative; width: 100%; height: 268px; background: radial-gradient(circle at 50% 40%, #1E303F 0%, #121C26 100%); display: flex; align-items: center; justify-content: center; }
 .rel-hover-media img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
@@ -1397,7 +1399,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.6</div>
+        <div class="sidebar-version">v0.7.7</div>
       </div>
     </aside>
 
@@ -2674,6 +2676,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <!-- 悬停预览：纵向矩形卡片，大图 + 简介 -->
               <div v-if="relHoverInfo && !relNodeMenu" class="rel-hover-card"
+                   :class="{ pinned: relHoverInfo.pinned }"
                    :style="{ left: relHoverInfo.x + 'px', top: relHoverInfo.y + 'px' }">
                 <div class="rel-hover-media">
                   <img v-if="relHoverInfo.portrait" :src="relHoverInfo.portrait" :alt="relHoverInfo.name">
@@ -6317,10 +6320,12 @@ createApp({
       relOpenEditEntity();
     }
 
-    function relMenuViewEntity() {
+    async function relMenuViewEntity() {
       const name = relNodeMenu.value && relNodeMenu.value.name;
       relNodeMenu.value = null;
-      if (name) relLoadEntity(name, relCurrentType.value);
+      if (!name) return;
+      await relLoadEntity(name, relCurrentType.value);
+      relShowPinnedCard();   // 与点击节点一致：选中后把预览卡钉在条目旁边
     }
 
     function relMenuDeleteEntity() {
@@ -6347,7 +6352,7 @@ createApp({
       relSyncLinkHighlight();
     }
 
-    function relOnNodePicked(name) {
+    async function relOnNodePicked(name) {
       if (relLinkMode.value) {
         if (!relLinkSource.value) {
           relLinkSource.value = name;
@@ -6361,7 +6366,10 @@ createApp({
         relOpenCreateRelation(fromName, name);
         return;
       }
-      relLoadEntity(name, relCurrentType.value);
+      // 再次点击已选中的条目 = 取消选中
+      if (relSelectedEntity.value === name) { relDeselect(); return; }
+      await relLoadEntity(name, relCurrentType.value);
+      relShowPinnedCard();   // 选中后把预览卡钉在条目旁边
     }
 
     // 分类配色（对齐 UI 设计规范 §8.2：角色金/世界青/势力紫/地点蓝灰/事件琥珀/道具棕）
@@ -6382,25 +6390,94 @@ createApp({
       return s;
     }
 
-    // 悬停预览卡：数据取自已加载的图数据，不额外请求接口
-    function relShowHoverCard(name, event) {
+    // ===== 悬停预览卡：内容与定位 =====
+
+    // 卡片尺寸与间距（用于判断左右两侧空间是否足够）
+    const REL_CARD_W = 268, REL_CARD_H = 440, REL_CARD_GAP = 18;
+    // 容器/画布矩形短时缓存：卡片钉住时每帧都要重新定位，避免每帧强制重排
+    let relCardRectCache = { t: 0, wrap: null, canvas: null };
+    let relGraphCenterCache = { t: 0, x: 0 };
+
+    function relCardRects() {
+      const now = performance.now();
+      if (!relCardRectCache.wrap || now - relCardRectCache.t > 300) {
+        const wrap = document.querySelector('.rel-canvas-wrap');
+        const canvas = relRenderer ? relRenderer.domElement : null;
+        if (!wrap || !canvas) return null;
+        relCardRectCache = {
+          t: now,
+          wrap: wrap.getBoundingClientRect(),
+          canvas: canvas.getBoundingClientRect(),
+        };
+      }
+      return relCardRectCache;
+    }
+
+    // 条目在屏幕上的位置（视口坐标）：把卡片钉到条目旁边时用
+    function relNodeClientXY(name) {
+      const rects = relCardRects();
+      if (!rects || !relCamera) return null;
+      const view = relNodeViews.find(v => v.name === name);
+      if (!view) return null;
+      const p = view.mesh.position.clone().project(relCamera);
+      const cr = rects.canvas;
+      return {
+        x: cr.left + (p.x * 0.5 + 0.5) * cr.width,
+        y: cr.top + (-p.y * 0.5 + 0.5) * cr.height,
+      };
+    }
+
+    // 关系图整体的屏幕中心 x：条目偏左就把卡片放光标左侧，偏右就放右侧，
+    // 这样卡片落在条目「背离图心」的一侧，尽量不压住它自己的关系线
+    function relGraphCenterClientX() {
+      const rects = relCardRects();
+      if (!rects) return 0;
+      const now = performance.now();
+      if (now - relGraphCenterCache.t < 300) return relGraphCenterCache.x;
+      const cr = rects.canvas;
+      let sum = 0;
+      let n = 0;
+      if (relCamera) {
+        relNodeViews.forEach(v => {
+          sum += (v.mesh.position.clone().project(relCamera).x * 0.5 + 0.5) * cr.width;
+          n++;
+        });
+      }
+      const x = cr.left + (n ? sum / n : cr.width / 2);
+      relGraphCenterCache = { t: now, x };
+      return x;
+    }
+
+    // 该条目应把卡片放在左侧还是右侧
+    function relPreferredSide(nodeClientX) {
+      return nodeClientX < relGraphCenterClientX() ? 'left' : 'right';
+    }
+
+    // 在首选侧放置卡片；该侧空间不足则翻到另一侧，最后夹在容器内
+    function relPlaceCard(anchorX, anchorY, preferSide) {
+      const rects = relCardRects();
       const wrap = document.querySelector('.rel-canvas-wrap');
-      if (!wrap || !name) { relHoverInfo.value = null; return; }
+      if (!rects || !wrap) return { x: 10, y: 10, side: preferSide };
+      const px = anchorX - rects.wrap.left;
+      const py = anchorY - rects.wrap.top;
+      const cw = wrap.clientWidth || 0;
+      const ch = wrap.clientHeight || 0;
+      const fitsLeft = px - REL_CARD_GAP - REL_CARD_W >= 8;
+      const fitsRight = px + REL_CARD_GAP + REL_CARD_W <= cw - 8;
+      let side = preferSide === 'left' ? 'left' : 'right';
+      if (side === 'left' && !fitsLeft && fitsRight) side = 'right';
+      else if (side === 'right' && !fitsRight && fitsLeft) side = 'left';
+      let x = side === 'left' ? px - REL_CARD_GAP - REL_CARD_W : px + REL_CARD_GAP;
+      x = Math.max(8, Math.min(x, Math.max(8, cw - REL_CARD_W - 8)));
+      const y = Math.max(8, Math.min(py - REL_CARD_H / 2, Math.max(8, ch - REL_CARD_H - 8)));
+      return { x, y, side };
+    }
+
+    // 卡片内容取自已加载的图数据，不额外请求接口
+    function relCardContent(name) {
       const type = relCurrentType.value;
       const ent = (relGraphData.value.entities || []).find(e => e.id === name) || {};
       const hasPortrait = type === '角色' && relPortraitNames.value.indexOf(name) >= 0;
-      const rect = wrap.getBoundingClientRect();
-      const cw = wrap.clientWidth || 0;
-      const ch = wrap.clientHeight || 0;
-      const px = event.clientX - rect.left;
-      const py = event.clientY - rect.top;
-      // 卡片默认落在光标右侧，空间不足时翻到左侧；垂直方向居中并夹在容器内
-      const CW = 268, CH = 440, gap = 18;
-      let x = px + gap;
-      if (x + CW > cw - 10) x = px - gap - CW;
-      x = Math.max(10, Math.min(x, Math.max(10, cw - CW - 10)));
-      let y = Math.max(10, Math.min(py - CH / 2, Math.max(10, ch - CH - 10)));
-
       const meta = [];
       const relCount = (relGraphData.value.relations || [])
         .filter(r => r.from === name || r.to === name).length;
@@ -6408,7 +6485,6 @@ createApp({
       if (ent.gender) meta.push(ent.gender);
       if (ent.age) meta.push(ent.age);
       if (ent.locked || ent.source === 'manual') meta.push('手动维护');
-
       // profile 是用户手写字段，AI 通常不填；这里用结构化字段补出「人物简介」正文
       const aliases = Array.isArray(ent.aliases) ? ent.aliases.join('、') : (ent.aliases || '');
       const details = [];
@@ -6416,8 +6492,7 @@ createApp({
       if (ent.appearance) details.push({ k: '外貌', v: relPlainText(ent.appearance, 110) });
       if (ent.personality) details.push({ k: '性格', v: relPlainText(ent.personality, 110) });
       if (aliases) details.push({ k: '别名', v: relPlainText(aliases, 80) });
-
-      relHoverInfo.value = {
+      return {
         name,
         cat: type,
         color: relTypeHex(type),
@@ -6430,12 +6505,68 @@ createApp({
         profile: relPlainText(ent.profile || ent.story, 420),
         details,
         meta,
-        x, y,
       };
+    }
+
+    // 悬停：卡片跟随光标纵向移动，左右按条目在关系图中的位置决定
+    function relShowHoverCard(name, event) {
+      if (!name) { relRestoreCard(); return; }
+      const pos = relNodeClientXY(name);
+      const anchorX = event ? event.clientX : (pos ? pos.x : 0);
+      const anchorY = event ? event.clientY : (pos ? pos.y : 0);
+      const place = relPlaceCard(anchorX, anchorY, relPreferredSide(pos ? pos.x : anchorX));
+      relHoverInfo.value = Object.assign(relCardContent(name), {
+        pinned: false, side: place.side, x: place.x, y: place.y,
+      });
+    }
+
+    // 选中：卡片钉在所选条目旁边（不跟随光标），左右同样按条目位置决定
+    function relShowPinnedCard() {
+      const name = relSelectedEntity.value;
+      if (!name) { relHideHoverCard(); return; }
+      const pos = relNodeClientXY(name);
+      if (!pos) { relHideHoverCard(); return; }
+      const place = relPlaceCard(pos.x, pos.y, relPreferredSide(pos.x));
+      relHoverInfo.value = Object.assign(relCardContent(name), {
+        pinned: true, side: place.side, x: place.x, y: place.y,
+      });
     }
 
     function relHideHoverCard() {
       if (relHoverInfo.value) relHoverInfo.value = null;
+    }
+
+    // 光标不在条目上时的落地状态：有选中条目就显示钉住的卡片，否则隐藏
+    function relRestoreCard() {
+      if (relSelectedEntity.value && relNodeViews.some(v => v.name === relSelectedEntity.value)) {
+        relShowPinnedCard();
+      } else {
+        relHideHoverCard();
+      }
+    }
+
+    // 卡片钉住时，随视角旋转 / 平移 / 缩放 / 布局变化重新贴到条目旁边
+    function relRepositionPinnedCard() {
+      const info = relHoverInfo.value;
+      if (!info || !info.pinned) return;
+      const pos = relNodeClientXY(info.name);
+      if (!pos) { relHideHoverCard(); return; }
+      const place = relPlaceCard(pos.x, pos.y, relPreferredSide(pos.x));
+      if (info.x !== place.x) info.x = place.x;
+      if (info.y !== place.y) info.y = place.y;
+      if (info.side !== place.side) info.side = place.side;
+    }
+
+    // 取消选中：清掉条目面板与钉住的卡片
+    function relDeselect() {
+      relSelectedEntity.value = null;
+      relEntityData.value = null;
+      relEntityContent.value = '';
+      relPortraitUrl.value = '';
+      relPortraitError.value = '';
+      relHoverName = null;
+      relHideHoverCard();
+      relApplyHighlight(null);
     }
 
     async function relLoadPortraitNames() {
@@ -7001,7 +7132,8 @@ createApp({
         relDragLastX = e.clientX;
         relDragLastY = e.clientY;
         relDragMoved = false;
-        relHideHoverCard();   // 一开始拖动就收起预览卡，避免挡视线
+        // 开始拖动就收起跟随光标的卡片；已选中的条目保留钉住态，避免挡视线又能定位
+        relRestoreCard();
         if (e.button === 2) {
           // 右键按住 = 旋转视图；只有真的拖动过才阻止弹出菜单
           relOrbiting = true;
@@ -7033,14 +7165,19 @@ createApp({
       });
       canvasEl.addEventListener('wheel', (e) => {
         e.preventDefault();
-        relHideHoverCard();
+        relRestoreCard();
         relOrbit.radius = Math.min(600, Math.max(35, relOrbit.radius * (1 + e.deltaY * 0.0012)));
         relApplyCamera();
       }, { passive: false });
 
       // 悬停：高亮该节点与它的一跳邻居 + 弹出纵向预览卡（Obsidian 关系图手感）
       canvasEl.addEventListener('mousemove', (e) => {
-        if (relDragNode || relDragging || relOrbiting) { relHideHoverCard(); return; }
+        if (relDragNode || relDragging || relOrbiting) {
+          // 拖动 / 旋转 / 平移过程中不显示跟随光标的卡片；
+          // 已选中条目的钉住卡片保留（relAnimate 会让它跟着条目一起动）
+          if (!relHoverInfo.value || !relHoverInfo.value.pinned) relHideHoverCard();
+          return;
+        }
         const hit = relPickNode(e);
         const next = hit ? relPickedName : null;
         if (next !== relHoverName) {
@@ -7049,13 +7186,13 @@ createApp({
         }
         canvasEl.style.cursor = next ? 'pointer' : 'grab';
         if (next) relShowHoverCard(next, e);
-        else relHideHoverCard();
+        else relRestoreCard();
       });
       canvasEl.addEventListener('mouseleave', () => {
         relHoverName = null;
         relApplyHighlight(relSelectedEntity.value || null);
         canvasEl.style.cursor = 'grab';
-        relHideHoverCard();
+        relRestoreCard();
       });
       relEnsureGlobalHandlers();
 
@@ -7199,6 +7336,7 @@ createApp({
       relSimInit(entities.map((_, i) => positions[i]), simLinks);
       relHoverName = null;
       relApplyHighlight(relSelectedEntity.value || null);
+      relRestoreCard();   // 重绘后若仍有选中条目，把预览卡重新钉回去
 
       relRenderer.domElement.addEventListener('click', relOnCanvasClick);
       relSyncLinkHighlight();
@@ -7266,6 +7404,7 @@ createApp({
       if (relScene && relCamera && relRenderer) {
         // 不再自转：只有物理模拟在推进，收敛后 relStepSimulation 内部会自动停算
         relStepSimulation();
+        relRepositionPinnedCard();   // 钉住的预览卡跟随条目移动（仅位置变化时更新状态）
         relRenderer.render(relScene, relCamera);
       }
     }
