@@ -927,6 +927,14 @@ body {
 .config-status { font-size: 12px; padding: 0 8px; height: 22px; display: inline-flex; align-items: center; border-radius: var(--radius-xs); font-weight: 400; }
 .config-status.ok { background: var(--color-success-bg); color: var(--color-success); }
 .config-status.miss { background: var(--color-error-bg); color: var(--color-error); }
+/* 密钥字段：后端只下发掩码，这里用徽标 + 清除按钮表达"已设置 / 将清除 / 将保存" */
+.key-field-head { display: flex; align-items: center; gap: 8px; }
+.key-badge { font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: var(--radius-xs); background: var(--color-success-bg); color: var(--color-success); }
+.key-badge.muted { background: var(--color-hover-bg); color: var(--color-text-weak); }
+.key-badge.danger { background: var(--color-error-bg); color: var(--color-error); }
+.key-clear-btn { margin-left: auto; font-size: 11px; line-height: 1; padding: 4px 9px; border-radius: var(--radius-xs); cursor: pointer; background: transparent; color: var(--color-text-weak); border: 1px solid var(--color-border-strong); transition: all 0.15s; }
+.key-clear-btn:hover { color: var(--color-error); border-color: var(--color-error); background: var(--color-error-bg); }
+.key-clear-btn.undo { color: var(--color-primary); border-color: var(--color-primary); background: var(--accent-dim); }
 
 /* Toggle Switch */
 .toggle-switch {
@@ -3250,8 +3258,19 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <input v-model="ch.base_url" placeholder="如 https://api.deepseek.com/v1">
             </div>
             <div class="api-field">
-              <label class="api-field-label">API Key</label>
-              <input v-model="ch.api_key" type="password" placeholder="sk-...">
+              <div class="key-field-head">
+                <label class="api-field-label">API Key</label>
+                <span v-if="ch._clearKey" class="key-badge danger">将清除</span>
+                <span v-else-if="ch._hasKey" class="key-badge">已设置</span>
+                <span v-else-if="ch.api_key" class="key-badge muted">将保存</span>
+                <button v-if="ch._hasKey || ch._clearKey" class="key-clear-btn"
+                        :class="{ undo: ch._clearKey }"
+                        @click="ch._clearKey = !ch._clearKey; ch.api_key = ''">
+                  {{ ch._clearKey ? '撤销' : '清除' }}
+                </button>
+              </div>
+              <input v-model="ch.api_key" type="password"
+                     :placeholder="ch._clearKey ? '保存后将被清空' : (ch._hasKey ? '已设置，留空则保持不变' : 'sk-...')">
             </div>
             <div class="api-field">
               <label class="api-field-label">模型名称</label>
@@ -3328,8 +3347,19 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <input v-model="configData.roles[key].base_url" placeholder="API Base URL">
             </div>
             <div class="api-field">
-              <label class="api-field-label">API Key</label>
-              <input v-model="configData.roles[key].api_key" placeholder="API Key" type="password">
+              <div class="key-field-head">
+                <label class="api-field-label">API Key</label>
+                <span v-if="configData.roles[key]._clearKey" class="key-badge danger">将清除</span>
+                <span v-else-if="configData.roles[key]._hasKey" class="key-badge">已设置</span>
+                <span v-else-if="configData.roles[key].api_key" class="key-badge muted">将保存</span>
+                <button v-if="configData.roles[key]._hasKey || configData.roles[key]._clearKey" class="key-clear-btn"
+                        :class="{ undo: configData.roles[key]._clearKey }"
+                        @click="configData.roles[key]._clearKey = !configData.roles[key]._clearKey; configData.roles[key].api_key = ''">
+                  {{ configData.roles[key]._clearKey ? '撤销' : '清除' }}
+                </button>
+              </div>
+              <input v-model="configData.roles[key].api_key" type="password"
+                     :placeholder="configData.roles[key]._clearKey ? '保存后将被清空' : (configData.roles[key]._hasKey ? '已设置，留空则保持不变' : 'API Key')">
             </div>
             <div class="api-field">
               <label class="api-field-label">温度 / 最大 Tokens</label>
@@ -3362,8 +3392,20 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <div class="config-row">
               <input v-model="configData.image_config.base_url" placeholder="Base URL (如 https://api.openai.com/v1)" style="flex:1">
             </div>
-            <div class="config-row">
-              <input v-model="configData.image_config.api_key" type="password" placeholder="API Key" style="flex:1">
+            <div class="api-field" style="margin-bottom:0">
+              <div class="key-field-head">
+                <label class="api-field-label">API Key</label>
+                <span v-if="configData.image_config._clearKey" class="key-badge danger">将清除</span>
+                <span v-else-if="configData.image_config._hasKey" class="key-badge">已设置</span>
+                <span v-else-if="configData.image_config.api_key" class="key-badge muted">将保存</span>
+                <button v-if="configData.image_config._hasKey || configData.image_config._clearKey" class="key-clear-btn"
+                        :class="{ undo: configData.image_config._clearKey }"
+                        @click="configData.image_config._clearKey = !configData.image_config._clearKey; configData.image_config.api_key = ''">
+                  {{ configData.image_config._clearKey ? '撤销' : '清除' }}
+                </button>
+              </div>
+              <input v-model="configData.image_config.api_key" type="password"
+                     :placeholder="configData.image_config._clearKey ? '保存后将被清空' : (configData.image_config._hasKey ? '已设置，留空则保持不变' : 'API Key')">
             </div>
             <p style="font-size:11px;color:var(--text-muted);margin:0">
               粘贴控制台「API Key」里直接复制的密钥原文即可，不要带引号、空格或 <code>Bearer</code> 前缀；也不要填火山引擎主账号的 AK/SK。
@@ -7816,12 +7858,24 @@ createApp({
             rolesData[key].models = rolesData[key].model ? [rolesData[key].model] : [''];
           }
         }
+        // 后端只下发掩码，明文密钥不再进入页面。这里把 api_key 换成 _hasKey 标记 + 空值：
+        // 输入框留空即表示"保持不变"，需要删除密钥时用「清除」按钮显式声明。
+        const markKey = (obj) => {
+          obj._hasKey = !!(obj.api_key && obj.api_key.trim());
+          obj.api_key = '';
+          obj._clearKey = false;
+          return obj;
+        };
+        markKey(defaultApi);
+        for (const key of Object.keys(rolesData)) markKey(rolesData[key]);
+        const imageConfig = markKey(data.image_config || { enabled: false, base_url: '', api_key: '', model: '', size: '1024x1024', quality: 'auto' });
+        const apiChannels = (data.api_channels || []).map(ch => markKey({ ...ch }));
         configData.value = {
           default_api: defaultApi,
           independent_keys: data.independent_keys || false,
           roles: rolesData,
-          image_config: data.image_config || { enabled: false, base_url: '', api_key: '', model: '', size: '1024x1024', quality: 'auto' },
-          api_channels: data.api_channels || [],
+          image_config: imageConfig,
+          api_channels: apiChannels,
         };
         // 加载写作偏好
         try {
@@ -7833,23 +7887,39 @@ createApp({
     }
     async function saveConfig() {
       try {
+        // 剔除 UI 专用字段（_hasKey / _clearKey），并按需收集"显式清除密钥"的目标
+        const stripUi = (o) => {
+          const c = { ...o };
+          Object.keys(c).forEach(k => { if (k.startsWith('_')) delete c[k]; });
+          return c;
+        };
+        const clearKeys = [];
+        const rolesPayload = {};
+        for (const key of Object.keys(configData.value.roles)) {
+          const r = configData.value.roles[key];
+          if (r._clearKey) clearKeys.push('role:' + key);
+          rolesPayload[key] = {
+            ...stripUi(r),
+            models: (r.models || []).filter(m => m && m.trim()),
+          };
+        }
+        if (configData.value.image_config._clearKey) clearKeys.push('image');
+        const channelsPayload = (configData.value.api_channels || []).map(ch => {
+          if (ch._clearKey) clearKeys.push('channel:' + (ch.id || ch.name || ''));
+          return stripUi(ch);
+        });
         // 过滤空模型名
         const cleanData = {
           default_api: {
-            ...configData.value.default_api,
+            ...stripUi(configData.value.default_api),
             models: (configData.value.default_api.models || []).filter(m => m && m.trim()),
           },
           independent_keys: configData.value.independent_keys,
-          roles: {},
-          image_config: configData.value.image_config,
-          api_channels: configData.value.api_channels,
+          roles: rolesPayload,
+          image_config: stripUi(configData.value.image_config),
+          api_channels: channelsPayload,
+          clear_keys: clearKeys,
         };
-        for (const key of Object.keys(configData.value.roles)) {
-          cleanData.roles[key] = {
-            ...configData.value.roles[key],
-            models: (configData.value.roles[key].models || []).filter(m => m && m.trim()),
-          };
-        }
         await apiJSON('/api/config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -7935,25 +8005,31 @@ createApp({
       if (!keys.length) return;
       // 默认应用到 DIALOGUE_PARTNER（最常用），否则第一个角色
       const targetKey = keys.includes('DIALOGUE_PARTNER') ? 'DIALOGUE_PARTNER' : keys[0];
-      _applyChannelToRoleKey(targetKey, ch);
+      applyChannelToRoleById(targetKey, ch.id || ch.name);
     }
-    function applyChannelToRoleById(roleKey, idOrName) {
-      const ch = _findChannel(idOrName);
-      if (ch) _applyChannelToRoleKey(roleKey, ch);
-    }
-    function _applyChannelToRoleKey(roleKey, ch) {
-      if (!configData.value.roles[roleKey]) {
-        configData.value.roles[roleKey] = { models: [''], base_url: '', api_key: '', temperature: 0.7, max_tokens: 8192 };
-      }
-      configData.value.roles[roleKey] = {
-        ...configData.value.roles[roleKey],
-        models: [...(ch.models || [''])],
-        base_url: ch.base_url || '',
-        api_key: ch.api_key || '',
-        temperature: ch.temperature ?? 0.7,
-        max_tokens: ch.max_tokens ?? 8192,
-      };
-      showToast('已应用到 ' + roleKey, 'success');
+    async function applyChannelToRoleById(roleKey, idOrName) {
+      if (!roleKey || !idOrName) return;
+      try {
+        // 密钥复制在服务端完成：浏览器始终拿不到明文密钥
+        const res = await apiJSON('/api/config/apply-channel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: roleKey, channel: idOrName }),
+        });
+        const applied = (res.roles || {})[roleKey] || {};
+        configData.value.roles[roleKey] = {
+          ...(configData.value.roles[roleKey] || {}),
+          models: [...(applied.models || [''])],
+          base_url: applied.base_url || '',
+          api_key: '',
+          _hasKey: !!(applied.api_key && applied.api_key.trim()),
+          _clearKey: false,
+          temperature: applied.temperature ?? 0.7,
+          max_tokens: applied.max_tokens ?? 8192,
+          is_configured: !!applied.is_configured,
+        };
+        showToast('已应用到 ' + roleKey, 'success');
+      } catch (e) { showToast('应用渠道失败', 'error'); }
     }
 
     // ===== Health Check =====
