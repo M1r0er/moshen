@@ -98,18 +98,27 @@ class ConfigUpdateRequest(BaseModel):
     roles: dict = {}
     api_channels: list = []
     image_config: dict = {}
+    # 显式要求清除的密钥目标：role:XXX / image / channel:<id|name> / default
+    # （密钥留空只表示"保持不变"；清空必须显式走这里，既避免误抹，也保留删除能力）
+    clear_keys: list[str] = []
 
 
 @app.get("/api/config")
 async def get_config():
-    """获取模型配置状态（包含默认API、开关、四角色）"""
+    """获取模型配置状态（包含默认API、开关、四角色）
+
+    所有 api_key 均已掩码为 "********"，明文密钥不会下发到前端。
+    """
     mgr = get_config_manager()
     return mgr.get_full_config()
 
 
 @app.post("/api/config")
 async def save_config(req: ConfigUpdateRequest):
-    """保存模型配置"""
+    """保存模型配置
+
+    密钥留空或回传掩码 = 保持原值；需要清空请通过 clear_keys 指定目标。
+    """
     mgr = get_config_manager()
     data = {
         "default_api": req.default_api,
@@ -117,9 +126,29 @@ async def save_config(req: ConfigUpdateRequest):
         "roles": req.roles,
         "api_channels": req.api_channels,
         "image_config": req.image_config,
+        "clear_keys": req.clear_keys,
     }
     mgr.save_config(data)
     return {"success": True, **mgr.get_full_config()}
+
+
+class ApplyChannelRequest(BaseModel):
+    """把某个 API 渠道应用到指定职能"""
+    role: str
+    channel: str
+
+
+@app.post("/api/config/apply-channel")
+async def apply_channel(req: ApplyChannelRequest):
+    """把某个 API 渠道的配置应用到指定职能
+
+    在服务端完成密钥复制，前端无需（也无法）持有明文密钥。
+    """
+    mgr = get_config_manager()
+    try:
+        return {"success": True, **mgr.apply_channel_to_role(req.role, req.channel)}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 class ConfigTestRequest(BaseModel):
