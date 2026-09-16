@@ -6,6 +6,7 @@
 <title>墨参 MoShen · 小说写作助手</title>
 <script src="/static/vue.global.js"></script>
 <script src="/static/vendor/three.min.js"></script>
+<script src="/static/assets/ink/ink-sword.js"></script>
 <style>
 :root {
   /* ===== 设计令牌（对齐 UI 设计规范文档 v1.0）===== */
@@ -1185,7 +1186,10 @@ body {
 .rel-analyze-form .form-row { display: flex; flex-direction: column; gap: 6px; }
 .rel-analyze-form select, .rel-analyze-form textarea { padding: 8px 12px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong); background: var(--color-input-bg); color: var(--color-text-body); font-size: 14px; }
 .rel-analyze-form select:focus, .rel-analyze-form textarea:focus { border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); outline: none; }
-.rel-progress { margin-top: 16px; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); max-height: 200px; overflow-y: auto; font-size: 12.5px; font-family: var(--font-mono); }
+.rel-progress { margin-top: 10px; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); max-height: 200px; overflow-y: auto; font-size: 12.5px; font-family: var(--font-mono); }
+.rel-prog-block { margin-top: 16px; }
+.rel-prog-block .prog { margin-bottom: 8px; }
+.rel-prog-toggle { padding: 3px 10px; font-size: 12px; }
 .rel-progress-msg { padding: 2px 0; color: var(--text-muted); }
 .rel-overview { margin-top: 24px; }
 .rel-overview-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 12px; }
@@ -1349,11 +1353,106 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 .user-msg-anchor { position: relative; }
 .user-msg-anchor::before { content: ''; position: absolute; left: -10px; top: 50%; transform: translateY(-50%); width: 3px; height: 60%; background: var(--accent); border-radius: 2px; opacity: 0.7; box-shadow: 0 0 8px var(--accent); }
 
+/* ==========================================================================
+   加载与等待动画
+   --------------------------------------------------------------------------
+   动画1「笔墨化剑」由 /static/assets/ink/ink-sword.js 提供（双主题、2.9s 无缝循环、
+   reduced-motion 降级到定格签名帧）。
+   本节只负责动画2「进度条」与全局等待层，数值与状态规则见
+   《加载与等待动画需求文档》§3 与《加载动画设计规范文档》§4。
+   ========================================================================== */
+
+/* ===== 主界面淡入遮罩 =====
+   启动页与主界面是两个文档，跨文档的 CSS transition 不生效，
+   只能在主界面上叠一层与启动页同色的遮罩，等首帧就绪后淡出（§8.1 可选优化）。 */
+.boot-mask { position: fixed; inset: 0; z-index: 4000; background: #0f1117; pointer-events: none; opacity: 1; transition: opacity 0.28s ease; }
+.boot-mask.is-gone { opacity: 0; }
+
+/* ===== 动画2 · 进度条组件 ===== */
+.prog { --prog-track-h: 6px; --prog-track-r: 3px; --prog-gap: 8px; --prog-fs: 12.5px; --prog-lh: 18px; }
+.prog.is-inline { --prog-track-h: 4px; --prog-track-r: 2px; --prog-gap: 6px; --prog-fs: 12px; --prog-lh: 16px; }
+.prog__head { display: flex; align-items: baseline; gap: 12px; margin-bottom: var(--prog-gap); }
+.prog__name {
+  flex: 1 1 auto; min-width: 0; text-align: left; max-width: 60%;
+  font-size: var(--prog-fs); line-height: var(--prog-lh); color: var(--color-text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.prog__wait { color: var(--color-text-weak); }
+.prog__count {
+  flex: 0 0 auto; text-align: right; font-size: var(--prog-fs); line-height: var(--prog-lh);
+  color: var(--color-text-secondary); font-variant-numeric: tabular-nums;
+}
+.prog__count.is-bump { animation: progBump 0.2s ease; }
+@keyframes progBump { 0% { color: var(--color-text-secondary); } 40% { color: var(--color-primary); } 100% { color: var(--color-text-secondary); } }
+.prog__track { position: relative; height: var(--prog-track-h); border-radius: var(--prog-track-r); background: rgba(26, 43, 69, 0.10); overflow: hidden; }
+.prog__fill {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 0;
+  border-radius: var(--prog-track-r);
+  background: linear-gradient(90deg, #2D4A6F, #1A2B45);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.prog__fill::after {
+  content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: 2px;
+  background: #6F87A8; box-shadow: 0 0 6px rgba(45, 74, 111, 0.35);
+}
+.prog.is-done .prog__fill { background: var(--color-success); }
+.prog.is-failed .prog__fill { background: var(--color-error); }
+.prog.is-cancelled .prog__fill { background: var(--color-text-weak); }
+.prog.is-waiting .prog__fill::after { animation: progPulse 1.2s ease-in-out infinite; }
+@keyframes progPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+.prog__band {
+  position: absolute; top: 0; bottom: 0; left: -30%; width: 30%;
+  border-radius: var(--prog-track-r);
+  background: linear-gradient(90deg, rgba(45, 74, 111, 0), #2D4A6F, rgba(45, 74, 111, 0));
+  animation: progSweep 1.6s linear infinite;
+}
+@keyframes progSweep { from { left: -30%; } to { left: 100%; } }
+.prog__shine {
+  position: absolute; top: 0; bottom: 0; left: -35%; width: 35%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0));
+  animation: progShine 0.5s ease-out 1 forwards;
+}
+@keyframes progShine { from { left: -35%; } to { left: 100%; } }
+
+/* ===== 全局等待层（方案甲：动画1 居中 42% 高度处，动画2 落底部安全区）===== */
+.busy-layer { position: fixed; inset: 0; z-index: 3000; background: rgba(247, 245, 240, 0.955); animation: busyIn 0.2s ease; }
+.busy-layer.is-leaving { opacity: 0; transition: opacity 0.25s ease; }
+@keyframes busyIn { from { opacity: 0; } to { opacity: 1; } }
+.busy-layer__anim { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); animation: busyUpAnim 0.2s ease; }
+@keyframes busyUpAnim { from { opacity: 0; transform: translate(-50%, -50%) translateY(4px); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.busy-layer__dock { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); width: min(420px, calc(100% - 48px)); animation: busyUpDock 0.2s ease; }
+@keyframes busyUpDock { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%); } }
+.busy-dock__actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.busy-dock__msg { margin-top: 10px; text-align: center; font-size: 12.5px; color: var(--color-error); word-break: break-word; }
+.busy-dock__meta { margin-top: 8px; text-align: center; font-size: 12px; color: var(--color-text-weak); font-variant-numeric: tabular-nums; }
+.busy-dock__log {
+  margin-top: 12px; max-height: 200px; overflow-y: auto; padding: 12px;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  font-size: 12.5px; font-family: var(--font-mono); color: var(--color-text-weak);
+}
+.busy-dock__log-line { padding: 2px 0; word-break: break-word; }
+.busy-btn {
+  padding: 5px 14px; font-size: 12.5px; border-radius: var(--radius-md); cursor: pointer;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--color-text-body);
+  transition: all 0.15s;
+}
+.busy-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.busy-btn.is-primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.busy-btn.is-primary:hover { background: var(--color-primary-hover); }
+
+/* 系统开启"减少动效"时，进度条去掉高光扫过与不确定态亮带，只保留填充变化（§10.2） */
+@media (prefers-reduced-motion: reduce) {
+  .prog__band, .prog__shine { display: none; }
+  .busy-layer, .busy-layer__anim, .busy-layer__dock { animation: none; }
+}
+
 </style>
 
 </head>
 <body>
 <div id="app" v-cloak>
+  <!-- 主界面首帧遮罩：与启动页同色，首帧就绪后 0.28s 淡出（跨文档 transition 不可用） -->
+  <div class="boot-mask" :class="{ 'is-gone': bootReady }"></div>
   <div class="app-layout">
     <!-- ========== Sidebar ========== -->
     <aside class="sidebar">
@@ -1417,7 +1516,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.7.9</div>
+        <div class="sidebar-version">v0.7.10</div>
       </div>
     </aside>
 
@@ -2601,8 +2700,26 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 {{ relAnalyzing ? '分析中…' : '开始分析' }}
               </button>
 
-              <div v-if="relProgressMsgs.length" class="rel-progress">
-                <div v-for="(m, i) in relProgressMsgs" :key="i" class="rel-progress-msg">{{ m }}</div>
+              <!-- 动画2 · 页面内嵌版：替换原滚动文本区，日志改到「查看详情」折叠入口（§7.4） -->
+              <div v-if="relProgVisible" class="rel-prog-block">
+                <div class="prog is-inline" :class="relProgClass">
+                  <div class="prog__head">
+                    <div class="prog__name">
+                      星图分析<span v-if="relProgWaiting" class="prog__wait">（等待模型响应…）</span>
+                    </div>
+                    <div class="prog__count">{{ relProgDerived.count }}</div>
+                  </div>
+                  <div class="prog__track">
+                    <div class="prog__fill" :style="{ width: relProgDerived.fill + '%' }"></div>
+                    <div v-if="relProgDerived.indeterminate" class="prog__band"></div>
+                  </div>
+                </div>
+                <button v-if="relProgressMsgs.length" class="busy-btn rel-prog-toggle" @click="relShowLog = !relShowLog">
+                  {{ relShowLog ? '收起详情' : '查看详情' }}
+                </button>
+                <div v-if="relShowLog" class="rel-progress">
+                  <div v-for="(m, i) in relProgressMsgs" :key="i" class="rel-progress-msg">{{ m }}</div>
+                </div>
               </div>
 
               <div v-if="relOverview.length" class="rel-overview">
@@ -3462,6 +3579,42 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
     </div>
   </div>
 
+  <!-- ========== 全局等待层（动画1 + 动画2，所有长流程任务共用，§7.3 方案甲） ========== -->
+  <div v-if="busy.visible" class="busy-layer" :class="{ 'is-leaving': busy.leaving }">
+    <div class="busy-layer__anim" ref="busyAnimHost" style="width:160px;height:160px"></div>
+
+    <div class="busy-layer__dock">
+      <div class="prog" :class="busyProgClass">
+        <div class="prog__head">
+          <div class="prog__name">
+            {{ busyNameText }}<span v-if="busyWaiting" class="prog__wait">（等待模型响应…）</span>
+          </div>
+          <div class="prog__count" :class="{ 'is-bump': busyCountBump }">{{ busyDerived.count }}</div>
+        </div>
+        <div class="prog__track">
+          <div class="prog__fill" :style="{ width: busyDerived.fill + '%' }"></div>
+          <div v-if="busyDerived.indeterminate" class="prog__band"></div>
+          <div v-if="busy.status === 'done'" class="prog__shine"></div>
+        </div>
+      </div>
+
+      <div v-if="busy.message" class="busy-dock__msg">{{ busy.message }}</div>
+      <div class="busy-dock__meta">已耗时 {{ busyElapsedText }}</div>
+
+      <div v-if="busyShowDetail && busyLog.length" class="busy-dock__log">
+        <div v-for="(m, i) in busyLog" :key="i" class="busy-dock__log-line">{{ m }}</div>
+      </div>
+
+      <div class="busy-dock__actions">
+        <button v-if="busyLog.length" class="busy-btn" @click="busyShowDetail = !busyShowDetail">
+          {{ busyShowDetail ? '收起详情' : '详情' }}
+        </button>
+        <button v-if="busyRetryable" class="busy-btn is-primary" @click="busyRetry">重试</button>
+        <button v-if="busy.status === 'failed' || busy.status === 'cancelled'" class="busy-btn" @click="busyHide">关闭</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== Toast ========== -->
   <div v-if="toastMsg" class="toast" :class="toastType">{{ toastMsg }}</div>
 </div>
@@ -3880,6 +4033,9 @@ createApp({
     const relGraphHint = ref('');
     const relConfirm = ref(null);           // 通用确认弹窗 { title, message }
     let relEventSource = null;
+    let relHeartbeatAt = 0;    // 最近一次心跳时间（连接存活的证据）
+    let relErrDeadline = 0;    // 断线重连宽限截止时间
+    let relErrTimer = null;
 
     // ===== Workspace =====
     async function loadWorkspace() {
@@ -5131,7 +5287,13 @@ createApp({
       if (!currentProjectId.value) return;
       ppAnalyzing.value = true;
       try {
-        const data = await apiJSON('/api/plot-points/' + currentProjectId.value + '/analyze-usage', { method: 'POST' });
+        const data = await runBusyTask(
+          { task: 'plot_points.usage', name: '爽点使用检查' },
+          ({ task_id }) => apiJSON(
+            '/api/plot-points/' + currentProjectId.value + '/analyze-usage',
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ task_id }) }
+          )
+        );
         ppAnalyzeResult.value = data;
       } catch (e) { showToast('AI 检查失败: ' + e.message, 'error'); }
       ppAnalyzing.value = false;
@@ -5581,15 +5743,19 @@ createApp({
       }
       detectingFs.value = true;
       try {
-        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/detect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            scope: scope,
-            ch_id: currentWritingChId.value,
-            vol_id: currentWritingVolId.value,
-          }),
-        });
+        const data = await runBusyTask(
+          { task: 'foreshadowing.detect', name: '伏笔检测' },
+          ({ task_id }) => apiJSON('/api/foreshadowing/' + currentProjectId.value + '/detect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scope: scope,
+              ch_id: currentWritingChId.value,
+              vol_id: currentWritingVolId.value,
+              task_id,
+            }),
+          })
+        );
         detectedForeshadowings.value = data.found || [];
         showFsDetectModal.value = true;
       } catch (e) { showToast('检测失败: ' + e.message, 'error'); }
@@ -5603,14 +5769,18 @@ createApp({
       }
       checkingRecover.value = true;
       try {
-        const data = await apiJSON('/api/foreshadowing/' + currentProjectId.value + '/recover-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            scope: 'single',
-            ch_id: currentWritingChId.value,
-          }),
-        });
+        const data = await runBusyTask(
+          { task: 'foreshadowing.recover', name: '回收检测' },
+          ({ task_id }) => apiJSON('/api/foreshadowing/' + currentProjectId.value + '/recover-check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scope: 'single',
+              ch_id: currentWritingChId.value,
+              task_id,
+            }),
+          })
+        );
         detectedForeshadowings.value = (data.results || []).map(r => ({
           ...r,
           is_new: false,
@@ -5800,11 +5970,14 @@ createApp({
       if (!searchQuery.value.trim()) return;
       analyzing.value = true;
       try {
-        const data = await apiJSON('/api/knowledge/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: searchQuery.value, type: searchType.value }),
-        });
+        const data = await runBusyTask(
+          { task: 'knowledge.search', name: '知识搜索分析' },
+          ({ task_id }) => apiJSON('/api/knowledge/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: searchQuery.value, type: searchType.value, task_id }),
+          })
+        );
         showToast('知识已添加: ' + (data.title || searchQuery.value), 'success');
         searchQuery.value = '';
         await loadKnowledge();
@@ -5914,6 +6087,30 @@ createApp({
       relStartAnalyze(overwrite);
     }
 
+    function relResetProgress() {
+      relProg.active = false;
+      relProg.completed = null;
+      relProg.total = null;
+      relProg.unit = '';
+      relProg.progress = null;
+      relProg.status = 'running';
+      relProg.updatedAt = 0;
+      relShowLog.value = false;
+    }
+
+    /** 把一条结构化进度事件同时写入内嵌进度条与全局等待层，保证两处一致（§7.4） */
+    function relApplyProgress(payload) {
+      if (!payload) return;
+      relProg.active = true;
+      if (payload.completed != null) relProg.completed = payload.completed;
+      if (payload.total != null) relProg.total = payload.total;
+      if (payload.unit != null) relProg.unit = payload.unit;
+      if (payload.progress != null) relProg.progress = payload.progress;
+      if (payload.status) relProg.status = payload.status;
+      relProg.updatedAt = Date.now();
+      busyPush(payload);
+    }
+
     async function relStartAnalyze(overwriteManual) {
       if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
       if (relSource.value === 'uploads' && relSelectedFiles.value.length === 0) {
@@ -5922,46 +6119,101 @@ createApp({
       }
       relAnalyzing.value = true;
       relProgressMsgs.value = [];
+      relResetProgress();
+      const body = {
+        preset: relPreset.value,
+        source: relSource.value,
+        text: relTextInput.value,
+        files: relSource.value === 'uploads' ? relSelectedFiles.value : [],
+        incremental: relIncremental.value,
+        mode: overwriteManual ? 'overwrite_manual' : 'preserve',
+      };
       try {
-        const body = {
-          preset: relPreset.value,
-          source: relSource.value,
-          text: relTextInput.value,
-          files: relSource.value === 'uploads' ? relSelectedFiles.value : [],
-          incremental: relIncremental.value,
-          mode: overwriteManual ? 'overwrite_manual' : 'preserve',
-        };
         await apiJSON('/api/relations/' + currentProjectId.value + '/analyze', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        relConnectProgress();
       } catch (e) {
         relAnalyzing.value = false;
         showToast('启动分析失败: ' + (e.message || e), 'error');
+        return;
       }
+      // 必须先拿到 200 才连 SSE（§6.2）
+      relProg.active = true;
+      relProg.updatedAt = Date.now();
+      busyBegin({
+        task: 'relations.analyze',
+        name: '星图分析',
+        retry: () => relStartAnalyze(overwriteManual),
+      });
+      relConnectProgress();
     }
 
     function relConnectProgress() {
-      if (relEventSource) relEventSource.close();
+      relStopProgress();
       const url = '/api/relations/' + currentProjectId.value + '/progress';
       relEventSource = new EventSource(url);
+      let settled = false;
+
+      const settle = (ok, reason) => {
+        if (settled) return;
+        settled = true;
+        relAnalyzing.value = false;
+        relStopProgress();
+        if (ok) {
+          relProg.status = 'done';
+          relLoadOverview();
+          if (relSource.value === 'uploads') relLoadUploads();
+        } else {
+          relProg.status = 'cancelled';
+          busyCancel(reason);
+        }
+      };
+
       relEventSource.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data);
-          relProgressMsgs.value.push(msg);
-          if (msg === '分析完成') {
-            relAnalyzing.value = false;
-            relEventSource.close();
-            relLoadOverview();
-            if (relSource.value === 'uploads') relLoadUploads();
-          }
-        } catch (_) { /* ignore */ }
+        let msg;
+        try { msg = JSON.parse(e.data); } catch (_) { return; }
+        if (typeof msg !== 'string') return;
+        relProgressMsgs.value.push(msg);
+        // 兼容旧后端：完成哨兵是字符串全等比较；新后端走结构化事件（§8.2 缺陷 1）
+        if (msg === '分析完成') settle(true);
       };
+
+      // 结构化进度事件：进度条由它驱动，完成判定也按 status 字段走
+      relEventSource.addEventListener('progress', (e) => {
+        let payload;
+        try { payload = JSON.parse(e.data); } catch (_) { return; }
+        relApplyProgress(payload);
+        if (payload.detail) relProgressMsgs.value.push(payload.detail);
+        if (payload.status === 'done') settle(true);
+        else if (payload.status === 'failed') settle(false, payload.message || '分析失败');
+        else if (payload.status === 'cancelled') settle(false, payload.message || '已中断');
+      });
+
+      // 心跳：只说明连接活着；模型长时间思考时 SSE 不出帧，但连接未断（§8.2 缺陷 3）
+      relEventSource.addEventListener('heartbeat', () => { relHeartbeatAt = Date.now(); });
+
+      const reconnectDeadline = () => Date.now() + 30000;
       relEventSource.onerror = () => {
-        relEventSource.close();
+        if (settled) { relStopProgress(); return; }
+        if (relEventSource && relEventSource.readyState === EventSource.CLOSED) {
+          settle(false, '连接已断开');
+        } else {
+          // 浏览器会自动重连；给 30s 宽限期，仍无事件则判为中断（§8.2 缺陷 2）
+          if (!relErrDeadline || Date.now() > relErrDeadline) relErrDeadline = reconnectDeadline();
+          if (relErrTimer) clearTimeout(relErrTimer);
+          relErrTimer = setTimeout(() => {
+            if (!settled && Date.now() >= relErrDeadline) settle(false, '连接已断开');
+          }, 30000);
+        }
       };
+    }
+
+    function relStopProgress() {
+      if (relErrTimer) { clearTimeout(relErrTimer); relErrTimer = null; }
+      relErrDeadline = 0;
+      if (relEventSource) { relEventSource.close(); relEventSource = null; }
     }
 
     function relIsManual(e) {
@@ -6939,9 +7191,20 @@ createApp({
       if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
       relGeneratingPortraits.value = true;
       relPortraitResult.value = null;
+      const taskId = newTaskId('relations.portraits');
+      busyBegin({
+        task: 'relations.portraits',
+        name: '肖像批量生成',
+        retry: () => relGenerateAllPortraits(),
+      });
+      busyOpenTaskStream(taskId);
       try {
-        await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/generate', { method: 'POST' });
-        // 轮询状态
+        await apiJSON('/api/relations/' + currentProjectId.value + '/portraits/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: taskId }),
+        });
+        // 轮询状态（总数由进度通道逐张上报）
         const poll = async () => {
           for (let i = 0; i < 60; i++) {
             await new Promise(r => setTimeout(r, 3000));
@@ -6949,6 +7212,8 @@ createApp({
             if (status.done) {
               relPortraitResult.value = status.result;
               relGeneratingPortraits.value = false;
+              busyDone();
+              busyCloseTaskStream();
               relPortraitVer += 1;                 // 让关系图的头像贴图重新拉取
               await relLoadPortraitNames();
               if (relSubView.value === 'graph') relRender3D();
@@ -6961,11 +7226,15 @@ createApp({
             }
           }
           relGeneratingPortraits.value = false;
+          busyFail('肖像生成超时（约 3 分钟），请稍后查看');
+          busyCloseTaskStream();
           showToast('肖像生成超时，请稍后查看', 'error');
         };
         poll();
       } catch (e) {
         relGeneratingPortraits.value = false;
+        busyFail(e);
+        busyCloseTaskStream();
         showToast('启动肖像生成失败: ' + (e.message || e), 'error');
       }
     }
@@ -7792,15 +8061,19 @@ createApp({
       fileAnalyzing.value = true;
       fileDetailMsg.value = '正在拆文分析…';
       try {
-        const data = await apiJSON('/api/files/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project_id: currentProjectId.value,
-            filename: fileDetail.value.filename,
-            analysis_type: fileAnalyzeType.value,
-          }),
-        });
+        const data = await runBusyTask(
+          { task: 'files.analyze', name: '拆文分析' },
+          ({ task_id }) => apiJSON('/api/files/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              project_id: currentProjectId.value,
+              filename: fileDetail.value.filename,
+              analysis_type: fileAnalyzeType.value,
+              task_id,
+            }),
+          })
+        );
         fileDetailReport.value = data.report || '';
         fileDetailMode.value = 'report';
         fileDetailMsg.value = data.saved_as ? `分析完成，报告已保存为 ${data.saved_as}` : '分析完成';
@@ -7816,15 +8089,19 @@ createApp({
       fileDissecting.value = true;
       fileDetailMsg.value = '正在蒸馏学习，逐章提取事实卡…';
       try {
-        const data = await apiJSON('/api/files/dissect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project_id: currentProjectId.value,
-            filename: fileDetail.value.filename,
-            max_chapters: fileDissectChapters.value || 0,
-          }),
-        });
+        const data = await runBusyTask(
+          { task: 'files.dissect', name: '蒸馏学习' },
+          ({ task_id }) => apiJSON('/api/files/dissect', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              project_id: currentProjectId.value,
+              filename: fileDetail.value.filename,
+              max_chapters: fileDissectChapters.value || 0,
+              task_id,
+            }),
+          })
+        );
         fileDissectResults.value = data.results || [];
         if (data.error) {
           fileDetailMsg.value = '蒸馏失败：' + data.error;
@@ -8064,8 +8341,314 @@ createApp({
       return t('status.disconnected');
     });
 
+    // ===== 加载与等待动画：全局等待层（动画1 + 动画2）=====
+    // 契约见《加载与等待动画需求文档》§3 / §6.9 ①。所有长流程任务共用一层，
+    // 后端是进度的唯一事实来源，前端只消费并计算展示所需的派生值（§9.4）。
+    const BUSY_WAIT_MS = 20000;      // 超过 20s 未收到新进度 → "等待响应"态
+    const BUSY_THROTTLE_MS = 200;    // 进度更新节流
+    const BUSY_DONE_HOLD_MS = 600;   // 完成态保持时长（高光扫过 0.5s）
+    const BUSY_LEAVE_MS = 250;       // 淡出时长
+
+    const bootReady = ref(false);
+
+    const busy = reactive({
+      visible: false, leaving: false,
+      task: '', name: '',
+      completed: null, total: null, unit: '',
+      progress: null, status: 'running',
+      detail: '', message: '',
+      updatedAt: 0, startedAt: 0,
+    });
+    const busyNow = ref(Date.now());
+    const busyLog = ref([]);
+    const busyShowDetail = ref(false);
+    const busyCountBump = ref(false);
+
+    // 星图分析在页面上保留一份内嵌进度条（用户切走后回来还能看到，§7.4），
+    // 与全局等待层共用同一个 SSE 数据源，保证两处数值一致。
+    const relProg = reactive({
+      active: false,
+      completed: null, total: null, unit: '',
+      progress: null, status: 'running', updatedAt: 0,
+    });
+    const relShowLog = ref(false);
+
+    const busyAnimHost = ref(null);
+    let busyAnimHandle = null;
+    let busyTickTimer = null;
+    let busyHideTimer = null;
+    let busyLeaveTimer = null;
+    let busyRetryFn = null;
+    let busyLastPush = 0;
+    let busyPending = null;
+    let busyThrottleTimer = null;
+    let busyCountTimer = null;
+
+    /** 进度数值规则（§3.4）：progress 优先决定填充宽度，completed/total 决定计数 */
+    function progDerive(state) {
+      const total = Number(state.total);
+      const hasTotal = total > 0;
+      const completed = Number(state.completed);
+      let fill = 0;
+      const byRatio = hasTotal ? Math.max(0, Math.min(1, (isNaN(completed) ? 0 : completed) / total)) : null;
+      if (state.progress != null && !isNaN(Number(state.progress))) {
+        const byProgress = Math.max(0, Math.min(1, Number(state.progress)));
+        if (byRatio != null && Math.abs(byProgress - byRatio) > 0.01) {
+          console.warn('[进度口径冲突] progress 与 completed/total 差值 > 1%，按 progress 渲染', {
+            progress: byProgress, completed: state.completed, total: state.total,
+          });
+        }
+        fill = byProgress;
+      } else if (byRatio != null) {
+        fill = byRatio;
+      }
+      // 已完成 > 总数属后端口径异常：填充按 100%，计数仍显示真实值
+      if (state.status === 'done') fill = 1;
+      let count = '';
+      if (hasTotal) {
+        count = (isNaN(completed) ? 0 : completed) + '/' + total + (state.unit ? ' ' + state.unit : '');
+      } else if (state.completed != null && !isNaN(completed)) {
+        count = String(completed) + (state.unit ? ' ' + state.unit : '');
+      }
+      return {
+        fill: Math.round(fill * 1000) / 10,
+        count,
+        indeterminate: state.status === 'running' && !hasTotal,
+      };
+    }
+
+    const busyDerived = computed(() => progDerive(busy));
+    const relProgDerived = computed(() => progDerive(relProg));
+
+    function isWaiting(state) {
+      return state.status === 'running' && state.updatedAt > 0 && busyNow.value - state.updatedAt > BUSY_WAIT_MS;
+    }
+    const busyWaiting = computed(() => busy.visible && isWaiting(busy));
+    const relProgWaiting = computed(() => relProg.active && isWaiting(relProg));
+
+    const busyProgClass = computed(() => ({
+      'is-done': busy.status === 'done',
+      'is-failed': busy.status === 'failed',
+      'is-cancelled': busy.status === 'cancelled',
+      'is-waiting': busyWaiting.value,
+    }));
+    const relProgClass = computed(() => ({
+      'is-done': relProg.status === 'done',
+      'is-failed': relProg.status === 'failed',
+      'is-cancelled': relProg.status === 'cancelled',
+      'is-waiting': relProgWaiting.value,
+    }));
+
+    const busyNameText = computed(() => {
+      if (busy.status === 'failed') return (busy.name || '任务') + '失败';
+      if (busy.status === 'cancelled') return '已中断';
+      if (busy.status === 'done') return busy.name || '已完成';
+      return busy.name || '处理中';
+    });
+    const busyElapsedText = computed(() => {
+      const secs = Math.max(0, Math.round((busyNow.value - busy.startedAt) / 1000));
+      if (secs < 60) return secs + ' 秒';
+      return Math.floor(secs / 60) + ' 分 ' + (secs % 60) + ' 秒';
+    });
+    // 后端没有取消接口（§10.3 待确认项 6），失败/中断态提供「重试」，
+    // 与 §7.3「后端提供取消接口时显示」保持一致：本期不渲染「中断」按钮。
+    const busyRetryable = computed(() => !!busyRetryFn && (busy.status === 'failed' || busy.status === 'cancelled'));
+    const relProgVisible = computed(() => relProg.active || relProgressMsgs.value.length > 0);
+
+    function startBusyTick() {
+      if (busyTickTimer) return;
+      busyTickTimer = setInterval(() => { busyNow.value = Date.now(); }, 1000);
+    }
+    function stopBusyTick() {
+      if (busyTickTimer) { clearInterval(busyTickTimer); busyTickTimer = null; }
+    }
+    function bumpBusyCount() {
+      busyCountBump.value = false;
+      nextTick(() => {
+        busyCountBump.value = true;
+        if (busyCountTimer) clearTimeout(busyCountTimer);
+        busyCountTimer = setTimeout(() => { busyCountBump.value = false; }, 220);
+      });
+    }
+    function mountBusyAnim() {
+      nextTick(() => {
+        if (busyAnimHandle || !busyAnimHost.value) return;
+        if (!window.MoShenInkSword) return;
+        busyAnimHandle = window.MoShenInkSword.mount(busyAnimHost.value, {
+          theme: 'light', size: 160, base: '/static/assets/ink/',
+        });
+      });
+    }
+    function unmountBusyAnim() {
+      if (busyAnimHandle) { busyAnimHandle.destroy(); busyAnimHandle = null; }
+    }
+
+    function busyBegin(opts) {
+      opts = opts || {};
+      if (busyLeaveTimer) { clearTimeout(busyLeaveTimer); busyLeaveTimer = null; }
+      if (busyHideTimer) { clearTimeout(busyHideTimer); busyHideTimer = null; }
+      busy.visible = true;
+      busy.leaving = false;
+      busy.task = opts.task || '';
+      busy.name = opts.name || '处理中';
+      busy.completed = opts.completed != null ? opts.completed : null;
+      busy.total = opts.total != null ? opts.total : null;
+      busy.unit = opts.unit || '';
+      busy.progress = opts.progress != null ? opts.progress : null;
+      busy.status = 'running';
+      busy.detail = '';
+      busy.message = '';
+      busy.updatedAt = Date.now();
+      busy.startedAt = Date.now();
+      busyNow.value = Date.now();
+      busyLog.value = [];
+      busyShowDetail.value = false;
+      busyRetryFn = opts.retry || null;
+      busyLastPush = 0;
+      busyPending = null;
+      if (busyThrottleTimer) { clearTimeout(busyThrottleTimer); busyThrottleTimer = null; }
+      startBusyTick();
+      mountBusyAnim();
+    }
+
+    /** 把一条进度事件写入等待层状态 */
+    function applyBusyPush(payload) {
+      busyLastPush = Date.now();
+      if (payload.task_name) busy.name = payload.task_name;
+      if (payload.completed != null) {
+        if (payload.completed !== busy.completed) bumpBusyCount();
+        busy.completed = payload.completed;
+      }
+      if (payload.total != null) busy.total = payload.total;
+      if (payload.unit != null) busy.unit = payload.unit;
+      if (payload.progress != null) busy.progress = payload.progress;
+      if (payload.detail) {
+        busy.detail = payload.detail;
+        busyLog.value.push(payload.detail);
+        if (busyLog.value.length > 300) busyLog.value.shift();
+      }
+      if (payload.message) busy.message = payload.message;
+      busy.updatedAt = Date.now();
+      if (payload.status) busy.status = payload.status;
+    }
+
+    /**
+     * 消费一条结构化进度事件。节流最小间隔 200ms（§3.4），
+     * 采用「首帧立即 + 尾帧补齐」策略：连续到达的事件不会整条丢弃，
+     * 否则任务收尾的那一条进度可能永远不上屏。
+     */
+    function busyPush(payload) {
+      if (!payload) return;
+      const terminal = payload.status && payload.status !== 'running';
+      if (terminal) {
+        if (busyThrottleTimer) { clearTimeout(busyThrottleTimer); busyThrottleTimer = null; }
+        busyPending = null;
+        applyBusyPush(payload);
+        return;
+      }
+      const wait = BUSY_THROTTLE_MS - (Date.now() - busyLastPush);
+      if (wait <= 0) { applyBusyPush(payload); return; }
+      busyPending = payload;
+      if (!busyThrottleTimer) {
+        busyThrottleTimer = setTimeout(() => {
+          busyThrottleTimer = null;
+          if (busyPending) {
+            const pending = busyPending;
+            busyPending = null;
+            applyBusyPush(pending);
+          }
+        }, wait);
+      }
+    }
+
+    function busyDone(detail) {
+      busy.status = 'done';
+      busy.progress = 1;
+      busy.updatedAt = Date.now();
+      if (detail) busyLog.value.push(detail);
+      if (busyHideTimer) clearTimeout(busyHideTimer);
+      busyHideTimer = setTimeout(busyHide, BUSY_DONE_HOLD_MS);
+    }
+    function busyFail(err) {
+      busy.status = 'failed';
+      busy.message = typeof err === 'string'
+        ? err
+        : (err && (err.message || err.detail)) ? (err.message || err.detail) : '任务失败';
+      busy.updatedAt = Date.now();
+    }
+    function busyCancel(message) {
+      busy.status = 'cancelled';
+      busy.message = message || '连接已断开，可重试';
+      busy.updatedAt = Date.now();
+    }
+    function busyHide() {
+      if (!busy.visible) return;
+      busy.leaving = true;
+      if (busyLeaveTimer) clearTimeout(busyLeaveTimer);
+      busyLeaveTimer = setTimeout(() => {
+        busy.visible = false;
+        busy.leaving = false;
+        stopBusyTick();
+        unmountBusyAnim();
+      }, BUSY_LEAVE_MS);
+    }
+    function busyRetry() {
+      const fn = busyRetryFn;
+      busyHide();
+      if (fn) setTimeout(fn, BUSY_LEAVE_MS);
+    }
+
+    function newTaskId(prefix) {
+      return (prefix || 'task') + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+    }
+
+    let genericTaskStream = null;
+    function busyOpenTaskStream(taskId) {
+      busyCloseTaskStream();
+      try {
+        const es = new EventSource('/api/tasks/' + encodeURIComponent(taskId) + '/progress');
+        genericTaskStream = es;
+        es.addEventListener('progress', (e) => {
+          let payload;
+          try { payload = JSON.parse(e.data); } catch (_) { return; }
+          busyPush(payload);
+        });
+        // 心跳只用于说明"连接活着"，不计入进度时间戳，否则"等待响应"态永远不会出现
+        es.addEventListener('heartbeat', () => {});
+        es.onerror = () => {};
+      } catch (_) { /* EventSource 不可用时静默降级为不确定态 */ }
+    }
+    function busyCloseTaskStream() {
+      if (genericTaskStream) { genericTaskStream.close(); genericTaskStream = null; }
+    }
+
+    /**
+     * 阻塞式长流程统一入口：开等待层 → 订阅进度通道 → 按请求结果收尾。
+     * exec 收到 { task_id }，需把它放进请求体，后端据此上报进度（§6.9 ②）。
+     */
+    async function runBusyTask(opts, exec) {
+      const taskId = newTaskId(opts.task);
+      const retry = () => { runBusyTask(opts, exec).catch(() => {}); };
+      busyBegin({ task: opts.task, name: opts.name, retry });
+      busyOpenTaskStream(taskId);
+      try {
+        const result = await exec({ task_id: taskId });
+        busyDone();
+        return result;
+      } catch (e) {
+        busyFail(e);
+        throw e;
+      } finally {
+        busyCloseTaskStream();
+      }
+    }
+
     // ===== Lifecycle =====
     onMounted(async () => {
+      // 首帧渲染完成后淡出启动遮罩，掩盖"启动页 → 主界面"的硬切换（§8.1 可选优化）
+      nextTick(() => {
+        requestAnimationFrame(() => { bootReady.value = true; });
+      });
       await checkHealth();
       await loadWorkspace();
       await loadI18nPrefs();
@@ -8294,6 +8877,13 @@ createApp({
       inspirationFileLoading, showInspirationModal, inspirationInput,
       loadInspiration, readInspirationFile, confirmInspiration, browseInspiration,
       inspirationFileIcon, formatFileSize,
+      // 加载与等待动画：主界面淡入遮罩 + 全局等待层（动画1 + 动画2）
+      bootReady,
+      busy, busyDerived, busyProgClass, busyNameText, busyElapsedText,
+      busyWaiting, busyRetryable, busyLog, busyShowDetail, busyCountBump, busyAnimHost,
+      busyBegin, busyPush, busyDone, busyFail, busyCancel, busyHide, busyRetry,
+      runBusyTask, newTaskId,
+      relProg, relProgDerived, relProgClass, relProgWaiting, relProgVisible, relShowLog,
       uploadFile, openSettings, saveConfig, runConnectivityCheck,
       addApiChannel, setDefaultChannel, applyChannelToRole,
       applyChannelToRoleById,

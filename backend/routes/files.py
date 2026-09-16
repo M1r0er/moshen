@@ -72,13 +72,21 @@ class AnalyzeRequest(BaseModel):
     project_id: str
     filename: str
     analysis_type: str = "style"  # style / logic / conflict / full
+    task_id: str = ""             # 通用任务进度通道（前端订阅用，可空）
 
 
 @router.post("/analyze")
 async def analyze_file(req: AnalyzeRequest):
-    """分析文件（文风/逻辑/冲突值/全面）"""
+    """分析文件（文风/逻辑/冲突值/全面）
+
+    单步阻塞任务：进度按 0/1 → 1/1 上报（§6.9 ② 表中"单步"一类）。
+    """
     from core.llm_provider import get_llm_provider
     from knowledge.rules_kb import RulesKB
+    from analysis.tasks import SingleStep
+
+    step = SingleStep(req.task_id, "files.analyze", "拆文分析")
+    step.begin("正在准备文本内容…")
 
     # 读取文件（优先知识库模板，其次 uploads 目录）
     content = kb.read_kb_file(req.project_id, req.filename)
@@ -89,6 +97,7 @@ async def analyze_file(req: AnalyzeRequest):
             if filepath.exists():
                 content = kb.read_file_summary(filepath)
     if not content:
+        step.fail("文件不存在")
         raise HTTPException(404, "文件不存在")
 
     llm = get_llm_provider()
@@ -164,10 +173,15 @@ async def analyze_file(req: AnalyzeRequest):
 7. 总体建议"""
 
     messages = [{"role": "user", "content": prompt}]
-    result = await llm.generate(messages, role="TEXT_MASTER", max_tokens=4096)
+    try:
+        result = await llm.generate(messages, role="TEXT_MASTER", max_tokens=4096)
+    except Exception as e:
+        step.fail(f"{type(e).__name__}: {str(e)[:200]}")
+        raise
 
     # 保存诊断报告
     report_name = kb.save_diagnosis_report(req.project_id, result)
+    step.ok("诊断报告已生成")
 
     return {"report": result, "saved_as": report_name}
 
@@ -176,12 +190,17 @@ class DissectRequest(BaseModel):
     project_id: str
     filename: str
     max_chapters: int = 0  # 0 = 全部
+    task_id: str = ""      # 通用任务进度通道（前端订阅用，可空）
 
 
 @router.post("/dissect")
 async def dissect_novel(req: DissectRequest):
-    """拆书蒸馏（可选功能）"""
+    """拆书蒸馏（可选功能）
+
+    逐章上报进度（总数 = 章节数），这是最需要真实进度条的任务（§5 功能清单 #7）。
+    """
     from knowledge.novel_analyzer import get_novel_analyzer
+    from analysis.tasks import open_channel
 
     # 读取文件
     project_dir = kb.get_project_dir(req.project_id)
@@ -191,6 +210,8 @@ async def dissect_novel(req: DissectRequest):
     filepath = resolve_within(project_dir / "uploads", req.filename)
     if not filepath.exists():
         raise HTTPException(404, "文件不存在")
+
+    channel = open_channel(req.task_id, "files.dissect", "蒸馏学习")
 
     content = kb.read_file_summary(filepath)
 
@@ -202,10 +223,38 @@ async def dissect_novel(req: DissectRequest):
         chapters = chapters[:req.max_chapters]
 
     if not chapters:
+        if channel:
+            channel.finish(completed=0, total=0, detail="未识别到章节结构")
         return {"error": "未识别到章节结构", "chapters": 0}
 
+    if channel:
+        channel.emit(
+            completed=0,
+            total=len(chapters),
+            unit="章",
+            phase="chapter",
+            detail=f"共识别 {len(chapters)} 章，开始逐章提取事实卡…",
+        )
+
     # 执行拆书（简化版：提取每章事实卡）
-    results = await analyzer.analyze_chapters(chapters, project_id=req.project_id)
+    try:
+        results = await analyzer.analyze_chapters(
+            chapters,
+            project_id=req.project_id,
+            progress_cb=lambda msg, meta=None: channel.emit(detail=msg, **(meta or {})) if channel else None,
+        )
+    except Exception as e:
+        if channel:
+            channel.emit(status="failed", message=f"{type(e).__name__}: {str(e)[:200]}")
+        raise
+
+    if channel:
+        channel.finish(
+            completed=len(chapters),
+            total=len(chapters),
+            unit="章",
+            detail=f"共识别 {len(chapters)} 章，已分析 {len(results)} 章",
+        )
 
     return {
         "total_chapters": len(chapters),

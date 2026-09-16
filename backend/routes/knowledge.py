@@ -283,6 +283,7 @@ def get_knowledge_summary(max_entries: int = 40, max_content_len: int = 400) -> 
 class SearchRequest(BaseModel):
     query: str
     type: str = "other"
+    task_id: str = ""   # 通用任务进度通道（前端订阅用，可空）
 
 
 class UpdateKnowledgeRequest(BaseModel):
@@ -371,7 +372,13 @@ async def upload_local_knowledge(
 @router.post("/search")
 async def search_knowledge(req: SearchRequest):
     """网络搜索（调用 LLM 根据搜索词生成知识摘要 MD）"""
+    from analysis.tasks import SingleStep
+
+    step = SingleStep(req.task_id, "knowledge.search", "知识搜索分析")
+    step.begin("正在根据关键词生成参考文档…")
+
     if not req.query.strip():
+        step.fail("搜索关键词不能为空")
         raise HTTPException(400, "搜索关键词不能为空")
 
     llm = get_llm_provider()
@@ -387,8 +394,10 @@ async def search_knowledge(req: SearchRequest):
             max_tokens=4096,
         )
     except Exception as e:
+        step.fail(f"{type(e).__name__}: {str(e)[:200]}")
         raise HTTPException(500, f"LLM 分析失败: {e}")
 
+    step.ok("参考文档已生成")
     title = extract_title_from_content(result, req.query)
     return _persist_knowledge(
         title=title,

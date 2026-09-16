@@ -36,6 +36,7 @@ class DetectRequest(BaseModel):
     vol_id: str = ""
     ch_id: str = ""
     scope: str = "single"  # single | full
+    task_id: str = ""      # 通用任务进度通道（前端订阅用，可空）
 
 
 # ===== CRUD =====
@@ -129,8 +130,14 @@ def _chapters_to_text(chapters: list[dict], max_len: int = 8000) -> str:
 @router.post("/{project_id}/detect")
 async def detect_foreshadowing(project_id: str, req: DetectRequest):
     """AI 检测伏笔（scope=single 单章 / full 全文）"""
+    from analysis.tasks import SingleStep
+
+    step = SingleStep(req.task_id, "foreshadowing.detect", "伏笔检测")
+    step.begin("正在检测伏笔…")
+
     all_chapters = kb.get_all_chapters_text(project_id)
     if not all_chapters:
+        step.ok("还没有章节内容")
         return {"found": [], "message": "还没有章节内容"}
 
     chapters_to_check = _select_chapters(all_chapters, req)
@@ -145,20 +152,29 @@ async def detect_foreshadowing(project_id: str, req: DetectRequest):
             text, project_id, ctx={"scope": req.scope}
         )
     except Exception as e:
+        step.fail(str(e))
         raise HTTPException(500, f"检测失败: {str(e)}")
 
+    step.ok(f"检测到 {len(found)} 处伏笔")
     return {"found": found}
 
 
 @router.post("/{project_id}/recover-check")
 async def recovery_check(project_id: str, req: DetectRequest):
     """回收检测：扫描章节检查已有伏笔是否被回收"""
+    from analysis.tasks import SingleStep
+
+    step = SingleStep(req.task_id, "foreshadowing.recover", "回收检测")
+    step.begin("正在检查已有伏笔是否被回收…")
+
     existing = kb.list_foreshadowings(project_id)
     if not existing:
+        step.ok("还没有伏笔记录")
         return {"results": [], "message": "还没有伏笔记录"}
 
     all_chapters = kb.get_all_chapters_text(project_id)
     if not all_chapters:
+        step.ok("还没有章节内容")
         return {"results": [], "message": "还没有章节内容"}
 
     chapters_to_check = _select_chapters(all_chapters, req)
@@ -171,6 +187,8 @@ async def recovery_check(project_id: str, req: DetectRequest):
             text, project_id, ctx={"existing_foreshadowings": existing}
         )
     except Exception as e:
+        step.fail(str(e))
         raise HTTPException(500, f"回收检测失败: {str(e)}")
 
+    step.ok(f"检查了 {len(existing)} 条伏笔")
     return {"results": recovered}

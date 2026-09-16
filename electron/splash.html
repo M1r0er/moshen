@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>墨参 MoShen</title>
+<!--
+  墨参 MoShen · 启动加载页
+  ------------------------------------------------------------------
+  依据《加载与等待动画需求文档》§7.2 与《加载动画设计规范文档》§7.1。
+  由 Electron 主进程用 loadFile() 载入（不再是内联 data: URL，
+  因为 data: 文档无法引用外部动画资源，见 §4.5 / §8.1）。
+
+  内容：动画1「笔墨化剑」深色主题 240×240 + 标题 + 启动文案
+  可操作元素：无。启动页保持完全无交互，不提供跳过按钮。
+  素材路径说明：spark.html 与 frontend/ 同为打包内容，故用相对路径
+  指到 frontend/assets/ink/，避免绿色版体积里出现两份动画素材。
+-->
+<style>
+  html, body {
+    margin: 0; height: 100%;
+    background: #0f1117;
+    overflow: hidden;
+    -webkit-user-select: none; user-select: none;
+    cursor: default;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  .splash { text-align: center; }
+  .splash__anim { margin: 0 auto; }
+  .splash__title {
+    margin-top: 24px;
+    font-size: 22px; font-weight: 600; letter-spacing: 2px;
+    color: #7c5cfc;
+    text-shadow: 0 0 24px rgba(124, 92, 252, 0.35);
+  }
+  .splash__hint {
+    margin-top: 8px;
+    font-size: 13px; color: #8b8fa3; letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+  <div class="splash">
+    <div class="splash__anim" id="splashAnim"></div>
+    <div class="splash__title">墨参 MoShen</div>
+    <div class="splash__hint">正在启动写作助手，请稍候...</div>
+  </div>
+
+  <script src="../frontend/assets/ink/ink-sword.js"></script>
+  <script>
+    (function () {
+      var host = document.getElementById('splashAnim');
+      if (!window.MoShenInkSword) {
+        host.innerHTML = '<div style="width:240px;height:240px;display:flex;align-items:center;justify-content:center">' +
+          '<i style="display:block;width:32px;height:32px;border:3px solid #2a2d3a;border-top-color:#7c5cfc;' +
+          'border-radius:50%;animation:s .8s linear infinite"></i></div>';
+        var st = document.createElement('style');
+        st.textContent = '@keyframes s{to{transform:rotate(360deg)}}';
+        document.head.appendChild(st);
+        return;
+      }
+      window.MoShenInkSword.mount(host, {
+        theme: 'dark',
+        size: 240,
+        base: '../frontend/assets/ink/'
+      });
+    })();
+  </script>
+</body>
+</html>

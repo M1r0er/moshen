@@ -31,6 +31,7 @@ class NovelAnalyzer:
         chapters: list[dict],
         project_id: str = "",
         max_concurrent: int = 3,
+        progress_cb=None,
     ) -> list[dict]:
         """对章节列表执行单章事实卡提取
 
@@ -38,6 +39,7 @@ class NovelAnalyzer:
             chapters: [{"title": "第1章 xxx", "content": "..."}]
             project_id: 项目ID（用于存储结果）
             max_concurrent: 最大并发数
+            progress_cb: 逐章进度回调 progress_cb(msg, meta={completed,total,unit,phase})
 
         Returns:
             [{"chapter": 1, "title": "...", "summary": "...", "rhythm": "..."}]
@@ -66,6 +68,17 @@ class NovelAnalyzer:
             # 每章之间稍微停顿，避免 API 限流
             if i < total - 1:
                 await self._async_sleep(0.5)
+
+            if progress_cb:
+                progress_cb(
+                    f"已分析 {i + 1}/{total} 章",
+                    meta={
+                        "completed": i + 1,
+                        "total": total,
+                        "unit": "章",
+                        "phase": "chapter",
+                    },
+                )
 
         return results
 

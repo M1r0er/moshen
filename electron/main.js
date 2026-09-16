@@ -167,17 +167,22 @@ function killPythonServer() {
 
 /**
  * 显示错误页面（后端启动失败时）
+ * 配色与动画1 深色主题统一（§1.1）：底色 #0f1117、品牌紫 #7c5cfc、弱文本 #8b8fa3
  */
 function showErrorPage(title, detail) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   const html = `data:text/html;charset=utf-8,` + encodeURIComponent(`
     <!DOCTYPE html><html><head><meta charset="utf-8"><title>墨参 MoShen</title>
-    <style>body{background:#0f1117;color:#e4e6eb;font-family:'Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    <style>
+    body{background:#0f1117;color:#e4e6eb;font-family:'Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
     .box{max-width:520px;text-align:center;padding:48px}
-    h1{color:#ff6b6b;margin-bottom:12px;font-size:22px}
-    p{color:#8b8fa3;line-height:1.8;font-size:14px}
-    .hint{margin-top:24px;padding:16px;background:#181b24;border-radius:8px;color:#a0a3b1;font-size:13px;text-align:left}
+    .brand{color:#7c5cfc;font-size:15px;letter-spacing:2px;margin-bottom:28px;text-shadow:0 0 24px rgba(124,92,252,.35)}
+    h1{color:#ff6b6b;margin:0 0 12px;font-size:22px}
+    p{color:#8b8fa3;line-height:1.8;font-size:14px;margin:0}
+    .hint{margin-top:24px;padding:16px;background:#181b24;border:1px solid #262a36;border-radius:8px;color:#a0a3b1;font-size:13px;text-align:left}
+    .hint b{color:#E9E4FF}
     </style></head><body><div class="box">
+    <div class="brand">墨参 MoShen</div>
     <h1>${title}</h1>
     <p>请截图反馈此页面，便于排查问题。</p>
     <div class="hint"><b>错误详情：</b><br>${detail}<br><br><b>排查步骤：</b><br>1. 确认 8765 端口未被占用<br>2. 关闭旧进程后重试<br>3. 按 F12 打开开发者工具查看控制台</div>
@@ -237,14 +242,12 @@ async function createWindow() {
     },
   });
 
-  // 先显示一个加载提示页，让用户知道应用正在启动
-  mainWindow.loadURL(`data:text/html;charset=utf-8,` + encodeURIComponent(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body{background:#0f1117;color:#e4e6eb;font-family:'Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .box{text-align:center}.box h2{color:#7c5cfc;margin-bottom:8px}
-    .box p{color:#8b8fa3}.spin{display:inline-block;width:32px;height:32px;border:3px solid #2a2d3a;border-top-color:#7c5cfc;border-radius:50%;animation:r 0.8s linear infinite;margin:16px auto}
-    @keyframes r{to{transform:rotate(360deg)}}
-    </style></head><body><div class="box"><h2>墨参 MoShen</h2><div class="spin"></div><p>正在启动写作助手，请稍候...</p></div></body></html>`));
+  // 先显示启动加载页（真实文件，可引用 frontend/assets/ink 下的动画资源）
+  // ★ 原先是内联 data: URL 文档，data: 文档无法加载外部资源，
+  //   因此改为 loadFile() 载入 electron/splash.html（见《加载与等待动画需求文档》§4.5 / §8.1）
+  mainWindow
+    .loadFile(path.join(__dirname, 'splash.html'))
+    .catch((e) => console.error('启动页加载失败:', e.message));
   mainWindow.focus();
 
   // F12 打开/关闭开发者工具

@@ -29,6 +29,7 @@ from analysis.relation_graph_analyzer import (
     strip_manual_protection,
 )
 from analysis.chapter_split import split_by_chapters
+from analysis.tasks import open_channel
 
 router = APIRouter(prefix="/api/relations", tags=["relations"])
 
@@ -41,6 +42,14 @@ MAX_PROMPT_CHARS = 100000
 
 # 后台任务状态：project_id -> {"task": asyncio.Task, "messages": deque, "listeners": set}
 _tasks: dict[str, dict] = {}
+
+# SSE 静默期上限：超过则推一次心跳，便于前端区分"模型在思考"与"连接已断"（§8.2 缺陷 3）
+HEARTBEAT_SECONDS = 10.0
+
+
+def _sse_event(event: str, payload: dict) -> str:
+    """SSE 命名字段帧"""
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def _fmt_elapsed(seconds: float) -> str:
@@ -68,6 +77,11 @@ class AnalyzeTextRequest(BaseModel):
     text: str
     preset: str = "standard"
     mode: str = "preserve"
+
+
+class PortraitRequest(BaseModel):
+    """批量肖像生成：task_id 用于订阅通用任务进度通道（可空）"""
+    task_id: str = ""
 
 
 class EntityPayload(BaseModel):
@@ -282,8 +296,15 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
             _push_message(project_id, "没有可分析的上传文件内容")
         else:
             _push_message(project_id, "没有可分析的文本内容")
-        _push_message(project_id, "分析完成")
+        _push_message(
+            project_id,
+            "分析完成",
+            meta={"status": "done", "progress": 1.0, "phase": "done"},
+        )
         return
+
+    # 结构化进度：总量尚未确定 → 前端先走"不确定态"，首次下发 total 时平滑转确定态
+    _push_progress(project_id, phase="prepare", detail="正在准备待分析内容…")
 
     overwrite_manual = req.mode == "overwrite_manual"
     if overwrite_manual:
@@ -340,7 +361,7 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
                 "previous_data": base_map,
                 "blind": bool(req.full),
             },
-            progress_cb=lambda msg: _push_message(project_id, msg),
+            progress_cb=lambda msg, meta=None: _push_message(project_id, msg, meta),
             batch_chars=batch_chars,
             min_batch_chars=MIN_BATCH_CHARS,
             max_prompt_chars=MAX_PROMPT_CHARS,
@@ -375,7 +396,11 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
                 )
     except Exception as e:
         failed = True
-        _push_message(project_id, f"分析失败：{str(e)}")
+        _push_message(
+            project_id,
+            f"分析失败：{str(e)}",
+            meta={"status": "failed", "message": str(e)},
+        )
 
     if total_protected:
         _push_message(project_id, f"已保护 {total_protected} 项手动内容（未被 AI 覆盖）")
@@ -404,11 +429,37 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
 
     state["read_files"] = read_files
     _save_state(project_dir, state)
-    _push_message(project_id, "分析完成")
+    _push_message(
+        project_id,
+        "分析完成",
+        meta={
+            "status": "done" if not failed else "failed",
+            "progress": 1.0,
+            "phase": "done",
+        },
+    )
 
 
-def _push_message(project_id: str, msg: str):
-    """向该项目的所有 SSE 监听器推送消息"""
+def _new_task_info() -> dict:
+    """项目级任务上下文：文本日志 + 结构化进度事件（统一进度事件契约 §6.9 ①）"""
+    from collections import deque
+
+    return {
+        "task": None,
+        "messages": deque(maxlen=300),
+        "listeners": set(),
+        "progress": deque(maxlen=50),
+        "progress_listeners": set(),
+        "status": "running",
+    }
+
+
+def _push_message(project_id: str, msg: str, meta: dict | None = None):
+    """向该项目的所有 SSE 监听器推送消息
+
+    传入 meta 时，同时广播一条结构化进度事件，驱动前端的进度条（动画2）。
+    meta 支持：completed / total / unit / progress / phase / status / message
+    """
     task_info = _tasks.get(project_id)
     if not task_info:
         return
@@ -418,6 +469,36 @@ def _push_message(project_id: str, msg: str):
     for listener in list(task_info["listeners"]):
         try:
             listener(msg)
+        except Exception:
+            pass
+    if meta:
+        _push_progress(project_id, detail=msg, **meta)
+
+
+def _push_progress(project_id: str, **fields):
+    """广播结构化进度事件（缺失的数值字段不下发，前端据此走"不确定态"）"""
+    task_info = _tasks.get(project_id)
+    if not task_info:
+        return
+    status = fields.pop("status", None) or task_info.get("status") or "running"
+    task_info["status"] = status
+    payload = {
+        "task_key": "relations.analyze",
+        "task_name": "星图分析",
+        "updated_at": time.time(),
+        "status": status,
+    }
+    for key in ("phase", "unit", "detail", "message"):
+        if fields.get(key):
+            payload[key] = fields[key]
+    for key in ("completed", "total", "progress"):
+        if fields.get(key) is not None:
+            payload[key] = fields[key]
+
+    task_info["progress"].append(payload)
+    for listener in list(task_info["progress_listeners"]):
+        try:
+            listener(payload)
         except Exception:
             pass
 
@@ -432,13 +513,7 @@ async def analyze(project_id: str, req: AnalyzeRequest):
     if project_id in _tasks and not _tasks[project_id]["task"].done():
         raise HTTPException(409, "分析进行中")
 
-    from collections import deque
-
-    _tasks[project_id] = {
-        "task": None,
-        "messages": deque(maxlen=300),
-        "listeners": set(),
-    }
+    _tasks[project_id] = _new_task_info()
     task = asyncio.create_task(_run_analysis(project_id, req))
     _tasks[project_id]["task"] = task
     return {"started": True}
@@ -489,27 +564,31 @@ async def list_upload_files(project_id: str):
 
 @router.get("/{project_id}/progress")
 async def progress(project_id: str):
-    """SSE 实时进度流"""
+    """SSE 实时进度流
+
+    两条通道并存：
+      · data: "<文本>"        自由文本日志（原有契约，折叠详情区使用）
+      · event: progress + JSON 结构化进度事件（统一进度事件契约 §6.9 ①，驱动进度条）
+      · event: heartbeat      周期性心跳，让前端能区分"模型在思考"与"连接已断"
+    """
     if not get_project_kb_manager().get_project(project_id):
         raise HTTPException(404, "项目不存在")
 
     if project_id not in _tasks:
-        from collections import deque
-
-        _tasks[project_id] = {
-            "task": None,
-            "messages": deque(maxlen=300),
-            "listeners": set(),
-        }
+        _tasks[project_id] = _new_task_info()
 
     task_info = _tasks[project_id]
 
     async def event_generator():
-        # 先回放历史消息
+        # 先回放历史：文本日志逐条回放，结构化进度只回放最后一条（前端只需当前态）
         for msg in list(task_info["messages"]):
             yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+        history = list(task_info.get("progress") or [])
+        if history:
+            yield _sse_event("progress", history[-1])
 
         queue: asyncio.Queue = asyncio.Queue()
+        pqueue: asyncio.Queue = asyncio.Queue()
 
         def listener(msg):
             try:
@@ -517,15 +596,39 @@ async def progress(project_id: str):
             except Exception:
                 pass
 
+        def progress_listener(payload):
+            try:
+                pqueue.put_nowait(payload)
+            except Exception:
+                pass
+
         task_info["listeners"].add(listener)
+        task_info.setdefault("progress_listeners", set()).add(progress_listener)
         try:
             while True:
-                msg = await queue.get()
-                yield f"data: {json.dumps(msg, ensure_ascii=False)}\n\n"
+                getter = asyncio.ensure_future(queue.get())
+                pgetter = asyncio.ensure_future(pqueue.get())
+                done, pending = await asyncio.wait(
+                    [getter, pgetter],
+                    timeout=HEARTBEAT_SECONDS,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                for fut in pending:
+                    fut.cancel()
+                if not done:
+                    yield _sse_event("heartbeat", {"updated_at": time.time()})
+                    continue
+                for fut in done:
+                    value = fut.result()
+                    if isinstance(value, dict):
+                        yield _sse_event("progress", value)
+                    else:
+                        yield f"data: {json.dumps(value, ensure_ascii=False)}\n\n"
         except asyncio.CancelledError:
             pass
         finally:
             task_info["listeners"].discard(listener)
+            task_info["progress_listeners"].discard(progress_listener)
 
     return StreamingResponse(
         event_generator(),
@@ -604,17 +707,38 @@ from fastapi.responses import FileResponse
 
 
 @router.post("/{project_id}/portraits/generate")
-async def generate_all_portraits(project_id: str):
-    """为所有角色条目生成肖像（幂等：已有则跳过）"""
+async def generate_all_portraits(project_id: str, req: PortraitRequest | None = None):
+    """为所有角色条目生成肖像（幂等：已有则跳过）
+
+    传入 task_id 时，逐张上报进度（总数 = 角色数），修复原先进度回调被丢弃的问题（§10.4 缺陷 4）。
+    """
     project_dir = get_project_kb_manager().get_project_dir(project_id)
     if project_dir is None:
         raise HTTPException(404, "项目不存在")
 
+    channel = open_channel((req.task_id if req else ""), "relations.portraits", "肖像批量生成")
+    if channel:
+        channel.emit(phase="prepare", detail="正在读取角色条目…")
+
     async def _run():
-        import io
-        results = await generate_portraits(project_dir, progress_cb=lambda msg: None)
+        def _cb(msg: str, meta: dict | None = None):
+            if channel:
+                channel.emit(detail=msg, **(meta or {}))
+
+        try:
+            results = await generate_portraits(project_dir, progress_cb=_cb)
+        except Exception as e:
+            if channel:
+                channel.emit(status="failed", message=f"{type(e).__name__}: {str(e)[:200]}")
+            raise
         _tasks.setdefault(project_id, {})["portrait_result"] = results
         _tasks[project_id]["portrait_done"] = True
+        if channel:
+            channel.finish(
+                detail="新增 {d} 张、跳过 {s} 张、失败 {f} 张".format(
+                    d=results.get("drawn", 0), s=results.get("skipped", 0), f=results.get("failed", 0)
+                )
+            )
 
     _tasks.setdefault(project_id, {})
     _tasks[project_id]["portrait_done"] = False

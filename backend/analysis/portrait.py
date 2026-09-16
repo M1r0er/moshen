@@ -185,30 +185,53 @@ async def generate_portraits(
     errors: list[str] = []
     error_groups: dict[str, list[str]] = {}
 
+    total_entities = len(entities)
+    processed = 0
+
     for entity in entities:
         eid = entity.get("id", "")
         if not eid:
+            processed += 1
+            if progress_cb:
+                progress_cb("跳过无名称条目", meta={"completed": processed, "total": total_entities, "unit": "张", "phase": "draw"})
             continue
 
         # 幂等：已有肖像则跳过
         if find_portrait(project_dir, eid):
             skipped += 1
+            processed += 1
+            if progress_cb:
+                progress_cb(
+                    f"肖像「{eid}」已存在，跳过",
+                    meta={"completed": processed, "total": total_entities, "unit": "张", "phase": "draw"},
+                )
             continue
 
         try:
             if progress_cb:
-                progress_cb(f"绘制肖像「{eid}」…")
+                progress_cb(
+                    f"绘制肖像「{eid}」…",
+                    meta={"completed": processed, "total": total_entities, "unit": "张", "phase": "draw"},
+                )
             ext = await draw_one(project_dir, entity, relations, timeline, llm)
             drawn += 1
+            processed += 1
             if progress_cb:
-                progress_cb(f"肖像「{eid}」已保存（.{ext}）")
+                progress_cb(
+                    f"肖像「{eid}」已保存（.{ext}）",
+                    meta={"completed": processed, "total": total_entities, "unit": "张", "phase": "draw"},
+                )
         except Exception as e:
             failed += 1
+            processed += 1
             # 配置级故障（如模型未开通、鉴权失败）会让所有条目报同样的错，按原因归并
             msg = f"{type(e).__name__}: {str(e)[:300]}"
             error_groups.setdefault(msg, []).append(eid)
             if progress_cb:
-                progress_cb(f"肖像「{eid}」失败：{str(e)[:120]}")
+                progress_cb(
+                    f"肖像「{eid}」失败：{str(e)[:120]}",
+                    meta={"completed": processed, "total": total_entities, "unit": "张", "phase": "draw"},
+                )
 
     for msg, ids in error_groups.items():
         errors.append(f"{msg}（影响 {len(ids)} 个条目）" if len(ids) > 1 else f"{ids[0]}: {msg}")

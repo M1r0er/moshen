@@ -1,4 +1,4 @@
-"""
+﻿"""
 墨参 · 文本分析器基类
 所有文本分析器的统一父类，封装工程能力（LLM 调用、重试、JSON 解析、分批、增量、进度回调），
 子类只需实现业务差异（prompt、输出结构、存储位置）。
@@ -135,7 +135,7 @@ class BaseTextAnalyzer(ABC):
         preset: str = "standard",
         previous: Any = None,
         ctx: Optional[dict] = None,
-        progress_cb: Optional[Callable[[str], None]] = None,
+        progress_cb: Optional[Callable[..., None]] = None,
     ) -> Any:
         """主分析入口（单批文本）
 
@@ -176,7 +176,7 @@ class BaseTextAnalyzer(ABC):
         preset: str = "standard",
         previous: Any = None,
         ctx: Optional[dict] = None,
-        progress_cb: Optional[Callable[[str], None]] = None,
+        progress_cb: Optional[Callable[..., None]] = None,
         batch_chars: int = 8000,
         min_batch_chars: int = 3000,
         max_prompt_chars: int = 100000,
@@ -225,7 +225,15 @@ class BaseTextAnalyzer(ABC):
         total = len(batches)
         for i, batch in enumerate(batches):
             if progress_cb:
-                progress_cb(f"批次 {i + 1}/{total} 分析中…")
+                progress_cb(
+                    f"批次 {i + 1}/{total} 分析中…",
+                    meta={
+                        "completed": i,
+                        "total": total,
+                        "unit": "批",
+                        "phase": "batch",
+                    },
+                )
             text = "\n\n".join(
                 f"【{c.get('name', '')}】\n{c.get('content', '')}" for c in batch
             )
@@ -234,6 +242,14 @@ class BaseTextAnalyzer(ABC):
                 text, project_id, preset, previous=data, ctx=ctx, progress_cb=progress_cb
             )
             if progress_cb:
-                progress_cb(f"批次 {i + 1}/{total} 完成，用时 {time.perf_counter() - started:.1f}s")
+                progress_cb(
+                    f"批次 {i + 1}/{total} 完成，用时 {time.perf_counter() - started:.1f}s",
+                    meta={
+                        "completed": i + 1,
+                        "total": total,
+                        "unit": "批",
+                        "phase": "batch",
+                    },
+                )
 
         return data
