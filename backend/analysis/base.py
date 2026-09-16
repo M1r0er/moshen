@@ -1,4 +1,4 @@
-﻿"""
+"""
 墨参 · 文本分析器基类
 所有文本分析器的统一父类，封装工程能力（LLM 调用、重试、JSON 解析、分批、增量、进度回调），
 子类只需实现业务差异（prompt、输出结构、存储位置）。
@@ -181,6 +181,7 @@ class BaseTextAnalyzer(ABC):
         min_batch_chars: int = 3000,
         max_prompt_chars: int = 100000,
         overhead_chars: int = 0,
+        await_gate: Optional[Callable[..., Any]] = None,
     ) -> Any:
         """分批分析（按章节边界合并批次，前批结果作为后批 previous）
 
@@ -190,6 +191,8 @@ class BaseTextAnalyzer(ABC):
             min_batch_chars: 批次下限；现有数据过大时也不会把批次压到比这更小
             max_prompt_chars: 单次请求上下文上限（字符）；据此自动收缩批次，避免超出模型上下文
             overhead_chars: 每次请求中固定部分（系统提示词等）的大致字符数
+            await_gate: 批次之间的等待闸门，await 它即可在下一批开始前挂起（暂停）
+                或抛出 CancelledError（停止）。入参为"即将开始的批次序号"
         """
         ctx = ctx or {}
         ctx.setdefault("project_id", project_id)
@@ -224,6 +227,9 @@ class BaseTextAnalyzer(ABC):
         data = previous
         total = len(batches)
         for i, batch in enumerate(batches):
+            # 批次之间的闸门：暂停时停在这里，停止时由 CancelledError 从这里抛出
+            if await_gate is not None:
+                await await_gate(i)
             if progress_cb:
                 progress_cb(
                     f"批次 {i + 1}/{total} 分析中…",

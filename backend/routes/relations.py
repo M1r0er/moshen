@@ -366,6 +366,7 @@ async def _run_analysis(project_id: str, req: AnalyzeRequest):
             min_batch_chars=MIN_BATCH_CHARS,
             max_prompt_chars=MAX_PROMPT_CHARS,
             overhead_chars=multi_prompt_overhead(),
+            await_gate=lambda batch_index: _pause_gate(project_id, batch_index),
         )
         await analyzer.save(data, project_dir, {"previous_data": base_map})
 
@@ -444,6 +445,12 @@ def _new_task_info() -> dict:
     """项目级任务上下文：文本日志 + 结构化进度事件（统一进度事件契约 §6.9 ①）"""
     from collections import deque
 
+    # 暂停闸门：set = 继续跑，clear = 在下一批开始前挂起。
+    # 模型调用一旦发出就无法打断，所以"暂停"的语义是"当前批次跑完就停"。
+    # ★ asyncio.Event 默认是未置位的，必须显式 set()，否则第一批就会卡在闸门上。
+    resume_event = asyncio.Event()
+    resume_event.set()
+
     return {
         "task": None,
         "messages": deque(maxlen=300),
@@ -451,7 +458,33 @@ def _new_task_info() -> dict:
         "progress": deque(maxlen=50),
         "progress_listeners": set(),
         "status": "running",
+        "resume_event": resume_event,
     }
+
+
+async def _pause_gate(project_id: str, batch_index: int) -> None:
+    """批次之间的等待闸门（由 analyze_batched 在每批开始前 await）"""
+    info = _tasks.get(project_id)
+    if info is None:
+        return
+    event = info.get("resume_event")
+    if event is None or event.is_set():
+        return
+    _push_progress(
+        project_id,
+        status="paused",
+        phase="paused",
+        completed=batch_index,
+        detail=f"已暂停：已完成 {batch_index} 个批次，等待继续",
+    )
+    await event.wait()
+    _push_progress(
+        project_id,
+        status="running",
+        phase="batch",
+        completed=batch_index,
+        detail="已继续分析",
+    )
 
 
 def _push_message(project_id: str, msg: str, meta: dict | None = None):
@@ -639,6 +672,65 @@ async def progress(project_id: str):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/{project_id}/pause")
+async def pause_analyze(project_id: str):
+    """暂停分析
+
+    模型调用一旦发出就无法打断，所以语义是「当前批次跑完就停」：
+    批次之间有一道闸门，暂停后下一次到达闸门时挂起，不再发起新的调用。
+    """
+    info = _tasks.get(project_id)
+    if not info or not info.get("task") or info["task"].done():
+        return {"paused": False, "message": "没有正在进行的分析"}
+
+    info["resume_event"].clear()
+    _push_progress(
+        project_id,
+        status="running",
+        phase="pausing",
+        detail="已请求暂停：正在进行的批次会跑完，之后不再发起新调用",
+    )
+    return {"paused": True}
+
+
+@router.post("/{project_id}/resume")
+async def resume_analyze(project_id: str):
+    """继续已暂停的分析"""
+    info = _tasks.get(project_id)
+    if not info or not info.get("task") or info["task"].done():
+        return {"resumed": False, "message": "没有正在进行的分析"}
+
+    info["resume_event"].set()
+    return {"resumed": True}
+
+
+@router.post("/{project_id}/cancel")
+async def cancel_analyze(project_id: str):
+    """停止分析
+
+    直接取消后台任务。分析结果只在全部批次跑完后才落盘（save 在循环之后），
+    因此停止不会写坏已有星图数据；但已完成批次的模型调用费用不会退回。
+    """
+    info = _tasks.get(project_id)
+    if not info or not info.get("task") or info["task"].done():
+        return {"cancelled": False, "message": "没有正在进行的分析"}
+
+    # 先解除暂停，否则停止一个已暂停的任务要等它被唤醒才能送达取消
+    info["resume_event"].set()
+    info["task"].cancel()
+    _push_message(
+        project_id,
+        "已停止本次分析：已完成批次的模型调用不会退回，本次结果不会保存",
+        meta={
+            "status": "cancelled",
+            "phase": "cancelled",
+            # message 会作为前端等待层的失败/中断说明文案，必须与 detail 一起下发
+            "message": "已停止本次分析：已完成批次的模型调用不会退回，本次结果不会保存",
+        },
+    )
+    return {"cancelled": True}
 
 
 @router.get("/{project_id}/overview")

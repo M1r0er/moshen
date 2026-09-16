@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1189,6 +1189,7 @@ body {
 .rel-progress { margin-top: 10px; padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); max-height: 200px; overflow-y: auto; font-size: 12.5px; font-family: var(--font-mono); }
 .rel-prog-block { margin-top: 16px; }
 .rel-prog-block .prog { margin-bottom: 8px; }
+.rel-prog-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .rel-prog-toggle { padding: 3px 10px; font-size: 12px; }
 .rel-progress-msg { padding: 2px 0; color: var(--text-muted); }
 .rel-overview { margin-top: 24px; }
@@ -1422,7 +1423,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 @keyframes busyUpAnim { from { opacity: 0; transform: translate(-50%, -50%) translateY(4px); } to { opacity: 1; transform: translate(-50%, -50%); } }
 .busy-layer__dock { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); width: min(420px, calc(100% - 48px)); animation: busyUpDock 0.2s ease; }
 @keyframes busyUpDock { from { opacity: 0; transform: translateX(-50%) translateY(4px); } to { opacity: 1; transform: translateX(-50%); } }
-.busy-dock__actions { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+.busy-dock__actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
 .busy-dock__msg { margin-top: 10px; text-align: center; font-size: 12.5px; color: var(--color-error); word-break: break-word; }
 .busy-dock__meta { margin-top: 8px; text-align: center; font-size: 12px; color: var(--color-text-weak); font-variant-numeric: tabular-nums; }
 .busy-dock__log {
@@ -1439,6 +1440,29 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 .busy-btn:hover { border-color: var(--color-primary); color: var(--color-primary); }
 .busy-btn.is-primary { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
 .busy-btn.is-primary:hover { background: var(--color-primary-hover); }
+
+/* 收起按钮：固定在等待层右上角，收起后任务继续在后台跑 */
+.busy-layer__collapse { position: absolute; top: 22px; right: 26px; background: rgba(255, 255, 255, 0.86); }
+
+/* 收起后的常驻胶囊：右下角，显示任务名 + 计数 + 细进度条，点它展开 */
+.busy-pill {
+  position: fixed; right: 24px; bottom: 24px; z-index: 3000;
+  display: flex; align-items: center; gap: 8px;
+  width: 220px; padding: 9px 14px 12px;
+  background: var(--color-surface); border: 1px solid var(--color-border-strong);
+  border-radius: 999px; box-shadow: var(--shadow-card-hover); cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+.busy-pill:hover { border-color: var(--color-primary); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(26, 43, 69, 0.16); }
+.busy-pill__dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--color-primary); }
+.busy-pill__dot.is-paused { background: var(--color-warning); }
+.busy-pill__dot.is-failed { background: var(--color-error); }
+.busy-pill__name { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--color-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.busy-pill__count { flex: 0 0 auto; font-size: 12px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+.busy-pill__bar { position: absolute; left: 14px; right: 14px; bottom: 6px; height: 2px; border-radius: 1px; background: rgba(26, 43, 69, 0.10); overflow: hidden; }
+.busy-pill__bar i { display: block; height: 100%; border-radius: 1px; background: var(--color-primary); transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.busy-pill__bar.is-paused i { background: var(--color-warning); }
+.busy-pill__bar.is-failed i { background: var(--color-error); }
 
 /* 系统开启"减少动效"时，进度条去掉高光扫过与不确定态亮带，只保留填充变化（§10.2） */
 @media (prefers-reduced-motion: reduce) {
@@ -1516,7 +1540,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.8.0</div>
+        <div class="sidebar-version">v0.8.1</div>
       </div>
     </aside>
 
@@ -2714,9 +2738,14 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <div v-if="relProgDerived.indeterminate" class="prog__band"></div>
                   </div>
                 </div>
-                <button v-if="relProgressMsgs.length" class="busy-btn rel-prog-toggle" @click="relShowLog = !relShowLog">
-                  {{ relShowLog ? '收起详情' : '查看详情' }}
-                </button>
+                <div class="rel-prog-actions">
+                  <button v-if="relProgressMsgs.length" class="busy-btn rel-prog-toggle" @click="relShowLog = !relShowLog">
+                    {{ relShowLog ? '收起详情' : '查看详情' }}
+                  </button>
+                  <button v-if="busyCanPause" class="busy-btn rel-prog-toggle" @click="busyPause">暂停</button>
+                  <button v-if="busyCanResume" class="busy-btn rel-prog-toggle is-primary" @click="busyResume">继续</button>
+                  <button v-if="busyCanStop" class="busy-btn rel-prog-toggle" @click="busyStop">停止</button>
+                </div>
                 <div v-if="relShowLog" class="rel-progress">
                   <div v-for="(m, i) in relProgressMsgs" :key="i" class="rel-progress-msg">{{ m }}</div>
                 </div>
@@ -3580,14 +3609,18 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
   </div>
 
   <!-- ========== 全局等待层（动画1 + 动画2，所有长流程任务共用，§7.3 方案甲） ========== -->
-  <div v-if="busy.visible" class="busy-layer" :class="{ 'is-leaving': busy.leaving }">
+  <div v-if="busy.visible && !busy.collapsed" class="busy-layer" :class="{ 'is-leaving': busy.leaving }">
+    <button class="busy-btn busy-layer__collapse" title="收起等待层，任务会继续在后台运行" @click="busyCollapse">收起</button>
+
     <div class="busy-layer__anim" ref="busyAnimHost" style="width:160px;height:160px"></div>
 
     <div class="busy-layer__dock">
       <div class="prog" :class="busyProgClass">
         <div class="prog__head">
           <div class="prog__name">
-            {{ busyNameText }}<span v-if="busyWaiting" class="prog__wait">（等待模型响应…）</span>
+            {{ busyNameText }}<span v-if="busy.status === 'paused'" class="prog__wait">（已暂停）</span><span
+              v-else-if="busyWaiting" class="prog__wait">（等待模型响应…）</span><span
+              v-else-if="busy.pauseRequested" class="prog__wait">（正在完成当前批次…）</span>
           </div>
           <div class="prog__count" :class="{ 'is-bump': busyCountBump }">{{ busyDerived.count }}</div>
         </div>
@@ -3609,10 +3642,21 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <button v-if="busyLog.length" class="busy-btn" @click="busyShowDetail = !busyShowDetail">
           {{ busyShowDetail ? '收起详情' : '详情' }}
         </button>
+        <button v-if="busyCanPause" class="busy-btn" title="当前批次跑完后停止，不再发起新调用" @click="busyPause">暂停</button>
+        <button v-if="busyCanResume" class="busy-btn is-primary" @click="busyResume">继续</button>
+        <button v-if="busyCanStop" class="busy-btn" title="停止本次分析，已完成的批次不会保存" @click="busyStop">停止</button>
         <button v-if="busyRetryable" class="busy-btn is-primary" @click="busyRetry">重试</button>
         <button v-if="busy.status === 'failed' || busy.status === 'cancelled'" class="busy-btn" @click="busyHide">关闭</button>
       </div>
     </div>
+  </div>
+
+  <!-- 收起后的常驻胶囊：任务仍在后台运行，点它展开等待层 -->
+  <div v-if="busy.visible && busy.collapsed" class="busy-pill" :title="busyPillTitle" @click="busyExpand">
+    <span class="busy-pill__dot" :class="'is-' + busy.status"></span>
+    <span class="busy-pill__name">{{ busyPillText }}</span>
+    <span class="busy-pill__count">{{ busyDerived.count }}</span>
+    <span class="busy-pill__bar" :class="'is-' + busy.status"><i :style="{ width: busyDerived.fill + '%' }"></i></span>
   </div>
 
   <!-- ========== Toast ========== -->
@@ -6146,8 +6190,34 @@ createApp({
         task: 'relations.analyze',
         name: '星图分析',
         retry: () => relStartAnalyze(overwriteManual),
+        onPause: () => apiJSON('/api/relations/' + currentProjectId.value + '/pause', { method: 'POST' }),
+        onResume: () => apiJSON('/api/relations/' + currentProjectId.value + '/resume', { method: 'POST' }),
+        onStop: relStopAnalyze,
       });
       relConnectProgress();
+    }
+
+    /**
+     * 停止本次分析
+     * 结果只在全部批次跑完后才落盘，所以停止不会写坏已有星图数据；
+     * 但已发起的模型调用费用不会退回，因此先确认一次。
+     */
+    async function relStopAnalyze() {
+      const ok = confirm(
+        '停止本次星图分析？\n\n' +
+        '· 已完成的批次不会保存，星图数据保持原样\n' +
+        '· 已发起的模型调用费用不会退回'
+      );
+      if (!ok) return;
+      try {
+        const r = await apiJSON('/api/relations/' + currentProjectId.value + '/cancel', { method: 'POST' });
+        if (r && r.cancelled === false) {
+          showToast(r.message || '没有正在进行的分析', 'info');
+        }
+        // 后端会通过 SSE 下发 cancelled 事件，由 relConnectProgress 收尾，这里不重复改状态
+      } catch (e) {
+        showToast('停止失败: ' + (e.message || e), 'error');
+      }
     }
 
     function relConnectProgress() {
@@ -8358,6 +8428,10 @@ createApp({
       progress: null, status: 'running',
       detail: '', message: '',
       updatedAt: 0, startedAt: 0,
+      collapsed: false,        // 收起后等待层不渲染，改为右下角常驻胶囊，任务继续在后台跑
+      pauseRequested: false,   // 已请求暂停，但当前批次还没跑完
+      // 任务控制回调（不参与渲染，只存放调用入口；只有后端支持的任务才会带上）
+      onPause: null, onResume: null, onStop: null,
     });
     const busyNow = ref(Date.now());
     const busyLog = ref([]);
@@ -8455,6 +8529,48 @@ createApp({
     const busyRetryable = computed(() => !!busyRetryFn && (busy.status === 'failed' || busy.status === 'cancelled'));
     const relProgVisible = computed(() => relProg.active || relProgressMsgs.value.length > 0);
 
+    // ===== 任务控制：暂停 / 继续 / 停止 =====
+    // 只有后端支持的任务（当前是星图分析）才会带上回调，其余任务不渲染这些按钮。
+    // 「暂停」的语义是"当前批次跑完就停"—— 已发出的模型调用无法打断。
+    const busyCanPause = computed(() =>
+      typeof busy.onPause === 'function' && busy.status === 'running' && !busy.pauseRequested);
+    const busyCanResume = computed(() => typeof busy.onResume === 'function' && busy.status === 'paused');
+    const busyCanStop = computed(() =>
+      typeof busy.onStop === 'function' && (busy.status === 'running' || busy.status === 'paused'));
+
+    function busyPause() {
+      if (typeof busy.onPause !== 'function') return;
+      busy.pauseRequested = true;
+      Promise.resolve(busy.onPause()).catch(() => { busy.pauseRequested = false; });
+    }
+    function busyResume() {
+      if (typeof busy.onResume !== 'function') return;
+      busy.pauseRequested = false;
+      Promise.resolve(busy.onResume()).catch(() => {});
+    }
+    function busyStop() {
+      if (typeof busy.onStop !== 'function') return;
+      busy.onStop();
+    }
+
+    // ===== 收起 / 展开等待层 =====
+    // 收起只是不渲染等待层，SSE 订阅与后端任务都不受影响；动画组件同时销毁以省资源
+    function busyCollapse() {
+      busy.collapsed = true;
+      unmountBusyAnim();
+    }
+    function busyExpand() {
+      busy.collapsed = false;
+      mountBusyAnim();
+    }
+    const busyPillText = computed(() => {
+      if (busy.status === 'paused') return (busy.name || '任务') + ' · 已暂停';
+      if (busy.status === 'done') return (busy.name || '任务') + ' · 已完成';
+      return busy.name || '任务进行中';
+    });
+    const busyPillTitle = computed(() =>
+      busy.status === 'paused' ? '已暂停，点击展开等待层' : '点击展开等待层');
+
     function startBusyTick() {
       if (busyTickTimer) return;
       busyTickTimer = setInterval(() => { busyNow.value = Date.now(); }, 1000);
@@ -8504,6 +8620,11 @@ createApp({
       busyLog.value = [];
       busyShowDetail.value = false;
       busyRetryFn = opts.retry || null;
+      busy.onPause = typeof opts.onPause === 'function' ? opts.onPause : null;
+      busy.onResume = typeof opts.onResume === 'function' ? opts.onResume : null;
+      busy.onStop = typeof opts.onStop === 'function' ? opts.onStop : null;
+      busy.collapsed = false;
+      busy.pauseRequested = false;
       busyLastPush = 0;
       busyPending = null;
       if (busyThrottleTimer) { clearTimeout(busyThrottleTimer); busyThrottleTimer = null; }
@@ -8529,7 +8650,14 @@ createApp({
       }
       if (payload.message) busy.message = payload.message;
       busy.updatedAt = Date.now();
-      if (payload.status) busy.status = payload.status;
+      if (payload.status) {
+        busy.status = payload.status;
+        if (payload.status === 'paused') busy.pauseRequested = false;
+        // 失败/中断时自动展开：这两种状态需要用户决策，不能留在收起的胶囊里
+        if (busy.collapsed && (payload.status === 'failed' || payload.status === 'cancelled')) {
+          busyExpand();
+        }
+      }
     }
 
     /**
@@ -8882,6 +9010,8 @@ createApp({
       busy, busyDerived, busyProgClass, busyNameText, busyElapsedText,
       busyWaiting, busyRetryable, busyLog, busyShowDetail, busyCountBump, busyAnimHost,
       busyBegin, busyPush, busyDone, busyFail, busyCancel, busyHide, busyRetry,
+      busyCollapse, busyExpand, busyPillText, busyPillTitle,
+      busyCanPause, busyCanResume, busyCanStop, busyPause, busyResume, busyStop,
       runBusyTask, newTaskId,
       relProg, relProgDerived, relProgClass, relProgWaiting, relProgVisible, relShowLog,
       uploadFile, openSettings, saveConfig, runConnectivityCheck,
