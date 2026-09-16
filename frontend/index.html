@@ -638,6 +638,7 @@ body {
 .file-detail-meta { font-size: 12.5px; color: var(--text-muted); margin-bottom: 12px; }
 .file-detail-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--color-border); }
 .file-detail-msg { margin: 12px 0 0; padding: 9px 13px; font-size: 12.5px; border-radius: var(--radius-md); background: var(--color-primary-light); border: 1px solid var(--border-accent); color: var(--color-text-body); }
+.file-detail-path { margin: 8px 0 0; padding: 8px 13px; font-size: 12px; border-radius: var(--radius-md); background: var(--color-input-bg); border: 1px solid var(--color-border); color: var(--color-text-secondary); font-family: var(--font-mono); word-break: break-all; user-select: text; }
 .file-detail-body { margin-top: 14px; max-height: 440px; overflow: auto; }
 .file-detail-pre { margin: 0; padding: 14px; font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); color: var(--color-text-body); background: var(--color-input-bg); border: 1px solid var(--color-border); border-radius: var(--radius-lg); }
 .file-detail-report { font-size: 13.5px; line-height: 1.8; color: var(--color-text-body); }
@@ -1050,6 +1051,23 @@ body {
 }
 .proposal-actions { display: flex; gap: 8px; margin-top: 8px; }
 .proposal-status { font-size: 12px; color: var(--color-text-muted); margin-top: 6px; }
+
+/* ===== 可点选选项 ===== */
+.choice-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.choice-card {
+  padding: 10px 12px; border-radius: var(--radius-md);
+  background: var(--color-surface); border: 1px solid var(--color-border);
+}
+.choice-card.done { opacity: 0.6; }
+.choice-question { font-size: 13px; font-weight: 600; color: var(--color-text-body); margin-bottom: 8px; }
+.choice-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice-btn {
+  padding: 6px 12px; font-size: 12.5px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--color-info); background: var(--color-info-bg); color: var(--color-info);
+}
+.choice-btn:hover:not(:disabled) { background: var(--color-info); color: #fff; }
+.choice-btn.picked { background: var(--color-info); color: #fff; }
+.choice-btn:disabled { cursor: default; }
 
 /* ===== Conversation Bar ===== */
 .conv-bar {
@@ -1540,7 +1558,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.8.1</div>
+        <div class="sidebar-version">v0.8.2</div>
       </div>
     </aside>
 
@@ -1628,6 +1646,18 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                         <button class="btn btn-secondary flow-mini" @click="pr.status = 'ignored'" :disabled="proposalBusy">忽略</button>
                       </div>
                       <div class="proposal-status" v-else>{{ pr.status === 'applied' ? '已加入' : '已忽略' }}</div>
+                    </div>
+                  </div>
+                  <!-- 可点选选项：点选后作为作者回复发出 -->
+                  <div class="choice-list" v-if="msg.choices && msg.choices.length">
+                    <div v-for="ch in msg.choices" :key="ch.id" class="choice-card" :class="{ done: ch.pickedId }">
+                      <div class="choice-question" v-if="ch.question">{{ ch.question }}</div>
+                      <div class="choice-options">
+                        <button v-for="opt in ch.options" :key="opt.id" class="choice-btn"
+                          :class="{ picked: ch.pickedId === opt.id }"
+                          :disabled="!!ch.pickedId || isThinking"
+                          @click="pickChoice(ch, opt)">{{ opt.label }}</button>
+                      </div>
                     </div>
                   </div>
                   <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
@@ -2140,7 +2170,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <div class="knowledge-item-title">{{ k.title }}</div>
               <div class="knowledge-item-meta">
                 <span :class="'knowledge-item-tag tag-' + k.type">{{ typeLabel(k.type) }}</span>
-                <span>{{ k.source === 'local_file' ? '本地' : '搜索' }}</span>
+                <span>{{ sourceLabel(k.source) }}</span>
                 <span v-if="k.updated_at" class="ts-item">{{ formatTime(k.updated_at) }}</span>
               </div>
             </div>
@@ -2345,6 +2375,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
 
               <div v-if="fileDetailMsg" class="file-detail-msg">{{ fileDetailMsg }}</div>
+              <div v-if="fileDetailReportPath" class="file-detail-path">📁 报告完整路径：{{ fileDetailReportPath }}</div>
 
               <div class="file-detail-body">
                 <pre v-if="fileDetailMode === 'content'" class="file-detail-pre">{{ fileDetailContent || '（文件内容为空）' }}</pre>
@@ -3871,6 +3902,7 @@ createApp({
     const fileDetailMode = ref('');          // content | report | dissect
     const fileDetailContent = ref('');
     const fileDetailReport = ref('');
+    const fileDetailReportPath = ref('');    // 报告落盘完整路径
     const fileDetailMsg = ref('');
     const fileAnalyzeType = ref('full');     // style | logic | conflict | full
     const fileAnalyzing = ref(false);
@@ -4673,7 +4705,7 @@ createApp({
         let kbSavedReceived = false;
         let settingSavedReceived = false;
         let outlineSavedReceived = false;
-        let assistantMsg = { role: 'assistant', content: '', streaming: true };
+        let assistantMsg = reactive({ role: 'assistant', content: '', streaming: true });
         messages.value.push(assistantMsg);
         isThinking.value = false;
 
@@ -4686,6 +4718,8 @@ createApp({
           for (const line of lines) {
             if (line.startsWith('event:')) {
               currentEvent = line.slice(6).trim();
+            } else if (!line.trim()) {
+              currentEvent = '';
             } else if (line.startsWith('data:')) {
               try {
                 const data = JSON.parse(line.slice(5).trim());
@@ -4773,6 +4807,10 @@ createApp({
                   scrollMessages();
                 } else if (currentEvent === 'proposals' && data.proposals) {
                   assistantMsg.proposals = (assistantMsg.proposals || []).concat(data.proposals);
+                  await nextTick();
+                  scrollMessages();
+                } else if (currentEvent === 'choices' && data.choices) {
+                  assistantMsg.choices = (assistantMsg.choices || []).concat(data.choices);
                   await nextTick();
                   scrollMessages();
                 } else if (currentEvent === 'proposal_clean' && data.clean_content) {
@@ -4877,6 +4915,13 @@ createApp({
         showToast('加入失败: ' + e.message, 'error');
       }
       proposalBusy.value = false;
+    }
+
+    function pickChoice(ch, opt) {
+      if (isThinking.value || ch.pickedId) return;
+      ch.pickedId = opt.id;
+      inputText.value = opt.content || opt.label;
+      sendMessage();
     }
 
     // ===== Markdown Renderer =====
@@ -6060,8 +6105,16 @@ createApp({
       } catch (e) { showToast('删除失败', 'error'); }
     }
     function typeLabel(t) {
-      const map = { game_setting: '游戏设定', novel: '小说', lore: '背景', other: '其他' };
+      const map = {
+        game_setting: '游戏设定', novel: '小说', lore: '背景', other: '其他',
+        world: '世界观', character: '人物', setting: '设定', plot: '剧情',
+        style: '文风', reference: '参考资料',
+      };
       return map[t] || t;
+    }
+    function sourceLabel(s) {
+      const map = { local_file: '本地', web_search: '搜索', chat: '对话', analysis: '拆文分析' };
+      return map[s] || '搜索';
     }
 
     // ===== Relations (星图) =====
@@ -8101,6 +8154,7 @@ createApp({
       fileDetailMode.value = '';
       fileDetailContent.value = '';
       fileDetailReport.value = '';
+      fileDetailReportPath.value = '';
       fileDissectResults.value = [];
       fileDetailMsg.value = '';
     }
@@ -8145,8 +8199,15 @@ createApp({
           })
         );
         fileDetailReport.value = data.report || '';
+        fileDetailReportPath.value = data.saved_path || '';
         fileDetailMode.value = 'report';
-        fileDetailMsg.value = data.saved_as ? `分析完成，报告已保存为 ${data.saved_as}` : '分析完成';
+        let doneMsg = data.saved_as ? `分析完成，报告已保存为 ${data.saved_as}` : '分析完成';
+        if (data.knowledge_title) doneMsg += '，并已存入知识库';
+        fileDetailMsg.value = doneMsg;
+        if (data.knowledge_title) {
+          showToast('报告已存入知识库: ' + data.knowledge_title, 'success');
+          await loadKnowledge();
+        }
       } catch (e) {
         fileDetailMsg.value = '拆文分析失败：' + (e.message || e);
       } finally {
@@ -8894,7 +8955,7 @@ createApp({
       // Chat selectors
       selectedModel, selectedRole, availableModels, modelToChannel, chatRoles, lastUsedModel,
       lastIntentInfo, interventionNotice,
-      proposalBusy, proposalTargetLabel, applyProposal,
+      proposalBusy, proposalTargetLabel, applyProposal, pickChoice,
       // Settings
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
       currentSettingNodeId, currentSettingNode,
@@ -8930,7 +8991,7 @@ createApp({
       exportConversation, importConversation, importFileInput, onImportFileSelected,
       optimizeSetting, loadSettings,
       loadKnowledge, handleFileUpload, handleFileDrop, searchKnowledge,
-      viewKnowledge, toggleEditKnowledge, saveKnowledgeEdit, deleteKnowledge, typeLabel,
+      viewKnowledge, toggleEditKnowledge, saveKnowledgeEdit, deleteKnowledge, typeLabel, sourceLabel,
       // Outline
       outlineNodes, outlineEdges, selectedOutlineNodeId, selectedOutlineEdgeId,
       outlineCanvas, outlineHoveredNodeId, outlineLinkMode, outlineLinkFrom,

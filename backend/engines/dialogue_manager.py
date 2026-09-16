@@ -68,6 +68,13 @@ _PROPOSAL_PATTERN = re.compile(
     re.DOTALL
 )
 
+# 可点选选项：[[MOSHEN_CHOICE]]{"question":...,"options":[...]}[[/MOSHEN_CHOICE]]
+# 用于"让作者挑一个方向"的交互；前端渲染成按钮，点选后作为作者回复发出。
+_CHOICE_PATTERN = re.compile(
+    r'\[\[MOSHEN_CHOICE\]\](.*?)\[\[/MOSHEN_CHOICE\]\]',
+    re.DOTALL
+)
+
 # 提案可以归入的目标
 _PROPOSAL_TARGETS = ("setting", "outline", "knowledge", "plot_point")
 
@@ -549,8 +556,22 @@ class DialogueManager:
                 if proposals:
                     yield self._sse("proposals", {"proposals": proposals})
 
-                # 无论提案是否合法，都移除标记块，避免原始 JSON 留在回复正文里
+            # 可点选选项：解析 [[MOSHEN_CHOICE]] 块，前端渲染成按钮供作者挑选
+            choice_matches = _CHOICE_PATTERN.findall(full_response)
+            if choice_matches:
+                choices = []
+                for raw in choice_matches:
+                    choice = self._parse_choice(raw)
+                    if choice:
+                        choices.append(choice)
+
+                if choices:
+                    yield self._sse("choices", {"choices": choices})
+
+            # 无论解析结果是否合法，都移除标记块，避免原始 JSON 留在回复正文里
+            if proposal_matches or choice_matches:
                 clean_response = _PROPOSAL_PATTERN.sub('', full_response)
+                clean_response = _CHOICE_PATTERN.sub('', clean_response)
                 clean_response = re.sub(r'\n{3,}', '\n\n', clean_response).strip()
                 yield self._sse("proposal_clean", {"clean_content": clean_response})
                 full_response = clean_response
@@ -631,6 +652,50 @@ class DialogueManager:
             "trope": str(data.get("trope", "")).strip(),
             "segment": str(data.get("segment", "")).strip(),
             "parent": str(data.get("parent", "")).strip(),
+        }
+
+    @staticmethod
+    def _parse_choice(raw: str) -> dict | None:
+        """解析单个选项块；无有效选项时返回 None（宁可不展示，也不给出空按钮）"""
+        text = (raw or "").strip()
+        if not text:
+            return None
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            data = parse_json_response(text)
+        if not isinstance(data, dict):
+            return None
+
+        raw_options = data.get("options")
+        if not isinstance(raw_options, list):
+            return None
+
+        options = []
+        for item in raw_options:
+            if isinstance(item, str):
+                label = item.strip()
+                content = label
+            elif isinstance(item, dict):
+                label = str(item.get("label", "")).strip()
+                content = str(item.get("content", "")).strip() or label
+            else:
+                continue
+            if not label:
+                continue
+            options.append({
+                "id": gen_id("opt_"),
+                "label": label,
+                "content": content,
+            })
+
+        if not options:
+            return None
+
+        return {
+            "id": gen_id("choice_"),
+            "question": str(data.get("question", "")).strip(),
+            "options": options[:6],
         }
 
     def _sse(self, event: str, data: dict) -> dict:

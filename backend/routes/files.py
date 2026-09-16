@@ -12,6 +12,13 @@ from knowledge.project_kb import get_project_kb_manager
 router = APIRouter(prefix="/api/files", tags=["files"])
 kb = get_project_kb_manager()
 
+ANALYSIS_LABELS = {
+    "style": "文风诊断",
+    "logic": "逻辑诊断",
+    "conflict": "冲突值分布",
+    "full": "全面诊断",
+}
+
 
 @router.post("/upload/{project_id}")
 async def upload_file(project_id: str, file: UploadFile = File(...)):
@@ -181,9 +188,37 @@ async def analyze_file(req: AnalyzeRequest):
 
     # 保存诊断报告
     report_name = kb.save_diagnosis_report(req.project_id, result)
+    project_dir = kb.get_project_dir(req.project_id)
+    report_path = str(project_dir / "reports" / report_name) if (project_dir and report_name) else ""
+
+    # 报告同步写入知识库：此前报告只落在 reports 目录，用户在软件内无法检索
+    analysis_label = ANALYSIS_LABELS.get(req.analysis_type, "全面诊断")
+    knowledge_title = f"《{req.filename}》{analysis_label}报告"
+    knowledge_id = ""
+    try:
+        from routes.knowledge import _persist_knowledge
+
+        entry = _persist_knowledge(
+            title=knowledge_title,
+            content=f"# {knowledge_title}\n\n{result}",
+            source="analysis",
+            source_detail=req.filename,
+            ktype="reference",
+        )
+        if entry:
+            knowledge_id = entry["id"]
+    except Exception:
+        knowledge_id = ""
+
     step.ok("诊断报告已生成")
 
-    return {"report": result, "saved_as": report_name}
+    return {
+        "report": result,
+        "saved_as": report_name,
+        "saved_path": report_path,
+        "knowledge_id": knowledge_id,
+        "knowledge_title": knowledge_title if knowledge_id else "",
+    }
 
 
 class DissectRequest(BaseModel):
