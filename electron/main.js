@@ -47,6 +47,24 @@ function findFreePort(startPort = 8765, endPort = 8780) {
 }
 
 /**
+ * 询问启动页：还要等多久才能让用户看到完整一轮动画
+ *
+ * 后端就绪可能只要几百毫秒，此时直接 loadURL 会把品牌动画掐断在中途。
+ * 剩余时长由启动页自己算（它知道动画从哪一刻开始播、当前播到一轮的哪个位置），
+ * 主进程只负责等：等「当前这一轮」播完再切，因此无论加载快慢都不会看到半截动画。
+ * 以下情况立刻放行（返回 0）：
+ *   · 已经完整播完过至少一轮且正卡在轮次边界上
+ *   · 系统开启"减少动效"、动画资源加载失败回退圆环 → 没有"一轮动画"可等
+ */
+function splashRemainingMs() {
+  if (!mainWindow || mainWindow.isDestroyed()) return Promise.resolve(0);
+  return mainWindow.webContents
+    .executeJavaScript('window.__splashRemainingMs ? window.__splashRemainingMs() : 0', true)
+    .then((ms) => (typeof ms === 'number' && ms > 0 ? ms : 0))
+    .catch(() => 0);
+}
+
+/**
  * 等待后端服务就绪
  */
 function waitForServer(port, timeout = 15000) {
@@ -286,6 +304,14 @@ async function createWindow() {
     console.error('等待后端服务超时:', e.message);
     showErrorPage('后端服务启动超时', 'Python 后端在 15 秒内未响应。' + e.message);
     return;
+  }
+
+  // ★ 等当前这一轮启动动画播完再进主界面（剩余时长由启动页计算，
+  //   见 electron/splash.html 的 __splashRemainingMs）
+  const holdMs = await splashRemainingMs();
+  if (holdMs > 0) {
+    console.log(`等启动动画播完当前一轮，再等 ${Math.round(holdMs)}ms`);
+    await new Promise((resolve) => setTimeout(resolve, holdMs));
   }
 
   // 后端就绪后，加载实际页面

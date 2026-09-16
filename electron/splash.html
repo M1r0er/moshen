@@ -50,7 +50,37 @@
 
   <script src="../frontend/assets/ink/ink-sword.js"></script>
   <script>
+    /**
+     * 启动页最短展示时长
+     * ------------------------------------------------------------------
+     * 后端就绪可能只需几百毫秒，若立刻切到主界面，品牌动画会被"掐断"在中途。
+     * 这里由启动页对外提供「还要等多久」，主进程在跳转前询问它。
+     *
+     * 规则：等「当前这一轮」播完再进界面。因此
+     *   · 加载比一轮快 → 等满一轮（不会看到半截动画）
+     *   · 加载比一轮慢 → 等当前这轮收尾（不会在笔画中途被切走）
+     * 两种情况都能看到从「落笔」到「消散」的完整一轮。
+     */
     (function () {
+      // 动画真正开始播放的时刻（0 表示没有在播，例如资源失败回退圆环）
+      window.__splashAnimStart = 0;
+
+      // 判定"已经停在轮次收尾"的容差：一轮 2.9s，30fps 下一帧约 33ms，
+      // 留 150ms 避免因为几帧抖动而白等一整轮
+      var BOUNDARY_TOLERANCE_MS = 150;
+
+      // 还要等多少毫秒才能看到完整一轮；返回 0 表示可以立刻进入主界面
+      window.__splashRemainingMs = function () {
+        if (!window.__splashAnimStart) return 0;
+        var dur = ((window.MoShenInkSword && window.MoShenInkSword.DURATION) || 2.9) * 1000;
+        var elapsed = Date.now() - window.__splashAnimStart;
+        var completed = Math.floor(elapsed / dur);
+        var phase = elapsed - completed * dur;
+        // 已经完整播完过至少一轮，且正卡在轮次边界上 → 不必再等
+        if (completed >= 1 && phase < BOUNDARY_TOLERANCE_MS) return 0;
+        return dur - phase;
+      };
+
       var host = document.getElementById('splashAnim');
       if (!window.MoShenInkSword) {
         host.innerHTML = '<div style="width:240px;height:240px;display:flex;align-items:center;justify-content:center">' +
@@ -64,7 +94,8 @@
       window.MoShenInkSword.mount(host, {
         theme: 'dark',
         size: 240,
-        base: '../frontend/assets/ink/'
+        base: '../frontend/assets/ink/',
+        onStart: function () { window.__splashAnimStart = Date.now(); }
       });
     })();
   </script>

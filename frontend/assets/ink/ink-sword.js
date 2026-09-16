@@ -355,7 +355,12 @@
 
     function start() {
       // 系统开启"减少动效"：不播放运动，直接展示定格签名帧 + 缓慢呼吸（§2.7）
+      // 此时不触发 onStart —— 没有"一轮动画"的概念，不该让宿主多等 2.9s
       if (prefersReducedMotion(win)) { freeze(); return; }
+
+      if (typeof options.onStart === 'function') {
+        try { options.onStart(); } catch (e) { /* 回调异常不影响动画 */ }
+      }
 
       // 窗口不可见时暂停，恢复时继续，不重置进度（§2.6）
       onVis = function () {
@@ -403,6 +408,9 @@
         return;
       }
       container.appendChild(wrap);
+      // 把 SMIL 时钟归零：动画从插入文档到真正开始播放可能差几帧，
+      // 归零后 onStart 的时间戳与"动画第 0 帧"严格对齐，宿主按它计时才准
+      try { if (typeof svg.setCurrentTime === 'function') svg.setCurrentTime(0); } catch (e) { /* 忽略 */ }
       start();
     });
 
