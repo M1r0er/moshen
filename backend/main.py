@@ -30,7 +30,7 @@ from routes.session import router as session_router
 from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 
-app = FastAPI(title="墨参 MoShen", version="0.7.8", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.7.9", description="小说写作助手")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -222,7 +222,7 @@ async def test_config(req: ConfigTestRequest):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.7.8"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.7.9"}
 
 
 # ===== 前端静态文件 =====
