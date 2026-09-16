@@ -614,6 +614,39 @@ body {
   padding: 24px; font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-wrap: break-word;
   box-shadow: var(--shadow-card); color: var(--color-text-body);
 }
+.knowledge-content h1, .knowledge-content h2, .knowledge-content h3 {
+  color: var(--color-text-primary); margin: 18px 0 8px; line-height: 1.5;
+}
+.knowledge-content h1 { font-size: 18px; }
+.knowledge-content h2 { font-size: 16px; }
+.knowledge-content h3 { font-size: 14.5px; }
+.knowledge-content h1:first-child, .knowledge-content h2:first-child, .knowledge-content h3:first-child { margin-top: 0; }
+.knowledge-content p { margin: 0 0 10px; }
+.knowledge-content ul { margin: 6px 0 10px; padding-left: 22px; }
+.knowledge-content li { margin: 3px 0; }
+.knowledge-content blockquote {
+  margin: 8px 0; padding: 6px 12px; border-left: 3px solid var(--color-primary);
+  background: var(--color-primary-light); color: var(--color-text-secondary);
+}
+.knowledge-content hr { border: none; border-top: 1px solid var(--color-border); margin: 16px 0; }
+.knowledge-content code {
+  padding: 1px 5px; border-radius: 4px; background: var(--color-input-bg);
+  font-family: var(--font-mono); font-size: 12.5px;
+}
+.knowledge-content pre {
+  margin: 10px 0; padding: 12px; border-radius: var(--radius-md);
+  background: var(--color-input-bg); overflow-x: auto;
+}
+.knowledge-content pre code { padding: 0; background: transparent; }
+.knowledge-content table {
+  border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; line-height: 1.6;
+}
+.knowledge-content th, .knowledge-content td {
+  border: 1px solid var(--color-border); padding: 6px 10px; vertical-align: top;
+}
+.knowledge-content th {
+  background: var(--color-input-bg); color: var(--color-text-primary); font-weight: 600;
+}
 .knowledge-content-edit {
   width: 100%; min-height: 320px; padding: 12px; background: var(--color-input-bg);
   border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); color: var(--color-text-body);
@@ -646,6 +679,11 @@ body {
 .file-detail-report pre { background: var(--color-input-bg); padding: 10px; border-radius: var(--radius-md); overflow-x: auto; }
 .file-detail-report table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
 .file-detail-report th, .file-detail-report td { border: 1px solid var(--color-border); padding: 6px 9px; }
+.message-bubble table, .inspiration-content table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 13px; }
+.message-bubble th, .message-bubble td,
+.inspiration-content th, .inspiration-content td { border: 1px solid var(--color-border); padding: 6px 9px; vertical-align: top; }
+.message-bubble th, .inspiration-content th { background: var(--color-input-bg); color: var(--color-text-primary); font-weight: 600; }
+.message-bubble hr, .inspiration-content hr, .file-detail-report hr { border: none; border-top: 1px solid var(--color-border); margin: 14px 0; }
 .file-detail-empty { padding: 26px; text-align: center; font-size: 13px; color: var(--text-muted); border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg); }
 .dissect-item { padding: 14px; margin-bottom: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
 .dissect-title { font-size: 13.5px; font-weight: 600; margin-bottom: 8px; color: var(--color-text-primary); }
@@ -1558,7 +1596,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.8.2</div>
+        <div class="sidebar-version">v0.8.3</div>
       </div>
     </aside>
 
@@ -2232,7 +2270,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <span v-if="currentKnowledge.created_at" class="ts-item">创建: {{ formatTime(currentKnowledge.created_at) }}</span>
                 <span v-if="currentKnowledge.updated_at && currentKnowledge.updated_at !== currentKnowledge.created_at" class="ts-item">修改: {{ formatTime(currentKnowledge.updated_at) }}</span>
               </div>
-              <div v-if="!editingKnowledge" class="knowledge-content">{{ currentKnowledge.content }}</div>
+              <div v-if="!editingKnowledge" class="knowledge-content" v-html="renderMarkdown(currentKnowledge.content)"></div>
               <textarea v-else class="knowledge-content-edit" v-model="currentKnowledge.content"></textarea>
             </div>
           </div>
@@ -4925,17 +4963,72 @@ createApp({
     }
 
     // ===== Markdown Renderer =====
+    function splitTableRow(line) {
+      let s = line.trim();
+      if (s.startsWith('|')) s = s.slice(1);
+      if (s.endsWith('|')) s = s.slice(0, -1);
+      return s.split('|').map(c => c.trim());
+    }
+
+    // 把 GFM 管道表格转为 <table>；返回单行 HTML，避免后续换行转换插入 <br>
+    function renderTables(escaped) {
+      const lines = escaped.split('\n');
+      const out = [];
+      let i = 0;
+      while (i < lines.length) {
+        const head = lines[i];
+        const sep = lines[i + 1] === undefined ? '' : lines[i + 1];
+        const sepOk = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(sep);
+        if (head.indexOf('|') >= 0 && sepOk) {
+          const heads = splitTableRow(head);
+          const aligns = splitTableRow(sep).map(c => {
+            const left = c.startsWith(':');
+            const right = c.endsWith(':');
+            return left && right ? 'center' : (right ? 'right' : 'left');
+          });
+          if (heads.length >= 2 && aligns.length === heads.length) {
+            const rows = [];
+            let j = i + 2;
+            while (j < lines.length && lines[j].trim() && lines[j].indexOf('|') >= 0) {
+              rows.push(splitTableRow(lines[j]));
+              j++;
+            }
+            let t = '<table><thead><tr>'
+              + heads.map((c, k) => '<th style="text-align:' + aligns[k] + '">' + c + '</th>').join('')
+              + '</tr></thead><tbody>';
+            for (const r of rows) {
+              t += '<tr>'
+                + heads.map((_, k) => '<td style="text-align:' + aligns[k] + '">'
+                  + (r[k] === undefined ? '' : r[k]) + '</td>').join('')
+                + '</tr>';
+            }
+            out.push(t + '</tbody></table>');
+            i = j;
+            continue;
+          }
+        }
+        out.push(head);
+        i++;
+      }
+      return out.join('\n');
+    }
+
     function renderMarkdown(text) {
       if (!text) return '';
-      let html = text
+      const src = String(text).replace(/\r\n?/g, '\n').trim();
+      if (!src) return '';
+      let html = src
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => '<pre><code>' + code.trim() + '</code></pre>')
+        .replace(/```(\w*)\n([\s\S]*?)```/g, (m, lang, code) => '<pre><code>' + code.trim() + '</code></pre>');
+      html = renderTables(html);
+      html = html
         .replace(/`([^`]+)`/g, '<code>$1</code>')
         .replace(/^### (.+)$/gm, '<h3>$1</h3>')
         .replace(/^## (.+)$/gm, '<h2>$1</h2>')
         .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        .replace(/^\s*([-*_])\1{2,}\s*$/gm, '<hr>')
         .replace(/^&gt;\s?(.*)$/gm, '<blockquote>$1</blockquote>')
         .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.+?)\*/g, '<em>$1</em>')
@@ -4944,7 +5037,7 @@ createApp({
         .replace(/\n\n/g, '</p><p>')
         .replace(/\n/g, '<br>');
       if (html.indexOf('<li>') >= 0 && html.indexOf('<ul>') < 0) {
-        html = html.replace(/(<li>.*?<\/li>(?:<br>)?)+/g, m => '<ul>' + m.replace(/<br>$/, '') + '</ul>');
+        html = html.replace(/(<li>.*?<\/li>(?:<br>)?)+/g, m => '<ul>' + m.replace(/<br>/g, '') + '</ul>');
       }
       return '<p>' + html + '</p>';
     }
