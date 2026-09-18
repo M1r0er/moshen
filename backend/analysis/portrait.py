@@ -25,10 +25,12 @@ def _to_filename(name: str) -> str:
     return name.replace("/", "_").replace("\\", "_").replace(":", "_").replace("?", "_").replace("*", "_").replace('"', "_").replace("|", "_").replace("<", "_").replace(">", "_").strip()
 
 
-def portrait_prompt(entity: dict, relations: list, timeline: list) -> list[dict]:
+def portrait_prompt(entity: dict, relations: list, timeline: list, style: dict | None = None) -> list[dict]:
     """构建肖像绘制 prompt 的 messages
 
     LLM 根据角色档案信息生成英文绘画 prompt。
+    style 为本书「出品风格档案」：给出时画风由档案统一规定，模型只描述人物本身，
+    画风串由调用方在提示词末尾统一追加，保证同书肖像风格一致。
     """
     eid = entity.get("id", "")
     rel_lines = []
@@ -47,6 +49,14 @@ def portrait_prompt(entity: dict, relations: list, timeline: list) -> list[dict]
     aliases = entity.get("aliases", [])
     alias_str = "、".join(aliases) if aliases else "（无）"
 
+    from analysis.style_profile import style_guidance
+
+    guidance = style_guidance(style)
+    if guidance:
+        style_rule = f"3. {guidance}"
+    else:
+        style_rule = "3. 画风依据小说类型推断（古风/写实/日系动漫/厚涂），在提示词末尾用一句标注画风。"
+
     system = (
         "你是小说人物肖像画师。根据人物档案信息，总结人物在小说中的外貌、形象与性格特征，"
         "输出一段可用于 AI 绘画的英文肖像提示词（portrait prompt）。\n"
@@ -55,7 +65,7 @@ def portrait_prompt(entity: dict, relations: list, timeline: list) -> list[dict]
         "2. 提示词必须包含：外貌细节（发色、发型、眼睛、脸型、肤色、体型）、"
         "服饰（依据小说时代与风格，如古装/现代/科幻军装）、气质与神态（依据性格特征推断，"
         "如沉稳内敛/锋芒毕露/温柔敦厚）、年龄感。\n"
-        "3. 画风依据小说类型推断（古风/写实/日系动漫/厚涂），在提示词末尾用一句标注画风。\n"
+        f"{style_rule}\n"
         "4. 构图：上半身肖像，正面或微侧，背景简洁纯净。\n"
         "5. 只能基于给定档案信息，档案未提及的部分做合理推断，不得编造相互矛盾的外貌细节。"
     )
@@ -102,6 +112,7 @@ async def draw_one(
     relations: list,
     timeline: list,
     llm=None,
+    style: dict | None = None,
 ) -> str:
     """为单个角色生成肖像，返回文件扩展名
 
@@ -109,14 +120,24 @@ async def draw_one(
     1. LLM 生成英文绘画 prompt
     2. 调用图像生成 API
     3. 保存图片到项目目录
+
+    style 给出时，会在绘画提示词末尾追加本书统一的画风串（出品风格档案），
+    使同书所有肖像共用同一套媒介、上色与光影。
     """
     if llm is None:
         llm = get_llm_provider()
 
     # 1. 生成绘画 prompt
-    messages = portrait_prompt(entity, relations, timeline)
+    messages = portrait_prompt(entity, relations, timeline, style=style)
     draw_prompt = await llm.generate(messages, role="IMAGE_GENERATOR", temperature=0.5)
     draw_prompt = draw_prompt.strip() or entity.get("id", "character")
+
+    # 1.1 统一画风：同一本书追加同一段风格串，保证跨角色一致
+    from analysis.style_profile import style_suffix
+
+    suffix = style_suffix(style)
+    if suffix:
+        draw_prompt = f"{draw_prompt.rstrip(' .,;')}, {suffix}"
 
     # 2. 调用图像 API
     result = await llm.generate_image(draw_prompt)
@@ -161,6 +182,7 @@ async def generate_portraits(
     project_dir: Path,
     llm=None,
     progress_cb=None,
+    style: dict | None = None,
 ) -> dict:
     """为所有角色条目生成肖像（幂等：已有肖像则跳过）
 
@@ -213,7 +235,7 @@ async def generate_portraits(
                     f"绘制肖像「{eid}」…",
                     meta={"completed": processed, "total": total_entities, "unit": "张", "phase": "draw"},
                 )
-            ext = await draw_one(project_dir, entity, relations, timeline, llm)
+            ext = await draw_one(project_dir, entity, relations, timeline, llm, style=style)
             drawn += 1
             processed += 1
             if progress_cb:
@@ -244,6 +266,7 @@ async def redraw_portrait(
     entity_id: str,
     llm=None,
     progress_cb=None,
+    style: dict | None = None,
 ) -> str:
     """重绘指定角色的肖像（强制覆盖旧图）
 
@@ -268,7 +291,7 @@ async def redraw_portrait(
 
     if progress_cb:
         progress_cb(f"重绘肖像「{entity_id}」…")
-    ext = await draw_one(project_dir, entity, relations, timeline, llm)
+    ext = await draw_one(project_dir, entity, relations, timeline, llm, style=style)
     if progress_cb:
         progress_cb(f"肖像「{entity_id}」重绘完成（.{ext}）")
     return ext

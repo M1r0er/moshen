@@ -272,6 +272,46 @@ body {
 }
 .settings-btn:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
 
+/* ===== 页边栏收起（窄轨 + 展开按钮）===== */
+.sidebar { position: relative; transition: width 0.18s ease, min-width 0.18s ease; }
+.sidebar.collapsed { width: 40px; min-width: 40px; }
+.sidebar-header { padding-right: 42px; }
+.sidebar-toggle {
+  position: absolute; top: 16px; right: 10px; z-index: 5;
+  width: 26px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text-secondary); border-radius: var(--radius-md);
+  cursor: pointer; font-size: 12px; line-height: 1; transition: all 0.15s ease;
+}
+.sidebar-toggle:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
+.sidebar.collapsed .sidebar-toggle { top: 14px; right: auto; left: 50%; transform: translateX(-50%); }
+
+/* 二级目录栏（写作 / 设定 / 知识库 / 灵感）共用一套收起样式 */
+.sub-sidebar-toggle {
+  flex: 0 0 auto; width: 22px; height: 22px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text-secondary); border-radius: var(--radius-xs);
+  cursor: pointer; font-size: 11px; line-height: 1; transition: all 0.15s ease;
+}
+.sub-sidebar-toggle:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
+.collapsed .sub-sidebar-toggle { width: 24px; height: 24px; margin: 0 auto; }
+.collapsed-rail-btn {
+  width: 100%; height: 34px; padding: 0; margin-top: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--color-text-secondary);
+  cursor: pointer; font-size: 13px; line-height: 1; transition: all 0.15s ease;
+}
+.collapsed-rail-btn:hover { background: var(--color-hover-bg); color: var(--color-primary); }
+
+/* 二级目录栏收起后的窄轨宽度（写作 / 设定 / 知识库 / 灵感）*/
+.writing-sidebar.collapsed,
+.settings-sidebar.collapsed,
+.knowledge-sidebar.collapsed,
+.inspiration-sidebar.collapsed {
+  width: 40px; min-width: 40px; padding: 0; overflow: hidden;
+}
+
 /* ===== Main Area ===== */
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .tab-bar {
@@ -556,6 +596,18 @@ body {
 .tree-cat-tag { font-size: 12px; padding: 0 8px; height: 22px; display: inline-flex; align-items: center; border-radius: var(--radius-xs); flex-shrink: 0; }
 .settings-sidebar-footer { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--color-border); display: flex; gap: 8px; }
 .settings-sidebar-footer .btn { flex: 1; font-size: 13px; padding: 6px 8px; }
+
+/* 设定目录筛选（类别 chips + 标题搜索） */
+.settings-filter { margin-bottom: 10px; }
+.settings-filter-cats { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 7px; }
+.settings-filter-chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; cursor: pointer; white-space: nowrap; background: var(--color-input-bg); border: 1px solid var(--color-border); color: var(--color-text-secondary); transition: all 0.15s; }
+.settings-filter-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.settings-filter-chip.active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-text-inverse); font-weight: 500; }
+.settings-filter-search { position: relative; display: flex; align-items: center; }
+.settings-filter-search input { width: 100%; padding: 6px 26px 6px 10px; font-size: 12px; background: var(--color-input-bg); border: 1px solid var(--color-border-strong); color: var(--color-text-body); border-radius: var(--radius-md); outline: none; transition: all 0.15s; }
+.settings-filter-search input:focus { border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
+.settings-filter-clear { position: absolute; right: 6px; width: 18px; height: 18px; padding: 0; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; line-height: 1; border-radius: 50%; }
+.settings-filter-clear:hover { background: var(--color-hover-bg); color: var(--color-error); }
 
 /* Export Menu */
 .export-menu { position: absolute; bottom: 100%; left: 0; right: 0; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; z-index: 10; box-shadow: var(--shadow-toast); }
@@ -1222,6 +1274,19 @@ body {
 
 .writing-empty-editor { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); }
 
+/* ===== AI 审稿报告 ===== */
+.review-report {
+  max-height: 54vh; overflow-y: auto; padding: 4px 2px;
+  font-size: 13.5px; line-height: 1.75; color: var(--color-text-body); user-select: text;
+}
+.review-report h1, .review-report h2 { font-size: 15px; margin: 16px 0 8px; color: var(--color-text-primary); }
+.review-report h3, .review-report h4 { font-size: 14px; margin: 12px 0 6px; color: var(--color-text-primary); }
+.review-report p { margin: 6px 0; }
+.review-report ul, .review-report ol { margin: 6px 0; padding-left: 22px; }
+.review-report li { margin: 3px 0; }
+.review-report code { background: var(--color-input-bg); padding: 1px 5px; border-radius: 4px; font-family: var(--font-mono); font-size: 12.5px; }
+.review-report hr { border: none; border-top: 1px solid var(--color-border); margin: 14px 0; }
+
 /* 伏笔检测结果项 */
 .fs-detect-item { padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-bottom: 12px; background: var(--color-surface); box-shadow: var(--shadow-card); }
 .fs-detect-name { font-weight: 700; margin-bottom: 7px; display: flex; align-items: center; gap: 9px; }
@@ -1281,6 +1346,35 @@ body {
 .rel-portrait-placeholder em { font-size: 12px; font-style: normal; }
 .rel-portrait-error { font-size: 11.5px; line-height: 1.6; color: var(--color-warning); word-break: break-all; }
 .rel-portrait-errors { margin-top: 8px; padding: 10px 13px; font-size: 12px; line-height: 1.7; border-radius: var(--radius-md); background: var(--color-warning-bg); border: 1px solid var(--color-warning); color: var(--color-text-body); word-break: break-all; }
+
+/* ===== 出品风格档案（肖像风格一致性）===== */
+.rel-style-card { margin-top: 16px; padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-card); }
+.rel-style-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13.5px; font-weight: 600; }
+.rel-style-state { margin-left: auto; font-size: 11.5px; font-weight: 500; padding: 2px 10px; height: 22px; display: inline-flex; align-items: center; border-radius: 999px; }
+.rel-style-state.on { background: var(--color-success-bg); color: var(--color-success); }
+.rel-style-state.off { background: var(--color-input-bg); color: var(--text-muted); }
+.rel-style-hint { margin: 0 0 12px; font-size: 12.5px; line-height: 1.7; color: var(--text-muted); }
+.rel-style-body { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.rel-style-row { display: flex; gap: 10px; font-size: 13px; line-height: 1.6; }
+.rel-style-row b { flex: 0 0 52px; color: var(--text-muted); font-weight: 500; }
+.rel-style-row span { flex: 1; word-break: break-word; }
+.rel-style-prompt { font-size: 12px; color: var(--color-text-secondary); }
+.rel-style-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.rel-style-actions .btn { font-size: 13px; padding: 6px 14px; }
+.rel-style-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.rel-style-form label { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; }
+.rel-style-form select, .rel-style-form input, .rel-style-form textarea {
+  width: 100%; padding: 8px 12px; background: var(--color-input-bg); border: 1px solid var(--color-border-strong);
+  color: var(--color-text-body); border-radius: var(--radius-md); font-size: 13px; font-family: var(--font-ui);
+  resize: vertical; transition: all 0.15s ease;
+}
+.rel-style-form select:focus, .rel-style-form input:focus, .rel-style-form textarea:focus {
+  outline: none; border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus);
+}
+.rel-style-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rel-style-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer; background: var(--color-input-bg); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); transition: all 0.15s; }
+.rel-style-chip:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.rel-style-chip.active { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-text-inverse); }
 .rel-avatar-hint { font-size: 12px; color: var(--text-muted); }
 /* 固定列数：列数不再随滚动条出现/消失而跳动（配合 .rel-subview 的 scrollbar-gutter） */
 .rel-archive-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
@@ -1540,7 +1634,12 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 <div id="app" v-cloak>
   <div class="app-layout">
     <!-- ========== Sidebar ========== -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ collapsed: appSidebarCollapsed }">
+      <button class="sidebar-toggle" @click="toggleAppSidebar"
+              :title="appSidebarCollapsed ? '展开侧栏' : '收起侧栏'">
+        {{ appSidebarCollapsed ? '»' : '«' }}
+      </button>
+      <template v-if="!appSidebarCollapsed">
       <div class="sidebar-header">
         <div class="sidebar-logo">
           <div class="sidebar-logo-icon">墨</div>
@@ -1601,8 +1700,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.8.4</div>
+        <div class="sidebar-version">v0.9.0</div>
       </div>
+      </template>
     </aside>
 
     <!-- ========== Main Area ========== -->
@@ -1793,13 +1893,31 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
           </div>
           <template v-else>
             <!-- 设定目录树 -->
-            <div class="settings-sidebar" style="display:flex;flex-direction:column">
+            <div class="settings-sidebar" :class="{ collapsed: subSidebarCollapsed }" style="display:flex;flex-direction:column">
+              <template v-if="!subSidebarCollapsed">
               <div class="settings-sidebar-header-row">
                 <span>设定目录</span>
-                <span style="font-size:11px;color:var(--text-muted)">{{ settingsTreeTotal }} 条</span>
+                <span style="font-size:11px;color:var(--text-muted)">
+                  {{ settingsFilterActive ? (filteredFlatTree.length + ' / ' + settingsTreeTotal) : settingsTreeTotal }} 条
+                </span>
+                <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+              </div>
+              <!-- 筛选：按类别 + 标题关键词 -->
+              <div class="settings-filter">
+                <div class="settings-filter-cats">
+                  <span class="settings-filter-chip" :class="{ active: settingsFilterCat === 'all' }"
+                        @click="settingsFilterCat = 'all'">全部</span>
+                  <span v-for="c in settingCategoryOptions" :key="c.value" class="settings-filter-chip"
+                        :class="{ active: settingsFilterCat === c.value }"
+                        @click="settingsFilterCat = c.value">{{ c.icon }} {{ c.label }}</span>
+                </div>
+                <div class="settings-filter-search">
+                  <input v-model="settingsFilterKeyword" placeholder="搜索设定标题…">
+                  <button v-if="settingsFilterActive" class="settings-filter-clear" @click="clearSettingsFilter" title="清除筛选">×</button>
+                </div>
               </div>
               <div style="flex:1;overflow-y:auto">
-                <div v-for="item in flatTree" :key="item.id"
+                <div v-for="item in filteredFlatTree" :key="item.id"
                      class="tree-node-row"
                      :class="{ active: currentSettingNodeId === item.id }"
                      :style="{ paddingLeft: (8 + item.level * 16) + 'px' }"
@@ -1816,8 +1934,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <span class="tree-action-btn del" @click="deleteSettingNode(item)" title="删除">×</span>
                   </span>
                 </div>
-                <div v-if="flatTree.length === 0" style="padding:12px 4px;font-size:12px;color:var(--text-muted)">
-                  暂无设定，点击下方「新建」按钮添加
+                <div v-if="filteredFlatTree.length === 0" style="padding:12px 4px;font-size:12px;color:var(--text-muted)">
+                  {{ settingsFilterActive ? '没有符合筛选条件的设定' : '暂无设定，点击下方「新建」按钮添加' }}
                 </div>
               </div>
               <div class="settings-sidebar-footer" style="position:relative">
@@ -1831,6 +1949,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div class="export-menu-item" @click="exportSettings('docx')">📄 Word 文档</div>
                 </div>
               </div>
+              </template>
+              <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
             </div>
 
             <!-- 设定编辑区 -->
@@ -2205,8 +2325,12 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
         <!-- ========== Knowledge Page ========== -->
         <div v-if="activeTab === 'knowledge'" class="knowledge-container">
-          <div class="knowledge-sidebar">
-            <div class="settings-sidebar-header">知识库</div>
+          <div class="knowledge-sidebar" :class="{ collapsed: subSidebarCollapsed }">
+            <template v-if="!subSidebarCollapsed">
+            <div class="settings-sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
+              <span>知识库</span>
+              <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+            </div>
             <div v-for="k in knowledgeList" :key="k.id"
                  class="knowledge-item" :class="{ active: currentKnowledge?.id === k.id }"
                  @click="viewKnowledge(k.id)">
@@ -2220,6 +2344,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <div v-if="knowledgeList.length === 0" style="padding:8px 4px;font-size:12px;color:var(--text-muted)">
               暂无知识条目
             </div>
+            </template>
+            <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
           </div>
           <div class="knowledge-main">
             <!-- Add Section -->
@@ -2284,11 +2410,15 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ========== Inspiration Page ========== -->
         <div v-if="activeTab === 'inspiration'" class="inspiration-container">
           <!-- 侧边栏：路径设置 + 文件列表 -->
-          <div class="inspiration-sidebar">
+          <div class="inspiration-sidebar" :class="{ collapsed: subSidebarCollapsed }">
+            <template v-if="!subSidebarCollapsed">
             <div class="inspiration-sidebar-header">
               <div class="inspiration-sidebar-header-row">
                 <span style="font-size:14px;font-weight:600">灵感文件夹</span>
-                <button class="workspace-btn" @click="showInspirationModal = true" title="设置文件夹">⚙ 设置</button>
+                <span style="display:flex;align-items:center;gap:6px">
+                  <button class="workspace-btn" @click="showInspirationModal = true" title="设置文件夹">⚙ 设置</button>
+                  <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                </span>
               </div>
               <div class="inspiration-path-box" v-if="inspirationPath" :title="inspirationPath">
                 📁 {{ inspirationPath }}
@@ -2313,6 +2443,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 请先设置灵感文件夹
               </div>
             </div>
+            </template>
+            <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
           </div>
 
           <!-- 主区域：文件内容 -->
@@ -2472,10 +2604,14 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
           <template v-else>
             <div class="writing-layout">
               <!-- 左侧：卷/章导航 -->
-              <div class="writing-sidebar">
+              <div class="writing-sidebar" :class="{ collapsed: subSidebarCollapsed }">
+                <template v-if="!subSidebarCollapsed">
                 <div class="writing-sidebar-header">
                   <span>目录</span>
-                  <button class="btn-icon" @click="addVolume" title="新建卷">+ 卷</button>
+                  <span style="display:flex;align-items:center;gap:6px">
+                    <button class="btn-icon" @click="addVolume" title="新建卷">+ 卷</button>
+                    <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                  </span>
                 </div>
                 <div class="writing-tree">
                   <div v-for="vol in writingIndex.volumes" :key="vol.id" class="writing-vol-item">
@@ -2505,6 +2641,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     还没有卷，点击上方「+ 卷」开始
                   </div>
                 </div>
+                </template>
+                <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
               </div>
 
               <!-- 右侧：编辑区 -->
@@ -2573,6 +2711,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <button class="btn btn-secondary" @click="saveAndNewChapter" :disabled="savingChapter">
                       保存并新建下一章
                     </button>
+                    <button class="btn btn-secondary" @click="openWritingReview" :disabled="reviewing">
+                      {{ reviewing ? '审稿中...' : '🧐 AI 审查' }}
+                    </button>
                     <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
                       {{ detectingFs ? '检测中...' : '🔍 伏笔检测（单章）' }}
                     </button>
@@ -2616,6 +2757,45 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <div class="modal-footer">
                 <button class="btn btn-secondary" @click="showFsDetectModal = false">关闭</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI 编辑审稿弹窗 -->
+          <div class="modal-overlay" v-if="showReviewModal" @click.self="showReviewModal = false">
+            <div class="modal" style="max-width:780px">
+              <div class="modal-title">🧐 AI 审稿 · 编辑视角</div>
+              <div class="modal-body">
+                <template v-if="!reviewReport">
+                  <div style="margin-bottom:14px">
+                    <div class="field-label">审查范围</div>
+                    <select class="field-select" v-model="reviewScope" style="width:100%">
+                      <option value="chapter">本章（当前打开的章节）</option>
+                      <option value="project">全书（全部章节 + 前后设定一致性）</option>
+                    </select>
+                  </div>
+                  <p class="rel-manual-hint">
+                    审查依据：本书设定树 + 星图人物档案 + 大纲 + 待审正文。
+                    检查维度：设定一致性、人物 OOC、逻辑与因果、叙事节奏、文风、伏笔呼应。
+                  </p>
+                  <div class="btn-row">
+                    <button class="btn btn-primary" :disabled="reviewing" @click="runWritingReview">
+                      {{ reviewing ? '审稿中…' : '开始审查' }}
+                    </button>
+                  </div>
+                </template>
+                <template v-else>
+                  <div v-if="reviewMeta && reviewMeta.saved_path" class="file-detail-path">
+                    📁 报告完整路径：{{ reviewMeta.saved_path }}
+                  </div>
+                  <div class="review-report" v-html="renderMarkdown(reviewReport)"></div>
+                </template>
+              </div>
+              <div class="modal-footer">
+                <button class="btn btn-secondary" v-if="reviewReport" @click="reviewReport = ''">重新审查</button>
+                <button class="btn btn-secondary" @click="showReviewModal = false">关闭</button>
+                <button class="btn btn-primary" v-if="reviewReport && reviewScope === 'chapter' && currentWritingChId"
+                        @click="markReviewFromReport">标记为已审稿</button>
               </div>
             </div>
           </div>
@@ -2853,6 +3033,70 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <div v-if="relPortraitResult && relPortraitResult.errors && relPortraitResult.errors.length" class="rel-portrait-errors">
                   <div v-for="(er, i) in relPortraitResult.errors" :key="i">⚠️ {{ er }}</div>
                 </div>
+              </div>
+
+              <!-- 出品风格档案（肖像风格一致性） -->
+              <div class="rel-style-card">
+                <div class="rel-style-head">
+                  <span>🎨 出品风格档案</span>
+                  <span class="rel-style-state" :class="styleEnabled ? 'on' : 'off'">
+                    {{ styleEnabled ? '风格一致性已开启' : '风格一致性未开启' }}
+                  </span>
+                </div>
+
+                <p class="rel-style-hint" v-if="!styleEnabled">
+                  开启后，生成肖像时会先识别本书题材（玄幻 / 仙侠 / 机甲科幻 …），
+                  并让所有肖像共用同一套画风、上色与光影。请在「设置 → 🎨 图像生成 API」中勾选「肖像风格一致性」。
+                </p>
+
+                <template v-else>
+                  <template v-if="!styleEditing">
+                    <div v-if="styleProfile" class="rel-style-body">
+                      <div class="rel-style-row"><b>题材</b><span>{{ styleProfile.genre }}</span></div>
+                      <div class="rel-style-row" v-if="styleProfile.sub_genres && styleProfile.sub_genres.length">
+                        <b>细分</b><span>{{ styleProfile.sub_genres.join('、') }}</span>
+                      </div>
+                      <div class="rel-style-row" v-if="styleProfile.tone"><b>调性</b><span>{{ styleProfile.tone }}</span></div>
+                      <div class="rel-style-row">
+                        <b>画风串</b>
+                        <span class="rel-style-prompt">{{ styleProfile.style_prompt || '（按题材自动生成）' }}</span>
+                      </div>
+                    </div>
+                    <p v-else class="rel-style-hint">
+                      尚未识别本书题材。生成肖像时会自动识别一次，也可点下方按钮立即识别。
+                    </p>
+                    <div class="rel-style-actions">
+                      <button class="btn btn-secondary" :disabled="styleAnalyzing" @click="relAnalyzeStyle">
+                        {{ styleAnalyzing ? '识别中…' : (styleProfile ? '重新识别题材' : '识别题材') }}
+                      </button>
+                      <button class="btn btn-secondary" @click="styleEditing = true; relSyncStyleForm()">手动调整</button>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <div class="rel-style-form">
+                      <label>题材</label>
+                      <select v-model="styleForm.genre">
+                        <option v-for="o in styleOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+                      </select>
+                      <label>细分题材（最多 3 个）</label>
+                      <div class="rel-style-chips">
+                        <span v-for="o in styleOptions" :key="o.value" class="rel-style-chip"
+                              :class="{ active: styleForm.sub_genres.includes(o.value) }"
+                              @click="relToggleSubGenre(o.value)">{{ o.label }}</span>
+                      </div>
+                      <label>视觉调性（英文，可留空）</label>
+                      <input v-model="styleForm.tone" placeholder="如 moody, high-contrast, cold blue palette">
+                      <label>画风串（留空则按题材自动生成）</label>
+                      <textarea v-model="styleForm.style_prompt" rows="3"
+                                placeholder="英文画风描述；留空使用题材预设"></textarea>
+                    </div>
+                    <div class="rel-style-actions">
+                      <button class="btn btn-primary" @click="relSaveStyle">保存</button>
+                      <button class="btn btn-secondary" @click="styleEditing = false">取消</button>
+                    </div>
+                  </template>
+                </template>
               </div>
             </div>
           </div>
@@ -3645,6 +3889,16 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </div>
             <p style="font-size:11px;color:var(--text-muted);margin:0">用于星图功能的人物肖像绘制。需兼容 OpenAI /images/generations 接口。Base URL 可填到 <code>/v1</code>，也可直接填完整的 <code>/images/generations</code> 地址。</p>
           </div>
+          <label style="margin-top:10px;display:flex;align-items:flex-start;gap:8px;font-size:12.5px;cursor:pointer">
+            <input type="checkbox" v-model="imagePrefs.style_consistency" @change="saveImagePrefs" style="margin-top:2px">
+            <span>
+              <b>肖像风格一致性</b>
+              <span style="display:block;color:var(--text-muted);font-size:11.5px;margin-top:2px">
+                为同一本小说识别题材（玄幻 / 仙侠 / 机甲科幻 …），让所有肖像共用同一套画风、上色与光影，避免角色之间风格漂移。
+                本书的风格档案可在「星图 → 分析」页查看与微调。
+              </span>
+            </span>
+          </label>
         </div>
 
         <!-- 连通性自检 -->
@@ -3786,6 +4040,25 @@ createApp({
       { key: 'files', icon: '📁' },
     ];
 
+    // ===== 页边栏收起（一级侧栏与各页二级目录）=====
+    // 纯界面状态，存 localStorage（与后端偏好无关，不占用工作区配置）
+    function readUiFlag(key) {
+      try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+    }
+    function writeUiFlag(key, val) {
+      try { localStorage.setItem(key, val ? '1' : '0'); } catch (e) { /* 忽略隐私模式等异常 */ }
+    }
+    const appSidebarCollapsed = ref(readUiFlag('moshen.ui.appSidebar'));
+    const subSidebarCollapsed = ref(readUiFlag('moshen.ui.subSidebar'));
+    function toggleAppSidebar() {
+      appSidebarCollapsed.value = !appSidebarCollapsed.value;
+      writeUiFlag('moshen.ui.appSidebar', appSidebarCollapsed.value);
+    }
+    function toggleSubSidebar() {
+      subSidebarCollapsed.value = !subSidebarCollapsed.value;
+      writeUiFlag('moshen.ui.subSidebar', subSidebarCollapsed.value);
+    }
+
     // ===== i18n（界面语言与项目写作语言相互独立） =====
     const locale = ref('zh-CN');
     const writingLanguage = ref('zh-CN');
@@ -3857,6 +4130,9 @@ createApp({
     // Settings Writer
     const settingsTree = ref([]);
     const settingsTreeTotal = ref(0);
+    // 设定目录筛选：类别（all / world / character …）+ 标题关键词
+    const settingsFilterCat = ref('all');
+    const settingsFilterKeyword = ref('');
     const currentSettingNodeId = ref(null);
     const currentSettingNode = ref(null);
     const expandedNodes = ref({});
@@ -3985,6 +4261,8 @@ createApp({
       chapter_numbering_mode: 'continue',
       auto_foreshadowing_detect: false,
     });
+    // 生图偏好：肖像风格一致性（开关存于 ~/.moshen/workspace.json）
+    const imagePrefs = reactive({ style_consistency: false });
     const modelRoles = {
       TEXT_MASTER: '文学性分析、文风诊断',
       STRUCTURE_ANALYST: '大纲结构、节奏诊断',
@@ -4086,6 +4364,11 @@ createApp({
     const showFsDetectModal = ref(false);
     const detectedForeshadowings = ref([]);
     const chapterNumberingMode = ref('continue'); // continue | per_volume
+    const showReviewModal = ref(false);
+    const reviewScope = ref('chapter'); // chapter | project
+    const reviewing = ref(false);
+    const reviewReport = ref('');
+    const reviewMeta = ref(null);
 
     const currentWordCount = computed(() => {
       if (!writingEditor.value) return 0;
@@ -4142,6 +4425,13 @@ createApp({
     const relPortraitLoading = ref(false);
     const relGeneratingPortraits = ref(false);
     const relPortraitResult = ref(null);
+    // 出品风格档案（肖像风格一致性）
+    const styleEnabled = ref(false);
+    const styleProfile = ref(null);
+    const styleOptions = ref([]);
+    const styleAnalyzing = ref(false);
+    const styleEditing = ref(false);
+    const styleForm = reactive({ genre: '', sub_genres: [], tone: '', style_prompt: '' });
     // 手动维护（编辑 / 新增 / 删除）
     const relEntityData = ref(null);        // 当前选中条目的结构化数据
     const relEntityOwnerType = ref('');     // 当前选中条目实际所属分类
@@ -5089,6 +5379,27 @@ createApp({
     }
     const flatTree = computed(() => _flattenTreeNodes(settingsTree.value, 1, true));
 
+    // 设定目录筛选结果（在展平后的列表上过滤，树形层级关系通过缩进保留）
+    const filteredFlatTree = computed(() => {
+      const kw = settingsFilterKeyword.value.trim().toLowerCase();
+      return flatTree.value.filter(item => {
+        if (settingsFilterCat.value !== 'all' && item.category !== settingsFilterCat.value) return false;
+        if (kw) {
+          const title = String(item.title || '').toLowerCase();
+          if (!title.includes(kw)) return false;
+        }
+        return true;
+      });
+    });
+    const settingsFilterActive = computed(() =>
+      settingsFilterCat.value !== 'all' || !!settingsFilterKeyword.value.trim());
+    const settingCategoryOptions = computed(() =>
+      Object.entries(CAT_META).map(([value, m]) => ({ value, label: m.label, icon: m.icon })));
+    function clearSettingsFilter() {
+      settingsFilterCat.value = 'all';
+      settingsFilterKeyword.value = '';
+    }
+
     async function loadSettings() {
       try {
         const data = await apiJSON('/api/settings/' + currentProjectId.value + '/tree');
@@ -5918,6 +6229,70 @@ createApp({
       savingChapter.value = false;
       showToast('已保存，正在新建下一章', 'success');
       await addChapterTo(volId);
+    }
+
+    function openWritingReview() {
+      reviewScope.value = 'chapter';
+      reviewReport.value = '';
+      reviewMeta.value = null;
+      showReviewModal.value = true;
+    }
+
+    async function runWritingReview() {
+      if (reviewing.value) return;
+      if (reviewScope.value === 'chapter' && !currentWritingChId.value) {
+        showToast('请先选择章节', 'error');
+        return;
+      }
+      reviewing.value = true;
+      try {
+        // 审稿前先把当前正文落盘，保证审的就是屏幕上看到的内容
+        if (reviewScope.value === 'chapter' && currentWritingChId.value) {
+          await _saveCurrentChapterSilent();
+        }
+        const data = await runBusyTask(
+          { task: 'writing.review', name: 'AI 审稿' },
+          ({ task_id }) => apiJSON('/api/writing/' + currentProjectId.value + '/review', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              scope: reviewScope.value,
+              vol_id: currentWritingVolId.value,
+              ch_id: currentWritingChId.value,
+              task_id,
+            }),
+          })
+        );
+        reviewReport.value = data.report || '';
+        reviewMeta.value = {
+          title: data.title || '',
+          saved_as: data.saved_as || '',
+          saved_path: data.saved_path || '',
+          knowledge_title: data.knowledge_title || '',
+        };
+        showToast('审稿报告已生成', 'success');
+      } catch (e) {
+        showToast('审稿失败: ' + (e.message || e), 'error');
+      }
+      reviewing.value = false;
+    }
+
+    async function markReviewFromReport() {
+      if (!currentWritingChId.value) return;
+      const meta = reviewMeta.value || {};
+      try {
+        await apiJSON('/api/flow/' + currentProjectId.value + '/volumes/'
+          + currentWritingVolId.value + '/chapters/' + currentWritingChId.value + '/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            report_filename: meta.saved_as || '',
+            note: 'AI 审稿：' + (meta.title || ''),
+          }),
+        });
+        await loadFlow();
+        showToast('已标记为已审稿', 'success');
+      } catch (e) { showToast('标记失败: ' + e.message, 'error'); }
     }
 
     function onWritingInput() {
@@ -7510,6 +7885,95 @@ createApp({
       }
     }
 
+    // ===== 出品风格档案（肖像风格一致性）=====
+    function relSyncStyleForm() {
+      const p = styleProfile.value || {};
+      styleForm.genre = p.genre || '';
+      styleForm.sub_genres = Array.isArray(p.sub_genres) ? [...p.sub_genres] : [];
+      styleForm.tone = p.tone || '';
+      styleForm.style_prompt = p.style_prompt || '';
+    }
+
+    async function relLoadStyle() {
+      styleEditing.value = false;
+      if (!currentProjectId.value) { styleProfile.value = null; return; }
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/style');
+        styleEnabled.value = !!data.enabled;
+        styleOptions.value = data.options || [];
+        styleProfile.value = data.profile || null;
+        relSyncStyleForm();
+      } catch (e) { styleProfile.value = null; }
+    }
+
+    async function relAnalyzeStyle() {
+      if (!currentProjectId.value) return;
+      styleAnalyzing.value = true;
+      try {
+        const data = await runBusyTask(
+          { task: 'relations.style', name: '题材风格识别' },
+          ({ task_id }) => apiJSON(
+            '/api/relations/' + currentProjectId.value + '/style/analyze?task_id=' + encodeURIComponent(task_id),
+            { method: 'POST' }
+          )
+        );
+        styleProfile.value = data.profile || null;
+        relSyncStyleForm();
+        showToast('已识别题材：' + ((data.profile || {}).genre || ''), 'success');
+      } catch (e) { showToast('识别失败: ' + (e.message || e), 'error'); }
+      styleAnalyzing.value = false;
+    }
+
+    async function relSaveStyle() {
+      if (!currentProjectId.value) return;
+      try {
+        const data = await apiJSON('/api/relations/' + currentProjectId.value + '/style', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            genre: styleForm.genre,
+            sub_genres: styleForm.sub_genres,
+            tone: styleForm.tone,
+            style_prompt: styleForm.style_prompt,
+          }),
+        });
+        styleProfile.value = data.profile || null;
+        relSyncStyleForm();
+        styleEditing.value = false;
+        showToast('风格档案已保存', 'success');
+      } catch (e) { showToast('保存失败: ' + (e.message || e), 'error'); }
+    }
+
+    function relToggleSubGenre(value) {
+      const i = styleForm.sub_genres.indexOf(value);
+      if (i >= 0) {
+        styleForm.sub_genres.splice(i, 1);
+      } else if (styleForm.sub_genres.length < 3) {
+        styleForm.sub_genres.push(value);
+      } else {
+        showToast('细分题材最多选 3 个', 'info');
+      }
+    }
+
+    async function loadImagePrefs() {
+      try {
+        const data = await apiJSON('/api/workspace/prefs/image');
+        imagePrefs.style_consistency = !!data.style_consistency;
+      } catch (e) { /* 读取失败保持默认 */ }
+    }
+
+    async function saveImagePrefs() {
+      try {
+        await apiJSON('/api/workspace/prefs/image', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ style_consistency: !!imagePrefs.style_consistency }),
+        });
+        showToast(imagePrefs.style_consistency ? '已开启肖像风格一致性' : '已关闭肖像风格一致性', 'success');
+        if (currentProjectId.value) await relLoadStyle();
+      } catch (e) { showToast('保存生图设置失败', 'error'); }
+    }
+
     // 3D 关系图（Three.js）
     let relScene = null, relRenderer = null, relCamera = null, relControls = null;
     let relPortraitVer = 0;   // 肖像图缓存版本：重绘后 +1，让头像贴图重新拉取
@@ -9002,6 +9466,7 @@ createApp({
         writingPrefs.value = { ...writingPrefs.value, ...wp };
         chapterNumberingMode.value = wp.chapter_numbering_mode || 'continue';
       } catch (_) {}
+      await loadImagePrefs();
       setInterval(checkHealth, 30000);
 
       // ===== 全局拖拽阻止（PyWebView 修复）=====
@@ -9066,6 +9531,7 @@ createApp({
       if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
       if (tab === 'relations' && currentProjectId.value) {
         relLoadOverview();
+        relLoadStyle();
         if (relSource.value === 'uploads') relLoadUploads();
       }
       // 离开星图页时释放 3D 场景与动画循环
@@ -9101,6 +9567,7 @@ createApp({
       projectWorkspacePath, showProjectWsModal, projectWsInput,
       showSaveToKbModal, saveToKbTitle, saveToKbType, saveToKbContent,
       activeTab, tabs,
+      appSidebarCollapsed, subSidebarCollapsed, toggleAppSidebar, toggleSubSidebar,
       messages, inputText, isThinking, messagesArea,
       // Conversations
       conversations, currentConversationId, showConvRenameModal, convRenameInput, currentConvInfo,
@@ -9110,6 +9577,8 @@ createApp({
       proposalBusy, proposalTargetLabel, applyProposal, pickChoice,
       // Settings
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
+      settingsFilterCat, settingsFilterKeyword, filteredFlatTree, settingsFilterActive,
+      settingCategoryOptions, clearSettingsFilter,
       currentSettingNodeId, currentSettingNode,
       settingInput, settingCategory, optimizedText, optimizing,
       showNewSettingModal, newSettingTitle, newSettingCategory, newSettingParentId,
@@ -9171,6 +9640,8 @@ createApp({
       loadWritingIndex, toggleVolume, addVolume, deleteWritingVol, deleteWritingChapter, editVolumeTitle,
       addChapterTo, openChapter, saveWritingChapter, saveAndNewChapter, onWritingInput,
       execFormat, toggleIndent, updateVolMeta, updateChMeta,
+      showReviewModal, reviewScope, reviewing, reviewReport, reviewMeta,
+      openWritingReview, runWritingReview, markReviewFromReport,
       detectForeshadowing, recoverCheck, importDetectedFs,
       // Foreshadowing
       foreshadowingList, currentFsId, currentFsDetail,
@@ -9194,6 +9665,10 @@ createApp({
       relPortraitUrl, relPortraitLoading, relGeneratingPortraits, relPortraitResult, relPortraitError,
       relPortraitNames, relHoverInfo,
       relCheckPortrait, relRedrawPortrait, relGenerateAllPortraits,
+      // 星图 · 出品风格档案（肖像风格一致性）
+      styleEnabled, styleProfile, styleOptions, styleAnalyzing, styleEditing, styleForm,
+      relLoadStyle, relAnalyzeStyle, relSaveStyle, relToggleSubGenre, relSyncStyleForm,
+      imagePrefs, loadImagePrefs, saveImagePrefs,
       // 星图 · 手动维护
       relIsManual, relSelectedIsManual, relEntityChoices,
       relEntityData, relEntityOwnerType, relEntityForm, relEntityMode, relSavingEntity,

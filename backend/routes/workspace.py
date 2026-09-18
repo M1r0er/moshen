@@ -290,6 +290,37 @@ async def set_writing_prefs(req: WritingPrefsRequest):
     return {"success": True, "prefs": prefs}
 
 
+# ===== 生图偏好设置 =====
+# 「肖像风格一致性」：开启后同一本小说的所有肖像共用本书风格档案的画风串。
+
+class ImagePrefsRequest(BaseModel):
+    style_consistency: bool | None = None
+
+
+def style_consistency_enabled() -> bool:
+    """读取生图偏好（供星图生图链路调用）"""
+    return bool(_read_config().get("image_prefs", {}).get("style_consistency", False))
+
+
+@router.get("/prefs/image")
+async def get_image_prefs():
+    """获取生图偏好设置"""
+    prefs = _read_config().get("image_prefs", {})
+    return {"style_consistency": bool(prefs.get("style_consistency", False))}
+
+
+@router.put("/prefs/image")
+async def set_image_prefs(req: ImagePrefsRequest):
+    """更新生图偏好设置"""
+    data = _read_config()
+    prefs = data.get("image_prefs", {})
+    if req.style_consistency is not None:
+        prefs["style_consistency"] = bool(req.style_consistency)
+    data["image_prefs"] = prefs
+    _save_config(data)
+    return {"success": True, "prefs": prefs}
+
+
 # ===== 界面语言 / 项目写作语言 =====
 # 两者相互独立：界面语言只影响 UI 文案；项目写作语言决定模型用什么语言创作。
 # 作者原文与引用资料在任何语言下都保持原样。

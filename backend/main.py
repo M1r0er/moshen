@@ -31,7 +31,7 @@ from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 from routes.tasks import router as tasks_router
 
-app = FastAPI(title="墨参 MoShen", version="0.8.4", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.9.0", description="小说写作助手")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -224,7 +224,7 @@ async def test_config(req: ConfigTestRequest):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.8.4"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.9.0"}
 
 
 # ===== 前端静态文件 =====

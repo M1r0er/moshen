@@ -818,7 +818,10 @@ async def generate_all_portraits(project_id: str, req: PortraitRequest | None = 
                 channel.emit(detail=msg, **(meta or {}))
 
         try:
-            results = await generate_portraits(project_dir, progress_cb=_cb)
+            style = await _resolve_book_style(project_id, project_dir, channel)
+            if style and channel:
+                channel.emit(phase="prepare", detail=f"已应用本书风格档案：{style.get('genre', '')}")
+            results = await generate_portraits(project_dir, progress_cb=_cb, style=style)
         except Exception as e:
             if channel:
                 channel.emit(status="failed", message=f"{type(e).__name__}: {str(e)[:200]}")
@@ -900,10 +903,143 @@ async def redraw_one_portrait(project_id: str, name: str):
         raise HTTPException(404, "项目不存在")
     safe = name.replace("/", "").replace("\\", "")
     try:
-        ext = await redraw_portrait(project_dir, safe)
+        style = await _resolve_book_style(project_id, project_dir)
+        ext = await redraw_portrait(project_dir, safe, style=style)
         return {"success": True, "ext": ext}
     except Exception as e:
         raise HTTPException(500, str(e)[:200])
+
+
+# ===== 本书出品风格档案（肖像风格一致性）=====
+
+class StyleUpdatePayload(BaseModel):
+    genre: str = ""
+    sub_genres: list[str] = []
+    tone: str = ""
+    style_prompt: str = ""
+
+
+def _style_sample_text(project_id: str, project_dir: Path, limit: int = 8000) -> str:
+    """取一段代表性正文用于题材识别：优先作者自己写的章节，其次已上传文档"""
+    kb = get_project_kb_manager()
+
+    chunks: list[str] = []
+    try:
+        for c in kb.get_all_chapters_text(project_id):
+            text = (c.get("content") or "").strip()
+            if text:
+                chunks.append(text)
+    except Exception:
+        chunks = []
+
+    if not chunks:
+        upload_dir = project_dir / "uploads"
+        if upload_dir.exists():
+            for f in sorted(upload_dir.iterdir()):
+                if f.is_file() and not f.name.startswith("."):
+                    try:
+                        text = (kb.read_file_summary(f) or "").strip()
+                    except Exception:
+                        continue
+                    if text:
+                        chunks.append(text)
+                        break
+
+    if not chunks:
+        return ""
+    joined = "\n\n".join(chunks)
+    if len(joined) <= limit:
+        return joined
+    head = int(limit * 0.65)
+    tail = limit - head
+    return joined[:head] + "\n\n…（中间省略）…\n\n" + joined[-tail:]
+
+
+async def _resolve_book_style(project_id: str, project_dir: Path, channel=None) -> dict | None:
+    """取本书风格档案；开启一致性但尚未识别时，就地自动识别一次"""
+    from routes.workspace import style_consistency_enabled
+    from analysis.style_profile import load_style, save_style, infer_style
+
+    if not style_consistency_enabled():
+        return None
+
+    profile = load_style(project_dir)
+    if profile:
+        return profile
+
+    sample = _style_sample_text(project_id, project_dir)
+    if not sample:
+        return None
+
+    if channel:
+        channel.emit(phase="prepare", detail="正在识别本书题材与画风…")
+    try:
+        profile = await infer_style(sample)
+    except Exception:
+        return None
+    return save_style(project_dir, profile)
+
+
+@router.get("/{project_id}/style")
+async def get_book_style(project_id: str):
+    """读取本书风格档案（含开关状态与可选题材）"""
+    from routes.workspace import style_consistency_enabled
+    from analysis.style_profile import load_style, genre_options
+
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
+    if project_dir is None:
+        raise HTTPException(404, "项目不存在")
+    return {
+        "enabled": style_consistency_enabled(),
+        "profile": load_style(project_dir),
+        "options": genre_options(),
+    }
+
+
+@router.post("/{project_id}/style/analyze")
+async def analyze_book_style(project_id: str, task_id: str = ""):
+    """识别 / 重新识别本书题材与画风，写入风格档案
+
+    单步阻塞任务：进度按 0/1 → 1/1 上报。
+    """
+    from analysis.tasks import SingleStep
+    from analysis.style_profile import infer_style, save_style
+
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
+    if project_dir is None:
+        raise HTTPException(404, "项目不存在")
+
+    step = SingleStep(task_id, "relations.style", "题材风格识别")
+    step.begin("正在整理正文样本…")
+
+    sample = _style_sample_text(project_id, project_dir)
+    if not sample:
+        step.fail("尚无正文或已上传文档，无法识别题材")
+        raise HTTPException(400, "尚无正文或已上传文档，无法识别题材")
+
+    step.begin("正在请求模型识别题材…")
+    try:
+        profile = await infer_style(sample)
+    except Exception as e:
+        step.fail(f"{type(e).__name__}: {str(e)[:200]}")
+        raise HTTPException(500, f"{type(e).__name__}: {str(e)[:200]}")
+    saved = save_style(project_dir, profile)
+    step.ok(f"已识别为「{saved.get('genre', '')}」")
+    return {"success": True, "profile": saved}
+
+
+@router.put("/{project_id}/style")
+async def update_book_style(project_id: str, req: StyleUpdatePayload):
+    """手动修改本书风格档案（题材 / 细分题材 / 调性 / 自定义画风串）"""
+    from analysis.style_profile import save_style, normalize_profile
+
+    project_dir = get_project_kb_manager().get_project_dir(project_id)
+    if project_dir is None:
+        raise HTTPException(404, "项目不存在")
+
+    profile = normalize_profile(req.model_dump(), source="manual")
+    saved = save_style(project_dir, profile)
+    return {"success": True, "profile": saved}
 
 
 # ===== 条目 / 关系的手动维护（CRUD） =====
