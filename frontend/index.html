@@ -1156,6 +1156,9 @@ body {
 .writing-chapter-item.active .ch-num { color: var(--accent-hover); opacity: 0.8; }
 .ch-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ch-words { font-size: 10.5px; color: var(--text-muted); flex-shrink: 0; }
+.ch-del { width: 20px; height: 20px; opacity: 0; flex-shrink: 0; font-size: 14px; }
+.writing-chapter-item:hover .ch-del { opacity: 1; }
+.ch-del:hover { background: var(--color-error-bg); color: var(--color-error); }
 .writing-empty-hint { padding: 22px 14px; text-align: center; color: var(--text-muted); font-size: 12.5px; }
 
 .writing-editor-area { flex: 1; display: flex; flex-direction: column; padding: 18px 28px; min-width: 0; }
@@ -1183,16 +1186,17 @@ body {
 .editor-toolbar { display: flex; gap: 6px; padding: 7px 12px; border-bottom: 1px solid var(--color-border); margin-bottom: 12px; background: var(--color-surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; align-items: center; min-height: 44px; }
 .tool-btn { width: 34px; height: 30px; border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--text-primary); border-radius: var(--radius-md); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
 .tool-btn:hover { border-color: var(--accent); color: var(--accent-hover); background: var(--accent-dim); }
+.tool-btn-wide { width: auto; padding: 0 12px; gap: 6px; white-space: nowrap; }
 .tool-divider { width: 1px; background: var(--border-color); margin: 4px 7px; }
 
 .writing-editor {
   flex: 1;
   width: 100%;
-  max-width: 760px;
+  max-width: 1020px;
   margin: 0 auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 22px 30px;
+  padding: 28px 40px;
   background: var(--color-surface);
   color: var(--color-text-body);
   font-family: var(--font-reading);
@@ -1530,9 +1534,10 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
 </head>
 <body>
+<!-- 主界面首帧遮罩：与启动页同色，首帧就绪后 0.28s 淡出（跨文档 transition 不可用）。
+     放在 #app 之外，避免被 v-cloak 的 display:none 隐藏，从应用首个绘制帧起即覆盖整屏。 -->
+<div id="bootMask" class="boot-mask"></div>
 <div id="app" v-cloak>
-  <!-- 主界面首帧遮罩：与启动页同色，首帧就绪后 0.28s 淡出（跨文档 transition 不可用） -->
-  <div class="boot-mask" :class="{ 'is-gone': bootReady }"></div>
   <div class="app-layout">
     <!-- ========== Sidebar ========== -->
     <aside class="sidebar">
@@ -1596,7 +1601,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.8.3</div>
+        <div class="sidebar-version">v0.8.4</div>
       </div>
     </aside>
 
@@ -2492,6 +2497,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                         <span class="ch-num">第{{ ch.number }}章</span>
                         <span class="ch-title">{{ ch.title }}</span>
                         <span class="ch-words">{{ ch.words }}字</span>
+                        <button class="btn-icon-sm ch-del" @click.stop="deleteWritingChapter(vol.id, ch.id)" title="删除章节">×</button>
                       </div>
                     </div>
                   </div>
@@ -2549,7 +2555,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <button class="tool-btn" @click="execFormat('italic')" title="斜体"><i>I</i></button>
                     <button class="tool-btn" @click="execFormat('underline')" title="下划线"><u>U</u></button>
                     <span class="tool-divider"></span>
-                    <button class="tool-btn" @click="toggleIndent" title="首行缩进">⇥ 缩进</button>
+                    <button class="tool-btn tool-btn-wide" @click="toggleIndent" title="首行缩进">⇥ 缩进</button>
                   </div>
 
                   <!-- 正文编辑区 -->
@@ -2563,6 +2569,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div class="writing-bottom-bar">
                     <button class="btn btn-primary" @click="saveWritingChapter" :disabled="savingChapter">
                       {{ savingChapter ? '保存中...' : '保存' }}
+                    </button>
+                    <button class="btn btn-secondary" @click="saveAndNewChapter" :disabled="savingChapter">
+                      保存并新建下一章
                     </button>
                     <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
                       {{ detectingFs ? '检测中...' : '🔍 伏笔检测（单章）' }}
@@ -3733,6 +3742,12 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 </div>
 
 <script>
+// 启动遮罩兜底：无论后续脚本是否正常执行，最长 10s 后一定淡出，避免卡在黑屏
+setTimeout(function () {
+  var mask = document.getElementById('bootMask');
+  if (mask) mask.classList.add('is-gone');
+}, 10000);
+
 const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
 
 createApp({
@@ -5775,6 +5790,22 @@ createApp({
       } catch (e) { showToast('删除失败', 'error'); }
     }
 
+    async function deleteWritingChapter(volId, chId) {
+      if (!confirm('确定删除该章节？此操作不可撤销。')) return;
+      try {
+        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId + '/chapters/' + chId, {
+          method: 'DELETE',
+        });
+        if (currentWritingVolId.value === volId && currentWritingChId.value === chId) {
+          currentWritingVolId.value = '';
+          currentWritingChId.value = '';
+          if (writingEditor.value) writingEditor.value.innerHTML = '';
+        }
+        await loadWritingIndex();
+        showToast('已删除', 'success');
+      } catch (e) { showToast('删除失败', 'error'); }
+    }
+
     function editVolumeTitle(vol) {
       const newTitle = prompt('输入卷名', vol.title || '');
       if (newTitle === null) return;
@@ -5863,6 +5894,30 @@ createApp({
         showToast('已保存 · ' + (result.chapter?.words || 0) + '字', 'success');
       } catch (e) { showToast('保存失败', 'error'); }
       savingChapter.value = false;
+    }
+
+    async function saveAndNewChapter() {
+      if (!currentWritingChId.value) return;
+      const volId = currentWritingVolId.value;
+      savingChapter.value = true;
+      try {
+        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId + '/chapters/' + currentWritingChId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: writingEditor.value.innerHTML,
+            title: currentChTitle.value,
+          }),
+        });
+        await loadWritingIndex();
+      } catch (e) {
+        showToast('保存失败', 'error');
+        savingChapter.value = false;
+        return;
+      }
+      savingChapter.value = false;
+      showToast('已保存，正在新建下一章', 'success');
+      await addChapterTo(volId);
     }
 
     function onWritingInput() {
@@ -8573,8 +8628,6 @@ createApp({
     const BUSY_DONE_HOLD_MS = 600;   // 完成态保持时长（高光扫过 0.5s）
     const BUSY_LEAVE_MS = 250;       // 淡出时长
 
-    const bootReady = ref(false);
-
     const busy = reactive({
       visible: false, leaving: false,
       task: '', name: '',
@@ -8928,8 +8981,14 @@ createApp({
     // ===== Lifecycle =====
     onMounted(async () => {
       // 首帧渲染完成后淡出启动遮罩，掩盖"启动页 → 主界面"的硬切换（§8.1 可选优化）
+      // 连续两帧确保遮罩至少参与过一次绘制，避免首帧就被跳过而露出空白
       nextTick(() => {
-        requestAnimationFrame(() => { bootReady.value = true; });
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const mask = document.getElementById('bootMask');
+            if (mask) mask.classList.add('is-gone');
+          });
+        });
       });
       await checkHealth();
       await loadWorkspace();
@@ -9109,8 +9168,8 @@ createApp({
       writingEditor, savingChapter, detectingFs, checkingRecover,
       indentEnabled, showFsDetectModal, detectedForeshadowings, currentWordCount,
       chapterNumberingMode,
-      loadWritingIndex, toggleVolume, addVolume, deleteWritingVol, editVolumeTitle,
-      addChapterTo, openChapter, saveWritingChapter, onWritingInput,
+      loadWritingIndex, toggleVolume, addVolume, deleteWritingVol, deleteWritingChapter, editVolumeTitle,
+      addChapterTo, openChapter, saveWritingChapter, saveAndNewChapter, onWritingInput,
       execFormat, toggleIndent, updateVolMeta, updateChMeta,
       detectForeshadowing, recoverCheck, importDetectedFs,
       // Foreshadowing
@@ -9160,7 +9219,6 @@ createApp({
       loadInspiration, readInspirationFile, confirmInspiration, browseInspiration,
       inspirationFileIcon, formatFileSize,
       // 加载与等待动画：主界面淡入遮罩 + 全局等待层（动画1 + 动画2）
-      bootReady,
       busy, busyDerived, busyProgClass, busyNameText, busyElapsedText,
       busyWaiting, busyRetryable, busyLog, busyShowDetail, busyCountBump, busyAnimHost,
       busyBegin, busyPush, busyDone, busyFail, busyCancel, busyHide, busyRetry,
