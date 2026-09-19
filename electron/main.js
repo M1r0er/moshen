@@ -249,7 +249,7 @@ async function createWindow() {
     height: 900,
     minWidth: 1024,
     minHeight: 700,
-    title: '墨参 MoShen · 小说写作助手',
+    title: '墨参 MoShen · 个人写作 Agent',
     show: true,          // 创建即显示，不依赖任何事件
     autoHideMenuBar: true,
     backgroundColor: '#0f1117',

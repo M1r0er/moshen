@@ -1,7 +1,7 @@
 """
 墨参 · 主动干预引擎
 三级行动体系：L1建议 / L2质询 / L3否决
-在每次助手回复后评估是否需要追加干预内容
+在每次墨参回复后评估是否需要追加干预内容
 """
 from typing import Optional
 from core.llm_provider import get_llm_provider
@@ -26,7 +26,7 @@ class InterventionEngine:
 
         Args:
             user_input: 用户输入
-            assistant_response: 助手已生成的回复
+            assistant_response: 墨参已生成的回复
             project_context: 项目知识库摘要
 
         Returns:
@@ -82,7 +82,7 @@ class InterventionEngine:
 ## 用户输入
 {user_input[:500]}
 
-## 助手回复（摘要）
+## 墨参回复（摘要）
 {resp}
 
 ## 项目知识库摘要
@@ -97,7 +97,7 @@ class InterventionEngine:
 5. **节奏检查**：用户描述的连续情节是否缺少缓冲？如果是 → L1建议
 6. **叙事边界检查**：用户是否提前剧透了未来情节？如果是 → L2质询
 
-注意：只在确实发现问题时才干预。如果助手回复中已经充分讨论了相关问题，则不需要重复干预。
+注意：只在确实发现问题时才干预。如果墨参回复中已经充分讨论了相关问题，则不需要重复干预。
 
 返回 JSON：
 ```json

@@ -1,6 +1,6 @@
 """
 墨参 · 四层上下文管理器
-核心层（助手人格）+ 记忆层（项目知识库）+ 工作层（当前焦点）+ 历史层（对话历史）
+核心层（墨参人格）+ 记忆层（项目知识库）+ 工作层（当前焦点）+ 历史层（对话历史）
 
 注意：本管理器承载的是"单次请求"的上下文。请求级上下文必须按请求创建
 （见 create_context），不要跨请求复用一个实例，否则并发/多项目会互相串台。
@@ -12,13 +12,13 @@ class ContextManager:
     """四层上下文组装器（请求级，不应跨请求共享可变状态）"""
 
     def __init__(self, core_layer: str = "", memory_layer: str = "", working_layer: str = ""):
-        self._core_layer: str = core_layer      # 助手人格 + 创作规范
+        self._core_layer: str = core_layer      # 墨参人格 + 创作规范
         self._memory_layer: str = memory_layer  # 项目知识库摘要
         self._working_layer: str = working_layer  # 当前讨论焦点 + 检索结果
         self._history: list[dict] = []          # 对话历史
 
     def set_core_layer(self, persona: str, rules: str = ""):
-        """设置核心层：助手人格设定 + 创作规范"""
+        """设置核心层：墨参人格设定 + 创作规范"""
         self._core_layer = build_core_layer(persona, rules)
 
     def set_memory_layer(self, project_summary: str):
@@ -106,7 +106,7 @@ class ContextManager:
 
 
 def build_core_layer(persona: str, rules: str = "") -> str:
-    """把助手人格与创作规范拼成核心层文本（纯函数，便于按需缓存）"""
+    """把墨参人格与创作规范拼成核心层文本（纯函数，便于按需缓存）"""
     parts = [persona]
     if rules:
         parts.append(f"\n---\n\n## 创作规范参考\n{rules}")

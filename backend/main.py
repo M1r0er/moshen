@@ -1,5 +1,5 @@
 """
-墨参 MoShen · 小说写作助手
+墨参 MoShen · 个人写作 Agent
 FastAPI 主入口
 """
 import os
@@ -32,7 +32,7 @@ from routes.plot_points import router as plot_points_router
 from routes.tasks import router as tasks_router
 from routes.character import router as character_router
 
-app = FastAPI(title="墨参 MoShen", version="0.10.0", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.10.1", description="个人写作 Agent")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -226,7 +226,7 @@ async def test_config(req: ConfigTestRequest):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.10.0"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.10.1"}
 
 
 # ===== 前端静态文件 =====

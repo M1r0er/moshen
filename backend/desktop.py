@@ -70,7 +70,7 @@ def start_server(port: int, ready_event: threading.Event):
 def main():
     """桌面应用主入口"""
     print("=" * 50)
-    print("  墨参 MoShen · 小说写作助手 (桌面版)")
+    print("  墨参 MoShen · 个人写作 Agent (桌面版)")
     print("=" * 50)
     print()
 
@@ -106,7 +106,7 @@ def main():
 
     # 创建桌面窗口
     window = webview.create_window(
-        title="墨参 MoShen · 小说写作助手",
+        title="墨参 MoShen · 个人写作 Agent",
         url=url,
         width=1400,
         height=900,

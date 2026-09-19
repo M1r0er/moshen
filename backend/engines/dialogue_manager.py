@@ -164,7 +164,7 @@ class DialogueManager:
         return assemble_context(sections, total_budget=CONTEXT_BUDGET_CHARS).text
 
     def _core_layer_text(self) -> str:
-        """核心层文本（助手人格 + 创作规范库 + 不可覆盖的系统合同）"""
+        """核心层文本（墨参人格 + 创作规范库 + 不可覆盖的系统合同）"""
         if self._core_layer_cache is None:
             try:
                 persona = self.prompt_loader.load_raw("system_persona")
@@ -229,7 +229,7 @@ class DialogueManager:
         Yields:
             SSE 事件字典 {"event": ..., "data": ...}（由 EventSourceResponse 序列化）
         """
-        # 核心层（助手人格 + 创作规范库）
+        # 核心层（墨参人格 + 创作规范库）
         core_layer = self._core_layer_text()
 
         # 确定使用哪个职能角色
