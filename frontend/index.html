@@ -708,6 +708,24 @@ body {
 }
 .knowledge-content-edit:focus { outline: none; border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
 
+/* ===== 设定页：内容「预览 / 编辑」切换 ===== */
+.field-label-row { display: flex; align-items: center; justify-content: space-between; }
+.setting-mode-toggle {
+  border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text-secondary); font-size: 12px; line-height: 1; cursor: pointer;
+  padding: 4px 10px; border-radius: 999px; margin-bottom: 6px;
+  transition: all 0.15s ease; font-family: var(--font-ui);
+}
+.setting-mode-toggle:hover { color: var(--color-primary); border-color: var(--color-primary); }
+.setting-content-preview { min-height: 300px; cursor: text; }
+.setting-content-empty {
+  min-height: 300px; display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--color-border-strong); border-radius: var(--radius-lg);
+  background: var(--color-input-bg); color: var(--color-text-weak); font-size: 13px;
+  cursor: text; transition: border-color 0.15s ease, color 0.15s ease;
+}
+.setting-content-empty:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
 /* ===== Files Page ===== */
 .files-container { padding: 24px; overflow-y: auto; height: 100%; }
 .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; max-width: 920px; }
@@ -1271,8 +1289,6 @@ body {
   pointer-events: none;
 }
 
-.writing-bottom-bar { display: flex; gap: 12px; padding-top: 14px; flex-wrap: wrap; }
-
 .writing-empty-editor { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); }
 
 /* ===== AI 审稿报告 ===== */
@@ -1317,9 +1333,23 @@ body {
 .wsb-state.err { color: var(--color-error); }
 .wsb-state.syncing { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); }
 .wsb-spacer { flex: 1; }
-.writing-bottom-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; }
-.wbb-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.wbb-divider { width: 1px; height: 22px; background: var(--color-border-strong); }
+
+/* 底部操作栏：左侧主操作（保存），右侧 AI 工具 */
+.writing-bottom-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--color-border);
+}
+.wbb-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wbb-spacer { flex: 1 1 auto; min-width: 12px; }
+.wbb-divider { width: 1px; height: 20px; background: var(--color-border-strong); }
+.writing-bottom-bar .btn { padding: 7px 14px; font-size: 13px; }
+.writing-bottom-bar .wbb-save { padding: 7px 22px; }
+.wbb-tools-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  color: var(--color-text-weak); margin-right: 2px;
+}
+.wbb-tools .btn { color: var(--color-text-secondary); }
+.wbb-tools .btn:hover:not(:disabled) { color: var(--color-primary); border-color: var(--color-primary); }
 
 /* 正文标蓝（CSS Custom Highlight API：只影响绘制，不改动 DOM，不打断输入与输入法） */
 ::highlight(moshen-entries) {
@@ -1919,7 +1949,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.10.1</div>
+        <div class="sidebar-version">v0.10.2</div>
       </div>
       </template>
     </aside>
@@ -2149,8 +2179,6 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <span class="tree-label">{{ item.title }}</span>
                   <span class="tree-cat-tag" :style="categoryTagStyle(item.category)">{{ categoryLabel(item.category) }}</span>
                   <span class="tree-actions" @click.stop>
-                    <span v-if="item.category === 'character'" class="tree-action-btn"
-                          @click="addSettingToCharacter(item)" title="添加到角色页">🎭</span>
                     <span class="tree-action-btn" @click="openAddChildModal(item.id)" title="添加子项">+</span>
                     <span class="tree-action-btn del" @click="deleteSettingNode(item)" title="删除">×</span>
                   </span>
@@ -2229,9 +2257,19 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </select>
                 </div>
                 <div style="margin-bottom:16px">
-                  <div class="field-label">设定内容</div>
-                  <textarea class="field-textarea" v-model="currentSettingNode.content"
+                  <div class="field-label-row">
+                    <div class="field-label">设定内容</div>
+                    <button class="setting-mode-toggle" @click="settingContentEditing = !settingContentEditing">
+                      {{ settingContentEditing ? '预览' : '编辑' }}
+                    </button>
+                  </div>
+                  <textarea v-if="settingContentEditing" class="field-textarea" v-model="currentSettingNode.content"
                     style="min-height:300px" placeholder="输入设定内容..."></textarea>
+                  <div v-else-if="currentSettingNode.content" class="knowledge-content setting-content-preview"
+                    v-html="renderMarkdown(currentSettingNode.content)"></div>
+                  <div v-else class="setting-content-empty" @click="settingContentEditing = true">
+                    暂无内容，点击此处开始编写
+                  </div>
                 </div>
                 <div class="timestamps" v-if="currentSettingNode.created_at || currentSettingNode.updated_at">
                   <span v-if="currentSettingNode.created_at" class="ts-item">创建: {{ formatTime(currentSettingNode.created_at) }}</span>
@@ -2244,6 +2282,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     AI 优化
                   </button>
                   <button class="btn btn-secondary" @click="openMoveModal">移动到</button>
+                  <button v-if="currentSettingNode.category === 'character'" class="btn btn-secondary"
+                    @click="addSettingToCharacter(currentSettingNode)">🎭 添加到角色页</button>
                 </div>
                 <div v-if="optimizedText" class="optimized-result">
                   <div class="optimized-header">
@@ -2954,26 +2994,28 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <!-- 底部按钮栏 -->
                   <div class="writing-bottom-bar">
                     <div class="wbb-group">
-                      <button class="btn btn-primary" @click="saveWritingChapter" :disabled="savingChapter">
-                        {{ savingChapter ? '保存中...' : '保存' }}
+                      <button class="btn btn-primary wbb-save" @click="saveWritingChapter" :disabled="savingChapter">
+                        {{ savingChapter ? '保存中…' : '💾 保存' }}
                       </button>
                       <button class="btn btn-secondary" @click="saveAndNewChapter" :disabled="savingChapter">
                         保存并新建下一章
                       </button>
                     </div>
-                    <span class="wbb-divider"></span>
-                    <div class="wbb-group">
+                    <span class="wbb-spacer"></span>
+                    <div class="wbb-group wbb-tools">
+                      <span class="wbb-tools-label">AI 工具</span>
                       <button class="btn btn-secondary" @click="openWritingReview" :disabled="reviewing">
-                        {{ reviewing ? '审稿中...' : '🧐 AI 审查' }}
+                        {{ reviewing ? '审稿中…' : '🧐 审稿' }}
                       </button>
+                      <span class="wbb-divider"></span>
                       <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
-                        {{ detectingFs ? '检测中...' : '🔍 伏笔检测（单章）' }}
+                        {{ detectingFs ? '检测中…' : '🔍 伏笔（单章）' }}
                       </button>
                       <button class="btn btn-secondary" @click="detectForeshadowing('full')" :disabled="detectingFs">
-                        {{ detectingFs ? '检测中...' : '🔍 伏笔检测（全文）' }}
+                        {{ detectingFs ? '检测中…' : '🔍 伏笔（全文）' }}
                       </button>
                       <button class="btn btn-secondary" @click="recoverCheck" :disabled="checkingRecover">
-                        {{ checkingRecover ? '检测中...' : '♻️ 回收检测' }}
+                        {{ checkingRecover ? '检测中…' : '♻️ 回收检测' }}
                       </button>
                     </div>
                   </div>
@@ -4024,9 +4066,12 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <div style="margin-bottom:8px;font-size:12px;color:var(--text-muted)">
           为当前项目指定一个本地文件夹作为工作区，工作区内的文档将自动用于对话分析和设定参考。
         </div>
-        <input class="modal-input" v-model="projectWsInput" placeholder="例如: D:\我的小说\项目1" @keydown.enter="confirmProjectWs">
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="modal-input" v-model="projectWsInput" placeholder="例如: D:\我的小说\项目1" @keydown.enter="confirmProjectWs" style="flex:1">
+          <button class="btn btn-secondary" @click="browseProjectWs" style="white-space:nowrap">浏览</button>
+        </div>
         <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
-          输入本地文件夹的完整路径，留空则清除工作区设置。
+          点击「浏览」选择本地文件夹，也可直接输入完整路径；留空则清除工作区设置。
         </div>
       </div>
       <div class="modal-footer">
@@ -4677,6 +4722,7 @@ createApp({
     const settingsFilterKeyword = ref('');
     const currentSettingNodeId = ref(null);
     const currentSettingNode = ref(null);
+    const settingContentEditing = ref(false);
     const expandedNodes = ref({});
     const settingInput = ref('');
     const settingCategory = ref('world');
@@ -5244,6 +5290,14 @@ createApp({
         showProjectWsModal.value = false;
         showToast('项目工作区已清除', 'success');
       } catch (e) { showToast('清除失败: ' + e.message, 'error'); }
+    }
+    async function browseProjectWs() {
+      if (window.electronAPI && window.electronAPI.selectDirectory) {
+        const dir = await window.electronAPI.selectDirectory();
+        if (dir) projectWsInput.value = dir;
+      } else {
+        showToast('请在桌面应用中使用此功能', 'error');
+      }
     }
 
     // ===== Save to Knowledge from Chat =====
@@ -6042,14 +6096,19 @@ createApp({
       // Deep copy the node for editing
       currentSettingNode.value = JSON.parse(JSON.stringify(item._node));
       optimizedText.value = '';
+      settingContentEditing.value = false;
     }
 
     // 设定页-人物条目 → 一键带入角色页（重复点只补充别名，不重复建档）
+    // 既可接收设定树条目（含 _node），也可直接接收设定节点对象
     async function addSettingToCharacter(item) {
-      const node = item._node || {};
+      const raw = item || {};
+      const node = raw._node || raw;
+      const title = String(raw.title || node.title || '').trim();
+      if (!title) { showToast('请先填写设定标题', 'error'); return; }
       const content = String(node.content || '').trim();
       await addCharacterByName(
-        item.title,
+        title,
         [],
         content ? content.slice(0, 4000) : '',
         'settings'
@@ -6095,6 +6154,7 @@ createApp({
           }),
         });
         showToast('已保存', 'success');
+        settingContentEditing.value = false;
         await loadSettings();
       } catch (e) { showToast('保存失败: ' + e.message, 'error'); }
     }
@@ -10800,7 +10860,7 @@ createApp({
       settingsTree, settingsTreeTotal, flatTree, expandedNodes,
       settingsFilterCat, settingsFilterKeyword, filteredFlatTree, settingsFilterActive,
       settingCategoryOptions, clearSettingsFilter,
-      currentSettingNodeId, currentSettingNode,
+      currentSettingNodeId, currentSettingNode, settingContentEditing,
       settingInput, settingCategory, optimizedText, optimizing,
       showNewSettingModal, newSettingTitle, newSettingCategory, newSettingParentId,
       showImportModal, importFilename, importCategory, importParentId, importing,
@@ -10821,7 +10881,7 @@ createApp({
       toastMsg, toastType,
       showToast, selectWorkspace, browseWorkspace, loadProjects, selectProject, createProject,
       startRename, confirmRename, deleteProject,
-      loadProjectWorkspace, openProjectWsModal, confirmProjectWs, clearProjectWs,
+      loadProjectWorkspace, openProjectWsModal, confirmProjectWs, clearProjectWs, browseProjectWs,
       openSaveToKnowledgeModal, confirmSaveToKnowledge, checkKnowledgeClaim,
       sendMessage, renderMarkdown, loadChatModels, scrollToTop, scrollToBottom,
       triggerFileInput, handleFileUpload, chatFileInput,
