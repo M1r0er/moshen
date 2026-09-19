@@ -263,17 +263,23 @@ async def read_inspiration_file(req: InspirationReadRequest):
 class WritingPrefsRequest(BaseModel):
     chapter_numbering_mode: str | None = None  # continue | per_volume
     auto_foreshadowing_detect: bool | None = None
+    live_entries_enabled: bool | None = None   # 保存时自动提取条目提及/新别名（与伏笔合并为一次调用）
+
+
+def writing_prefs() -> dict:
+    """读取写作偏好（供保存后的自动扫描等后端逻辑调用）"""
+    prefs = _read_config().get("writing_prefs", {})
+    return {
+        "chapter_numbering_mode": prefs.get("chapter_numbering_mode", "continue"),
+        "auto_foreshadowing_detect": bool(prefs.get("auto_foreshadowing_detect", False)),
+        "live_entries_enabled": bool(prefs.get("live_entries_enabled", False)),
+    }
 
 
 @router.get("/prefs/writing")
 async def get_writing_prefs():
     """获取写作偏好设置"""
-    data = _read_config()
-    prefs = data.get("writing_prefs", {})
-    return {
-        "chapter_numbering_mode": prefs.get("chapter_numbering_mode", "continue"),
-        "auto_foreshadowing_detect": prefs.get("auto_foreshadowing_detect", False),
-    }
+    return writing_prefs()
 
 
 @router.put("/prefs/writing")
@@ -285,6 +291,8 @@ async def set_writing_prefs(req: WritingPrefsRequest):
         prefs["chapter_numbering_mode"] = req.chapter_numbering_mode
     if req.auto_foreshadowing_detect is not None:
         prefs["auto_foreshadowing_detect"] = req.auto_foreshadowing_detect
+    if req.live_entries_enabled is not None:
+        prefs["live_entries_enabled"] = req.live_entries_enabled
     data["writing_prefs"] = prefs
     _save_config(data)
     return {"success": True, "prefs": prefs}

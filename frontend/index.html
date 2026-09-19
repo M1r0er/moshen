@@ -304,11 +304,12 @@ body {
 }
 .collapsed-rail-btn:hover { background: var(--color-hover-bg); color: var(--color-primary); }
 
-/* 二级目录栏收起后的窄轨宽度（写作 / 设定 / 知识库 / 灵感）*/
+/* 二级目录栏收起后的窄轨宽度（写作 / 设定 / 知识库 / 灵感 / 角色）*/
 .writing-sidebar.collapsed,
 .settings-sidebar.collapsed,
 .knowledge-sidebar.collapsed,
-.inspiration-sidebar.collapsed {
+.inspiration-sidebar.collapsed,
+.char-sidebar.collapsed {
   width: 40px; min-width: 40px; padding: 0; overflow: hidden;
 }
 
@@ -1287,6 +1288,86 @@ body {
 .review-report code { background: var(--color-input-bg); padding: 1px 5px; border-radius: 4px; font-family: var(--font-mono); font-size: 12.5px; }
 .review-report hr { border: none; border-top: 1px solid var(--color-border); margin: 14px 0; }
 
+/* ===== 写作页 · 章节头 / 状态栏 / 工具栏补强 ===== */
+.chapter-head {
+  margin-bottom: 10px; padding: 12px 16px;
+  background: var(--color-surface); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+}
+.chapter-head-fields { display: flex; flex-direction: column; gap: 8px; }
+.chapter-field { display: flex; align-items: center; gap: 10px; }
+.chapter-field > label {
+  flex: 0 0 22px; font-size: 12px; font-weight: 600; color: var(--color-text-weak);
+  text-align: center; letter-spacing: 0.5px;
+}
+.toolbar-spacer { flex: 1; }
+.toolbar-hint { font-size: 11.5px; color: var(--color-text-weak); white-space: nowrap; }
+.tool-btn.is-on { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
+.writing-status-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px; padding: 7px 14px; font-size: 12px;
+  background: var(--color-input-bg); border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg); color: var(--color-text-secondary);
+}
+.wsb-count { font-weight: 600; color: var(--color-text-primary); font-variant-numeric: tabular-nums; }
+.wsb-sep { width: 1px; height: 12px; background: var(--color-border-strong); }
+.wsb-state { color: var(--color-text-weak); font-variant-numeric: tabular-nums; }
+.wsb-state.dirty { color: var(--color-warning); }
+.wsb-state.ok { color: var(--color-success); }
+.wsb-state.err { color: var(--color-error); }
+.wsb-state.syncing { display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); }
+.wsb-spacer { flex: 1; }
+.writing-bottom-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-top: 12px; }
+.wbb-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wbb-divider { width: 1px; height: 22px; background: var(--color-border-strong); }
+
+/* 正文标蓝（CSS Custom Highlight API：只影响绘制，不改动 DOM，不打断输入与输入法） */
+::highlight(moshen-entries) {
+  background-color: rgba(58, 110, 165, 0.16);
+  color: var(--color-info);
+  text-decoration: underline;
+  text-decoration-color: rgba(58, 110, 165, 0.45);
+  text-underline-offset: 3px;
+}
+
+/* 标蓝点击后的实时信息卡 */
+.entry-card {
+  position: fixed; z-index: 2500; width: 300px; max-height: 70vh; overflow-y: auto;
+  padding: 12px 14px; background: var(--color-surface);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-toast); animation: relHoverIn 0.13s ease-out;
+}
+.entry-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.entry-card-name { font-size: 14px; font-weight: 700; color: var(--color-text-primary); }
+.entry-card-term { font-size: 11.5px; color: var(--color-info); }
+.entry-card-row { display: flex; gap: 8px; font-size: 12.5px; line-height: 1.6; margin-bottom: 6px; }
+.entry-card-row b { flex: 0 0 32px; color: var(--color-text-weak); font-weight: 500; }
+.entry-card-row span { flex: 1; word-break: break-word; }
+.entry-card-profile {
+  font-size: 12.5px; line-height: 1.7; color: var(--color-text-body);
+  background: var(--color-input-bg); border-radius: var(--radius-md); padding: 8px 10px; margin-bottom: 8px;
+  max-height: 150px; overflow-y: auto; white-space: pre-wrap;
+}
+.entry-card-block { margin-bottom: 8px; }
+.entry-card-block-title { font-size: 11.5px; color: var(--color-text-weak); margin-bottom: 5px; }
+.entry-card-stages { display: flex; flex-direction: column; gap: 4px; }
+.entry-card-stage { display: flex; align-items: center; gap: 7px; font-size: 12.5px; }
+.entry-card-stage-idx {
+  flex: 0 0 16px; height: 16px; display: flex; align-items: center; justify-content: center;
+  font-size: 10px; border-radius: 50%; background: var(--color-primary-light); color: var(--color-primary);
+}
+.entry-card-stage-title { flex: 1; color: var(--color-text-body); }
+.entry-card-stage-ch { font-size: 11px; color: var(--color-text-weak); }
+.entry-card-empty { font-size: 12px; color: var(--color-text-weak); }
+.entry-card-foot { display: flex; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--color-border); }
+.entry-card-pending { font-size: 11.5px; color: var(--color-warning); }
+.entry-card-btn {
+  margin-left: auto; padding: 4px 10px; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-primary); border-radius: var(--radius-md); transition: all 0.15s;
+}
+.entry-card-btn:hover { border-color: var(--color-primary); background: var(--color-primary-light); }
+
 /* 伏笔检测结果项 */
 .fs-detect-item { padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-lg); margin-bottom: 12px; background: var(--color-surface); box-shadow: var(--shadow-card); }
 .fs-detect-name { font-weight: 700; margin-bottom: 7px; display: flex; align-items: center; gap: 9px; }
@@ -1296,6 +1377,144 @@ body {
 .fs-detect-content { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 7px; line-height: 1.6; }
 .fs-detect-chapter { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
 .btn-sm { padding: 5px 14px; font-size: 12px; }
+
+/* ===== 角色页 ===== */
+.char-container { display: flex; height: 100%; }
+.char-sidebar {
+  width: 250px; min-width: 250px; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--color-surface); border-right: 1px solid var(--color-border);
+  transition: width 0.18s ease, min-width 0.18s ease;
+}
+.char-sidebar-head {
+  padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+  font-weight: 700; font-size: 13.5px; border-bottom: 1px solid var(--color-border);
+}
+.char-search { padding: 10px 12px 6px; }
+.char-search input {
+  width: 100%; padding: 6px 10px; font-size: 12.5px; color: var(--color-text-body);
+  background: var(--color-input-bg); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); outline: none; transition: all 0.15s;
+}
+.char-search input:focus { border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
+.char-list { flex: 1; overflow-y: auto; padding: 6px 8px 10px; }
+.char-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; margin-bottom: 4px;
+  border-radius: var(--radius-md); cursor: pointer; border: 1px solid transparent; transition: all 0.15s;
+}
+.char-item:hover { background: var(--color-hover-bg); }
+.char-item.active { background: var(--color-primary-light); border-color: var(--border-accent); }
+.char-item-avatar {
+  flex: 0 0 30px; width: 30px; height: 30px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600;
+  background: var(--color-primary); color: var(--color-text-inverse);
+}
+.char-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.char-item-name { font-size: 13px; color: var(--color-text-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.char-item.active .char-item-name { color: var(--color-primary); font-weight: 600; }
+.char-item-meta { font-size: 11px; color: var(--color-text-weak); }
+.char-empty { padding: 16px 10px; font-size: 12px; line-height: 1.7; color: var(--color-text-weak); }
+.char-sidebar-foot { padding: 10px 12px; border-top: 1px solid var(--color-border); }
+.char-obs-entry {
+  width: 100%; padding: 8px; font-size: 12.5px; cursor: pointer; text-align: center;
+  background: var(--color-warning-bg); color: var(--color-warning);
+  border: 1px solid var(--color-warning); border-radius: var(--radius-md); transition: all 0.15s;
+}
+.char-obs-entry:hover { filter: brightness(0.97); }
+
+.char-main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.char-tabs {
+  display: flex; align-items: center; gap: 8px; padding: 10px 18px 0;
+  border-bottom: 1px solid var(--color-border); background: var(--color-surface);
+}
+.char-subtab {
+  padding: 6px 14px; font-size: 13px; cursor: pointer; border: none; background: transparent;
+  color: var(--color-text-secondary); border-bottom: 2px solid transparent; transition: all 0.15s;
+}
+.char-subtab:hover { color: var(--color-primary); }
+.char-subtab.active { color: var(--color-primary); border-bottom-color: var(--color-primary); font-weight: 600; }
+.char-tabs-spacer { flex: 1; }
+.char-tab-badge {
+  display: inline-block; margin-left: 6px; padding: 0 6px; height: 16px; line-height: 16px;
+  font-size: 10px; border-radius: 999px; background: var(--color-warning); color: #fff;
+}
+.char-tabs .btn { margin-bottom: 8px; }
+.char-tabs .fs-status-select { margin-bottom: 8px; padding: 6px 10px; font-size: 12.5px; }
+
+.char-graph { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.char-toolbar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+.char-toolbar-info { font-size: 12px; color: var(--color-text-weak); }
+.char-canvas-area {
+  flex: 1; position: relative; overflow: auto; background: var(--color-background);
+  background-image: radial-gradient(rgba(26, 43, 69, 0.07) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.char-svg { display: block; }
+.char-stage-group { cursor: grab; }
+.char-stage-group:active { cursor: grabbing; }
+.char-stage-rect {
+  fill: var(--color-surface); stroke: var(--color-border-strong); stroke-width: 1.5;
+  filter: drop-shadow(0 1px 2px rgba(26, 43, 69, 0.08)); transition: stroke 0.15s;
+}
+.char-stage-rect:hover { stroke: var(--color-primary); }
+.char-stage-rect.selected { stroke: var(--color-primary); stroke-width: 2.5; }
+.char-stage-title { font-size: 13px; font-weight: 600; fill: var(--color-text-primary); pointer-events: none; }
+.char-stage-note { font-size: 10.5px; fill: var(--color-text-weak); pointer-events: none; }
+.char-stage-ch { font-size: 10px; fill: var(--color-info); pointer-events: none; }
+.char-edge { fill: none; stroke: var(--color-border-strong); stroke-width: 2; cursor: pointer; }
+.char-edge:hover { stroke: var(--color-primary); }
+.char-edge.selected { stroke: var(--accent); stroke-width: 2.5; }
+.char-edit-pane {
+  border-top: 1px solid var(--color-border); background: var(--color-surface);
+  padding: 12px 18px; display: flex; flex-direction: column; gap: 8px;
+}
+.char-edit-hint { font-size: 12.5px; color: var(--color-text-weak); }
+.char-edit-pane .outline-edit-textarea { min-height: 66px; max-height: 120px; }
+
+.char-profile { flex: 1; overflow-y: auto; padding: 20px; }
+.char-profile-card {
+  max-width: 760px; padding: 20px; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+}
+.char-profile-meta { margin-left: auto; font-size: 12px; color: var(--color-text-weak); align-self: center; }
+.char-alias-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.char-alias {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px 3px 10px;
+  font-size: 12.5px; border-radius: 999px;
+  background: var(--color-input-bg); border: 1px solid var(--color-border-strong); color: var(--color-text-body);
+}
+.char-alias-del { cursor: pointer; color: var(--color-text-weak); font-size: 13px; line-height: 1; }
+.char-alias-del:hover { color: var(--color-error); }
+.char-alias-add {
+  padding: 3px 10px; font-size: 12.5px; cursor: pointer; border-radius: 999px;
+  background: transparent; border: 1px dashed var(--color-border-strong); color: var(--color-primary);
+}
+.char-alias-add:hover { border-style: solid; background: var(--color-primary-light); }
+
+.char-obs { flex: 1; overflow-y: auto; padding: 18px 20px; }
+.char-obs-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 14px; }
+.char-obs-title { font-size: 14px; font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+.char-obs-sub { font-size: 12px; line-height: 1.7; color: var(--color-text-weak); max-width: 720px; }
+.char-obs-empty { padding: 24px; text-align: center; font-size: 13px; color: var(--color-text-weak); }
+.char-obs-item {
+  padding: 12px 14px; margin-bottom: 10px; background: var(--color-surface);
+  border: 1px solid var(--color-border); border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+}
+.char-obs-item.accepted { border-left-color: var(--color-success); opacity: 0.75; }
+.char-obs-item.ignored { border-left-color: var(--color-text-disabled); opacity: 0.55; }
+.char-obs-item-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.char-obs-char { font-size: 13px; font-weight: 600; color: var(--color-text-primary); }
+.char-obs-chapter { font-size: 11.5px; color: var(--color-text-weak); }
+.char-obs-tag { font-size: 11px; padding: 1px 8px; border-radius: 999px; }
+.char-obs-tag.ok { background: var(--color-success-bg); color: var(--color-success); }
+.char-obs-tag.warn { background: var(--color-warning-bg); color: var(--color-warning); }
+.char-obs-tag.alias { background: var(--color-info-bg); color: var(--color-info); }
+.char-obs-status { margin-left: auto; font-size: 11.5px; color: var(--color-text-weak); }
+.char-obs-snippet { font-size: 12.5px; line-height: 1.7; color: var(--color-text-body); margin-bottom: 8px; }
+.char-obs-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ===== 伏笔页 ===== */
 .fs-container { height: 100%; display: flex; flex-direction: column; }
@@ -1700,7 +1919,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.9.0</div>
+        <div class="sidebar-version">v0.10.0</div>
       </div>
       </template>
     </aside>
@@ -1930,6 +2149,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <span class="tree-label">{{ item.title }}</span>
                   <span class="tree-cat-tag" :style="categoryTagStyle(item.category)">{{ categoryLabel(item.category) }}</span>
                   <span class="tree-actions" @click.stop>
+                    <span v-if="item.category === 'character'" class="tree-action-btn"
+                          @click="addSettingToCharacter(item)" title="添加到角色页">🎭</span>
                     <span class="tree-action-btn" @click="openAddChildModal(item.id)" title="添加子项">+</span>
                     <span class="tree-action-btn del" @click="deleteSettingNode(item)" title="删除">×</span>
                   </span>
@@ -2648,25 +2869,28 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <!-- 右侧：编辑区 -->
               <div class="writing-editor-area">
                 <template v-if="currentWritingChId">
-                  <!-- 卷名行 -->
-                  <div class="writing-row vol-row">
-                    <input v-model="currentVolNumber" type="number" min="1"
-                      class="writing-input vol-num" placeholder="卷几"
-                      @change="updateVolMeta">
-                    <input v-model="currentVolTitle" class="writing-input vol-title"
-                      placeholder="卷名（可不填）"
-                      @change="updateVolMeta">
-                  </div>
-
-                  <!-- 章节名行 -->
-                  <div class="writing-row ch-row">
-                    <input v-model="currentChNumber" type="number" min="1"
-                      class="writing-input ch-num" placeholder="章节数"
-                      @change="updateChMeta">
-                    <input v-model="currentChTitle" class="writing-input ch-title"
-                      placeholder="章节名（可不填）"
-                      @change="updateChMeta">
-                    <span class="writing-word-count">{{ currentWordCount }} 字</span>
+                  <!-- 章节头：卷 / 章 -->
+                  <div class="chapter-head">
+                    <div class="chapter-head-fields">
+                      <div class="chapter-field">
+                        <label>卷</label>
+                        <input v-model="currentVolNumber" type="number" min="1"
+                          class="writing-input vol-num" placeholder="卷数"
+                          @change="updateVolMeta">
+                        <input v-model="currentVolTitle" class="writing-input vol-title"
+                          placeholder="卷名（可不填）"
+                          @change="updateVolMeta">
+                      </div>
+                      <div class="chapter-field">
+                        <label>章</label>
+                        <input v-model="currentChNumber" type="number" min="1"
+                          class="writing-input ch-num" placeholder="章节数"
+                          @change="updateChMeta">
+                        <input v-model="currentChTitle" class="writing-input ch-title"
+                          placeholder="章节名（可不填）"
+                          @change="updateChMeta">
+                      </div>
+                    </div>
                   </div>
 
                   <!-- 创作流程阶段（显式状态机 + 门禁） -->
@@ -2693,36 +2917,65 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <button class="tool-btn" @click="execFormat('italic')" title="斜体"><i>I</i></button>
                     <button class="tool-btn" @click="execFormat('underline')" title="下划线"><u>U</u></button>
                     <span class="tool-divider"></span>
-                    <button class="tool-btn tool-btn-wide" @click="toggleIndent" title="首行缩进">⇥ 缩进</button>
+                    <button class="tool-btn tool-btn-wide" @click="toggleIndent"
+                            :class="{ 'is-on': indentEnabled }" title="首行缩进（默认开启）">⇥ 缩进</button>
+                    <button class="tool-btn tool-btn-wide" @click="toggleHighlight"
+                            :class="{ 'is-on': highlightEnabled }" title="正文中提到角色页条目时标蓝，点击可看实时信息">🔖 标蓝</button>
+                    <span class="toolbar-spacer"></span>
+                    <span class="toolbar-hint" v-if="highlightEnabled && hlHits.length">已标出 {{ hlHits.length }} 处</span>
+                    <span class="toolbar-hint" v-else-if="!highlightSupported">当前环境不支持标蓝</span>
                   </div>
 
                   <!-- 正文编辑区 -->
                   <div ref="writingEditor" class="writing-editor" contenteditable="true"
                     :class="{ 'indent-on': indentEnabled }"
                     @input="onWritingInput"
+                    @click.stop="onEditorPointer"
+                    @contextmenu.prevent.stop="onEditorPointer"
+                    @scroll="entryCard = null"
                     @keydown.tab.prevent="execFormat('insertText', '　　')"
                     placeholder="开始写作..."></div>
 
+                  <!-- 状态栏 -->
+                  <div class="writing-status-bar">
+                    <span class="wsb-count">{{ wordCount }} 字</span>
+                    <span class="wsb-sep"></span>
+                    <span class="wsb-state" :class="{ dirty: writingDirty }">
+                      {{ writingDirty ? '有未保存改动' : (lastSavedAt ? ('已保存 ' + lastSavedAt) : '尚未保存') }}
+                    </span>
+                    <span class="wsb-spacer"></span>
+                    <span v-if="liveScanState === 'scanning'" class="wsb-state syncing">
+                      <span class="loading-spinner"></span> 自动同步中…
+                    </span>
+                    <span v-else-if="liveScanState === 'done'" class="wsb-state ok">已同步：{{ liveScanSummary || '无新增' }}</span>
+                    <span v-else-if="liveScanState === 'failed'" class="wsb-state err" :title="liveScanSummary">自动同步失败</span>
+                  </div>
+
                   <!-- 底部按钮栏 -->
                   <div class="writing-bottom-bar">
-                    <button class="btn btn-primary" @click="saveWritingChapter" :disabled="savingChapter">
-                      {{ savingChapter ? '保存中...' : '保存' }}
-                    </button>
-                    <button class="btn btn-secondary" @click="saveAndNewChapter" :disabled="savingChapter">
-                      保存并新建下一章
-                    </button>
-                    <button class="btn btn-secondary" @click="openWritingReview" :disabled="reviewing">
-                      {{ reviewing ? '审稿中...' : '🧐 AI 审查' }}
-                    </button>
-                    <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
-                      {{ detectingFs ? '检测中...' : '🔍 伏笔检测（单章）' }}
-                    </button>
-                    <button class="btn btn-secondary" @click="detectForeshadowing('full')" :disabled="detectingFs">
-                      {{ detectingFs ? '检测中...' : '🔍 伏笔检测（全文）' }}
-                    </button>
-                    <button class="btn btn-secondary" @click="recoverCheck" :disabled="checkingRecover">
-                      {{ checkingRecover ? '检测中...' : '♻️ 回收检测' }}
-                    </button>
+                    <div class="wbb-group">
+                      <button class="btn btn-primary" @click="saveWritingChapter" :disabled="savingChapter">
+                        {{ savingChapter ? '保存中...' : '保存' }}
+                      </button>
+                      <button class="btn btn-secondary" @click="saveAndNewChapter" :disabled="savingChapter">
+                        保存并新建下一章
+                      </button>
+                    </div>
+                    <span class="wbb-divider"></span>
+                    <div class="wbb-group">
+                      <button class="btn btn-secondary" @click="openWritingReview" :disabled="reviewing">
+                        {{ reviewing ? '审稿中...' : '🧐 AI 审查' }}
+                      </button>
+                      <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
+                        {{ detectingFs ? '检测中...' : '🔍 伏笔检测（单章）' }}
+                      </button>
+                      <button class="btn btn-secondary" @click="detectForeshadowing('full')" :disabled="detectingFs">
+                        {{ detectingFs ? '检测中...' : '🔍 伏笔检测（全文）' }}
+                      </button>
+                      <button class="btn btn-secondary" @click="recoverCheck" :disabled="checkingRecover">
+                        {{ checkingRecover ? '检测中...' : '♻️ 回收检测' }}
+                      </button>
+                    </div>
                   </div>
                 </template>
                 <div v-else class="writing-empty-editor">
@@ -2799,6 +3052,273 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
             </div>
           </div>
+
+          <!-- 正文标蓝点击后的实时信息卡（不遮挡输入，点空白处关闭） -->
+          <div v-if="entryCard" class="entry-card" :style="{ left: entryCard.x + 'px', top: entryCard.y + 'px' }"
+               @click.stop>
+            <div class="entry-card-head">
+              <span class="entry-card-name">{{ entryCard.name }}</span>
+              <span class="entry-card-term">正文命中「{{ entryCard.term }}」</span>
+            </div>
+            <div v-if="entryCard.aliases" class="entry-card-row"><b>别名</b><span>{{ entryCard.aliases }}</span></div>
+            <div v-if="entryCard.profile" class="entry-card-profile">{{ entryCard.profile }}</div>
+            <div class="entry-card-block">
+              <div class="entry-card-block-title">成长阶段</div>
+              <div v-if="entryCard.stages.length" class="entry-card-stages">
+                <div v-for="(s, i) in entryCard.stages" :key="i" class="entry-card-stage">
+                  <span class="entry-card-stage-idx">{{ i + 1 }}</span>
+                  <span class="entry-card-stage-title">{{ s.title }}</span>
+                  <span v-if="s.chapter" class="entry-card-stage-ch">{{ s.chapter }}</span>
+                </div>
+              </div>
+              <div v-else class="entry-card-empty">尚未分阶段（可在角色页用 AI 解析）</div>
+            </div>
+            <div class="entry-card-foot">
+              <span v-if="entryCard.pending" class="entry-card-pending">AI 观察 {{ entryCard.pending }} 条待处理</span>
+              <button class="entry-card-btn" @click="gotoCharacter(entryCard.cid)">在角色页打开</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== 角色页 ===== -->
+        <div v-if="activeTab === 'characters'" class="char-container">
+          <div v-if="!currentProjectId" class="empty-state" style="height:100%">
+            <div class="empty-state-icon">🎭</div>
+            <div class="empty-state-text">请先选择项目</div>
+          </div>
+          <template v-else>
+            <!-- 左侧：角色列表 -->
+            <div class="char-sidebar" :class="{ collapsed: subSidebarCollapsed }">
+              <template v-if="!subSidebarCollapsed">
+              <div class="char-sidebar-head">
+                <span>角色</span>
+                <span style="display:flex;align-items:center;gap:6px">
+                  <button class="btn-icon" @click="createCharacter" title="新建角色">+ 角色</button>
+                  <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                </span>
+              </div>
+              <div class="char-search">
+                <input v-model="charListKeyword" placeholder="搜索角色 / 别名…">
+              </div>
+              <div class="char-list">
+                <div v-for="c in filteredCharacters" :key="c.id"
+                     class="char-item" :class="{ active: currentCharId === c.id }"
+                     @click="selectCharacter(c.id)">
+                  <span class="char-item-avatar">{{ (c.name || '?').slice(0, 1) }}</span>
+                  <span class="char-item-main">
+                    <span class="char-item-name">{{ c.name }}</span>
+                    <span class="char-item-meta">
+                      {{ (c.stages || []).length }} 阶段<span v-if="(c.aliases || []).length"> · {{ (c.aliases || []).length }} 别名</span>
+                    </span>
+                  </span>
+                </div>
+                <div v-if="filteredCharacters.length === 0" class="char-empty">
+                  还没有角色。点上方「+ 角色」新建，或在「设定 → 人物」条目上点「添加到角色」。
+                </div>
+              </div>
+              <div class="char-sidebar-foot" v-if="charObsPending">
+                <button class="char-obs-entry" @click="charSubView = 'observations'">
+                  🎐 AI 观察 {{ charObsPending }} 条待处理
+                </button>
+              </div>
+              </template>
+              <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
+            </div>
+
+            <!-- 右侧：主区 -->
+            <div class="char-main">
+              <div v-if="!currentChar" class="empty-state" style="height:100%">
+                <div class="empty-state-icon">🎭</div>
+                <div class="empty-state-text">选择或新建角色</div>
+                <div class="empty-state-hint">角色页分阶段呈现人物成长轨迹；正文里出现角色名或别名时会标蓝</div>
+              </div>
+              <template v-else>
+                <div class="char-tabs">
+                  <button class="char-subtab" :class="{ active: charSubView === 'graph' }" @click="charSubView = 'graph'">阶段图</button>
+                  <button class="char-subtab" :class="{ active: charSubView === 'profile' }" @click="charSubView = 'profile'">角色档案</button>
+                  <button class="char-subtab" :class="{ active: charSubView === 'observations' }" @click="charSubView = 'observations'">
+                    AI 观察<span v-if="charObsPending" class="char-tab-badge">{{ charObsPending }}</span>
+                  </button>
+                  <span class="char-tabs-spacer"></span>
+                  <select v-model="charLevel" class="fs-status-select" style="width:110px" title="切分粒度（不规定阶段数量）">
+                    <option v-for="l in charLevels" :key="l.value" :value="l.value">{{ l.label }}</option>
+                  </select>
+                  <button class="btn btn-primary" :disabled="charAnalyzing" @click="analyzeCharStages">
+                    {{ charAnalyzing ? '解析中…' : '✨ AI 分阶段解析' }}
+                  </button>
+                </div>
+
+                <!-- 阶段图 -->
+                <div v-show="charSubView === 'graph'" class="char-graph">
+                  <div class="char-toolbar">
+                    <button class="btn btn-secondary" @click="charAddStage">+ 添加阶段</button>
+                    <button class="btn" :class="charLinkMode ? 'btn-primary' : 'btn-secondary'" @click="charToggleLinkMode">
+                      {{ charLinkMode ? '取消连线' : '🔗 连线模式' }}
+                    </button>
+                    <button class="btn btn-secondary" @click="relayoutCharCanvas">↻ 重排画布</button>
+                    <span class="char-toolbar-info">
+                      {{ charStages.length }} 个阶段 · {{ charEvents.length }} 条事件<span v-if="charSaving"> · 保存中…</span>
+                    </span>
+                  </div>
+                  <div class="char-canvas-area">
+                    <div v-if="charStages.length === 0" class="outline-empty-hint">
+                      暂无阶段
+                      <span>点「✨ AI 分阶段解析」按正文自动切分，或「+ 添加阶段」手动创建</span>
+                    </div>
+                    <svg class="char-svg" :width="charSvgWidth" :height="charSvgHeight"
+                         @click.self="charSelectedStageId = ''; charSelectedEventId = ''"
+                         @mousemove="charOnMouseMove($event)">
+                      <defs>
+                        <marker id="char-arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                          <polygon points="0 0, 10 3.5, 0 7" fill="var(--text-muted)" />
+                        </marker>
+                        <marker id="char-arrow-sel" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                          <polygon points="0 0, 10 3.5, 0 7" fill="var(--accent)" />
+                        </marker>
+                      </defs>
+
+                      <!-- 事件连线 -->
+                      <g v-for="edge in charEdgeRenderList" :key="'ce-' + edge.id">
+                        <path :d="edge.path" class="char-edge"
+                          :class="{ selected: charSelectedEventId === edge.id }"
+                          :style="{ markerEnd: charSelectedEventId === edge.id ? 'url(#char-arrow-sel)' : 'url(#char-arrow)' }"
+                          @click.stop="charSelectEdge(edge.id)" />
+                        <rect v-if="edge.label"
+                          :x="edge.labelX - edge.labelWidth / 2" :y="edge.labelY - 9"
+                          :width="edge.labelWidth" :height="18" class="outline-edge-label-bg" rx="3" />
+                        <text v-if="edge.label" :x="edge.labelX" :y="edge.labelY + 4"
+                          class="outline-edge-label">{{ edge.label }}</text>
+                      </g>
+
+                      <!-- 连线模式预览 -->
+                      <line v-if="charLinkMode && charLinkFrom"
+                        :x1="charLinkFrom.x" :y1="charLinkFrom.y"
+                        :x2="charMousePos.x" :y2="charMousePos.y"
+                        stroke="var(--accent)" stroke-width="2" stroke-dasharray="5,3" />
+
+                      <!-- 阶段节点 -->
+                      <g v-for="s in charStages" :key="'cs-' + s.id" class="char-stage-group"
+                         @mousedown.stop="charStartDrag($event, s)"
+                         @click.stop="charClickStage(s)"
+                         @mouseenter="charHoveredStageId = s.id"
+                         @mouseleave="charHoveredStageId = null">
+                        <rect :x="s.x" :y="s.y" :width="CHAR_STAGE_W" :height="CHAR_STAGE_H"
+                          class="char-stage-rect" :class="{ selected: charSelectedStageId === s.id }" />
+                        <text :x="s.x + 14" :y="s.y + 26" class="char-stage-title">
+                          {{ s.title && s.title.length > 14 ? s.title.slice(0, 13) + '…' : s.title }}
+                        </text>
+                        <text :x="s.x + 14" :y="s.y + 46" class="char-stage-note">
+                          {{ s.note ? s.note.slice(0, 18) : '（无描述）' }}
+                        </text>
+                        <text v-if="s.chapter" :x="s.x + 14" :y="s.y + 60" class="char-stage-ch">{{ s.chapter }}</text>
+                        <circle :cx="s.x + CHAR_STAGE_W - 10" :cy="s.y + 10" r="8"
+                          fill="var(--red)" style="cursor:pointer;opacity:0.7"
+                          @mousedown.stop.prevent="charDeleteStage(s.id)" v-if="charHoveredStageId === s.id" />
+                        <text :x="s.x + CHAR_STAGE_W - 10" :y="s.y + 14" class="outline-node-delete" style="pointer-events:none">×</text>
+                      </g>
+                    </svg>
+                  </div>
+                  <div class="char-edit-pane">
+                    <template v-if="charSelectedStage">
+                      <div class="outline-edit-row">
+                        <span class="outline-edit-type-badge">阶段</span>
+                        <input class="outline-edit-input" v-model="charSelectedStage.title"
+                          placeholder="阶段名称（如 轮海叶凡）" @change="saveCharStages">
+                        <input class="outline-edit-input" style="max-width:170px" v-model="charSelectedStage.chapter"
+                          placeholder="起始章节（可不填）" @change="saveCharStages">
+                        <button class="btn btn-danger" @click="charDeleteStage(charSelectedStage.id)">删除阶段</button>
+                      </div>
+                      <textarea class="outline-edit-textarea" v-model="charSelectedStage.note"
+                        placeholder="该阶段的关键状态（能力 / 处境 / 关系 / 目标）；这里的内容也会出现在写作页点击标蓝后的信息卡里"
+                        @change="saveCharStages"></textarea>
+                    </template>
+                    <template v-else-if="charSelectedEvent">
+                      <div class="outline-edit-row">
+                        <span class="outline-edit-type-badge branch">{{ charSelectedEventTitles.from }} → {{ charSelectedEventTitles.to }}</span>
+                        <input class="outline-edit-input" v-model="charSelectedEvent.label"
+                          placeholder="这一阶段到下一阶段经历的事件（如 得青莲地心火，破入道宫）" @change="saveCharEvents">
+                        <button class="btn btn-danger" @click="charDeleteEvent(charSelectedEvent.id)">删除连线</button>
+                      </div>
+                    </template>
+                    <div v-else class="char-edit-hint">
+                      点阶段可编辑名称 / 起始章节 / 描述；点连线可编辑"阶段之间经历的事件"；直接拖拽阶段可调整位置（自动保存）。
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 角色档案 -->
+                <div v-show="charSubView === 'profile'" class="char-profile">
+                  <div class="char-profile-card">
+                    <div style="margin-bottom:14px">
+                      <div class="field-label">角色名</div>
+                      <input class="field-input" v-model="currentChar.name"
+                        @change="updateCurrentCharacter({ name: currentChar.name })">
+                    </div>
+                    <div style="margin-bottom:14px">
+                      <div class="field-label">别名（正文里出现这些称呼同样会标蓝）</div>
+                      <div class="char-alias-list">
+                        <span v-for="a in currentChar.aliases" :key="a" class="char-alias">
+                          {{ a }}<span class="char-alias-del" @click="removeCharAlias(a)" title="删除别名">×</span>
+                        </span>
+                        <button class="char-alias-add" @click="addCharAlias">+ 添加别名</button>
+                      </div>
+                    </div>
+                    <div style="margin-bottom:14px">
+                      <div class="field-label">角色总述（整体档案，区别于分阶段信息）</div>
+                      <textarea class="field-textarea" style="min-height:170px" v-model="currentChar.profile"
+                        placeholder="角色的整体定位：出身、身份、核心性格、在故事中的作用…"
+                        @change="updateCurrentCharacter({ profile: currentChar.profile })"></textarea>
+                    </div>
+                    <div class="btn-row">
+                      <button class="btn btn-danger" @click="deleteCurrentCharacter">删除角色</button>
+                      <span class="char-profile-meta">
+                        来源：{{ currentChar.source === 'settings' ? '设定页带入' : '手动创建' }} ·
+                        阶段 {{ charStages.length }} 个 ·
+                        观察 {{ (currentChar.observations || []).length }} 条
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- AI 观察收件箱 -->
+                <div v-show="charSubView === 'observations'" class="char-obs">
+                  <div class="char-obs-head">
+                    <div>
+                      <div class="char-obs-title">AI 观察收件箱</div>
+                      <div class="char-obs-sub">
+                        保存章节时自动提取的条目提及（优先级低于手动内容）。采纳后才会写进阶段或别名，忽略即永久隐藏；不会改动设定页。
+                      </div>
+                    </div>
+                    <label class="rel-check" style="white-space:nowrap">
+                      <input type="checkbox" v-model="charObsShowAll"> 显示已处理
+                    </label>
+                  </div>
+                  <div v-if="charObsVisible.length === 0" class="char-obs-empty">暂无待处理观察</div>
+                  <div v-for="o in charObsVisible" :key="o.id" class="char-obs-item" :class="o.status">
+                    <div class="char-obs-item-head">
+                      <span class="char-obs-char">{{ o.character }}</span>
+                      <span class="char-obs-chapter">{{ o.chapter }}</span>
+                      <span v-if="o.matched_stage" class="char-obs-tag ok">吻合阶段：{{ o.matched_stage }}</span>
+                      <span v-else-if="o.suggest_stage" class="char-obs-tag warn">疑似阶段：{{ o.suggest_stage }}</span>
+                      <span v-if="o.is_new_alias" class="char-obs-tag alias">疑似新别名：{{ o.hit_alias }}</span>
+                      <span class="char-obs-status">
+                        {{ o.status === 'pending' ? '' : (o.status === 'accepted' ? '已采纳' : '已忽略') }}
+                      </span>
+                    </div>
+                    <div class="char-obs-snippet">{{ o.snippet }}</div>
+                    <div class="char-obs-actions" v-if="o.status === 'pending'">
+                      <button v-if="o.matched_stage_id" class="btn flow-mini"
+                              @click="charAcceptObservation(o, 'note')">追加到「{{ o.matched_stage }}」</button>
+                      <button class="btn flow-mini" @click="charAcceptObservation(o, 'stage')">记为新阶段</button>
+                      <button v-if="o.is_new_alias || o.hit_alias" class="btn flow-mini"
+                              @click="charAcceptObservation(o, 'alias')">并入别名</button>
+                      <button class="btn flow-mini" @click="charIgnoreObservation(o)">忽略</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
         </div>
 
         <!-- ===== 伏笔页 ===== -->
@@ -3698,6 +4218,21 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <div class="toggle-knob"></div>
             </div>
           </div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:13px">实时更新条目</div>
+              <div style="font-size:12px;color:var(--text-muted)">
+                保存章节时自动提取对已知角色的提及与新别名，排进角色页的「AI 观察」收件箱（采纳后才生效）
+              </div>
+            </div>
+            <div class="toggle-switch" :class="{ on: writingPrefs.live_entries_enabled }"
+              @click="writingPrefs.live_entries_enabled = !writingPrefs.live_entries_enabled">
+              <div class="toggle-knob"></div>
+            </div>
+          </div>
+          <div style="font-size:11.5px;color:var(--text-muted)">
+            两项都开启时合并为一次调用（同一段正文只送模型一遍），因此同时开启比分别调用更省 token。
+          </div>
         </div>
         <div class="divider"></div>
         <!-- 默认 API -->
@@ -4031,6 +4566,7 @@ createApp({
     const tabs = [
       { key: 'chat', icon: '💬' },
       { key: 'writing', icon: '✍️' },
+      { key: 'characters', icon: '🎭' },
       { key: 'foreshadowing', icon: '🪝' },
       { key: 'relations', icon: '🌌' },
       { key: 'settings', icon: '📝' },
@@ -4044,6 +4580,12 @@ createApp({
     // 纯界面状态，存 localStorage（与后端偏好无关，不占用工作区配置）
     function readUiFlag(key) {
       try { return localStorage.getItem(key) === '1'; } catch (e) { return false; }
+    }
+    function readUiFlagOn(key, def = true) {
+      try {
+        const v = localStorage.getItem(key);
+        return v === null ? def : v === '1';
+      } catch (e) { return def; }
     }
     function writeUiFlag(key, val) {
       try { localStorage.setItem(key, val ? '1' : '0'); } catch (e) { /* 忽略隐私模式等异常 */ }
@@ -4064,7 +4606,7 @@ createApp({
     const writingLanguage = ref('zh-CN');
     const I18N = {
       'zh-CN': {
-        'tab.chat': '对话', 'tab.writing': '写作', 'tab.foreshadowing': '伏笔',
+        'tab.chat': '对话', 'tab.writing': '写作', 'tab.characters': '角色', 'tab.foreshadowing': '伏笔',
         'tab.relations': '星图', 'tab.settings': '设定', 'tab.outline': '大纲',
         'tab.knowledge': '知识库', 'tab.inspiration': '灵感', 'tab.files': '文件',
         'app.settings': '设置', 'status.ready': 'API 已就绪',
@@ -4072,7 +4614,7 @@ createApp({
         'lang.ui': '界面语言', 'lang.writing': '写作语言',
       },
       'en-US': {
-        'tab.chat': 'Chat', 'tab.writing': 'Writing', 'tab.foreshadowing': 'Foreshadowing',
+        'tab.chat': 'Chat', 'tab.writing': 'Writing', 'tab.characters': 'Characters', 'tab.foreshadowing': 'Foreshadowing',
         'tab.relations': 'Graph', 'tab.settings': 'Settings', 'tab.outline': 'Outline',
         'tab.knowledge': 'Knowledge', 'tab.inspiration': 'Ideas', 'tab.files': 'Files',
         'app.settings': 'Settings', 'status.ready': 'API ready',
@@ -4163,6 +4705,76 @@ createApp({
       system: { label: '力量体系', icon: '⚡', color: 'var(--color-warning-bg)', text: 'var(--color-warning)' },
       other: { label: '其他', icon: '📝', color: 'rgba(102,102,102,0.1)', text: 'var(--color-text-secondary)' },
     };
+
+    // ===== 角色页 =====
+    const characterList = ref([]);
+    const charLevels = ref([]);
+    const currentCharId = ref('');
+    const charSubView = ref('graph');   // graph | profile | observations
+    const charLevel = ref('standard');  // coarse | standard | fine
+    const charAnalyzing = ref(false);
+    const charSaving = ref(false);
+    const charSelectedStageId = ref('');
+    const charSelectedEventId = ref('');
+    const charLinkMode = ref(false);
+    const charLinkFrom = ref(null);
+    const charMousePos = ref({ x: 0, y: 0 });
+    const charHoveredStageId = ref(null);
+    const charSvgWidth = ref(1600);
+    const charSvgHeight = ref(900);
+    const charObservations = ref([]);
+    const charObsPending = ref(0);
+    const charObsShowAll = ref(false);
+    const charListKeyword = ref('');
+    let _charDragging = null;
+
+    const CHAR_STAGE_W = 200;
+    const CHAR_STAGE_H = 64;
+
+    const currentChar = computed(() =>
+      characterList.value.find(c => c.id === currentCharId.value) || null);
+    const charStages = computed(() => (currentChar.value && currentChar.value.stages) || []);
+    const charEvents = computed(() => (currentChar.value && currentChar.value.events) || []);
+    const charStageMap = computed(() => {
+      const map = {};
+      charStages.value.forEach(s => { map[s.id] = s; });
+      return map;
+    });
+    const charSelectedStage = computed(() =>
+      charStages.value.find(s => s.id === charSelectedStageId.value) || null);
+    const charSelectedEvent = computed(() =>
+      charEvents.value.find(e => e.id === charSelectedEventId.value) || null);
+    const charSelectedEventTitles = computed(() => {
+      const e = charSelectedEvent.value;
+      if (!e) return { from: '?', to: '?' };
+      const a = charStageMap.value[e.from];
+      const b = charStageMap.value[e.to];
+      return { from: a ? a.title : '?', to: b ? b.title : '?' };
+    });
+    const charEdgeRenderList = computed(() => charEvents.value.map(edge => {
+      const from = charStageMap.value[edge.from];
+      const to = charStageMap.value[edge.to];
+      if (!from || !to) return null;
+      const x1 = from.x + CHAR_STAGE_W / 2;
+      const y1 = from.y + CHAR_STAGE_H;
+      const x2 = to.x + CHAR_STAGE_W / 2;
+      const y2 = to.y;
+      const midY = y1 + (y2 - y1) / 2;
+      const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+      const labelX = (x1 + x2) / 2;
+      const labelY = midY;
+      const labelWidth = edge.label ? Math.max(edge.label.length * 7 + 8, 20) : 0;
+      return { ...edge, path, labelX, labelY, labelWidth };
+    }).filter(Boolean));
+    const filteredCharacters = computed(() => {
+      const kw = charListKeyword.value.trim().toLowerCase();
+      if (!kw) return characterList.value;
+      return characterList.value.filter(c =>
+        String(c.name || '').toLowerCase().includes(kw)
+        || (c.aliases || []).some(a => String(a).toLowerCase().includes(kw)));
+    });
+    const charObsVisible = computed(() =>
+      charObsShowAll.value ? charObservations.value : charObservations.value.filter(o => o.status === 'pending'));
 
     // Outline
     const outlineNodes = ref([]);
@@ -4260,6 +4872,7 @@ createApp({
     const writingPrefs = ref({
       chapter_numbering_mode: 'continue',
       auto_foreshadowing_detect: false,
+      live_entries_enabled: false,
     });
     // 生图偏好：肖像风格一致性（开关存于 ~/.moshen/workspace.json）
     const imagePrefs = reactive({ style_consistency: false });
@@ -4369,12 +4982,11 @@ createApp({
     const reviewing = ref(false);
     const reviewReport = ref('');
     const reviewMeta = ref(null);
-
-    const currentWordCount = computed(() => {
-      if (!writingEditor.value) return 0;
-      const text = writingEditor.value.innerText || '';
-      return text.replace(/\s/g, '').length;
-    });
+    const wordCount = ref(0);            // 实时字数（@input 驱动，computed 读 DOM 不会自动更新）
+    const writingDirty = ref(false);     // 有未保存改动
+    const lastSavedAt = ref('');
+    const liveScanState = ref('');       // '' | scanning | done | failed
+    const liveScanSummary = ref('');
 
     // ===== 伏笔页 =====
     const foreshadowingList = ref([]);
@@ -4530,6 +5142,9 @@ createApp({
       // 切换项目后重置星图已上传文件的选择
       relUploadFiles.value = [];
       relSelectedFiles.value = [];
+      // 角色页条目 = 写作页标蓝词表，切项目后必须同步
+      currentCharId.value = '';
+      await loadCharacters();
       // 加载项目工作区路径
       await loadProjectWorkspace();
       // 加载对话列表并自动选中最近的对话
@@ -5429,6 +6044,18 @@ createApp({
       optimizedText.value = '';
     }
 
+    // 设定页-人物条目 → 一键带入角色页（重复点只补充别名，不重复建档）
+    async function addSettingToCharacter(item) {
+      const node = item._node || {};
+      const content = String(node.content || '').trim();
+      await addCharacterByName(
+        item.title,
+        [],
+        content ? content.slice(0, 4000) : '',
+        'settings'
+      );
+    }
+
     async function confirmNewSetting() {
       if (!newSettingTitle.value.trim()) return;
       try {
@@ -5996,6 +6623,523 @@ createApp({
       };
     }
 
+    // ===== 角色页函数 =====
+    function relayoutCharCanvas() {
+      let maxX = 800, maxY = 520;
+      charStages.value.forEach(s => {
+        maxX = Math.max(maxX, Number(s.x || 0) + CHAR_STAGE_W + 280);
+        maxY = Math.max(maxY, Number(s.y || 0) + CHAR_STAGE_H + 140);
+      });
+      charSvgWidth.value = maxX;
+      charSvgHeight.value = maxY;
+    }
+
+    async function loadCharacters() {
+      if (!currentProjectId.value) {
+        characterList.value = [];
+        charObservations.value = [];
+        currentCharId.value = '';
+        scheduleHighlightRebuild();
+        return;
+      }
+      try {
+        const data = await apiJSON('/api/characters/' + currentProjectId.value);
+        characterList.value = data.characters || [];
+        charLevels.value = data.levels || [];
+        if (!characterList.value.some(c => c.id === currentCharId.value)) {
+          currentCharId.value = characterList.value.length ? characterList.value[0].id : '';
+        }
+        relayoutCharCanvas();
+        await loadCharObservations();
+      } catch (e) {
+        characterList.value = [];
+      }
+      scheduleHighlightRebuild();
+    }
+
+    function selectCharacter(id) {
+      currentCharId.value = id;
+      charSelectedStageId.value = '';
+      charSelectedEventId.value = '';
+      charSubView.value = 'graph';
+      relayoutCharCanvas();
+    }
+
+    async function addCharacterByName(name, aliases, profile, source) {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'error'); return; }
+      try {
+        const data = await apiJSON('/api/characters/' + currentProjectId.value + '/characters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, aliases: aliases || [], profile: profile || '', source: source || 'manual',
+          }),
+        });
+        await loadCharacters();
+        if (data.character) {
+          currentCharId.value = data.character.id;
+          activeTab.value = 'characters';
+        }
+        showToast(data.created ? ('已新建角色：' + name) : ('角色「' + name + '」已存在，已补充别名'), 'success');
+      } catch (e) { showToast('新建角色失败: ' + (e.message || e), 'error'); }
+    }
+
+    function createCharacter() {
+      const name = prompt('角色名（也可在「设定 → 人物」条目上点「添加到角色」直接带入）');
+      if (!name || !name.trim()) return;
+      addCharacterByName(name.trim());
+    }
+
+    async function updateCurrentCharacter(fields) {
+      if (!currentCharId.value) return;
+      try {
+        const data = await apiJSON('/api/characters/' + currentProjectId.value + '/characters/' + currentCharId.value, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fields),
+        });
+        const idx = characterList.value.findIndex(c => c.id === currentCharId.value);
+        if (idx >= 0 && data.character) characterList.value[idx] = data.character;
+        scheduleHighlightRebuild();
+      } catch (e) { showToast('保存失败: ' + (e.message || e), 'error'); }
+    }
+
+    async function deleteCurrentCharacter() {
+      const ch = currentChar.value;
+      if (!ch) return;
+      if (!confirm('确定删除角色「' + ch.name + '」及其阶段、观察记录？此操作不可撤销。')) return;
+      try {
+        await apiJSON('/api/characters/' + currentProjectId.value + '/characters/' + ch.id, { method: 'DELETE' });
+        currentCharId.value = '';
+        await loadCharacters();
+        showToast('已删除', 'success');
+      } catch (e) { showToast('删除失败', 'error'); }
+    }
+
+    function addCharAlias() {
+      if (!currentChar.value) return;
+      const alias = prompt('新增别名（正文里出现该称呼也会标蓝）');
+      if (!alias || !alias.trim()) return;
+      const merged = [...(currentChar.value.aliases || []), alias.trim()];
+      currentChar.value.aliases = merged;
+      updateCurrentCharacter({ aliases: merged });
+    }
+
+    function removeCharAlias(alias) {
+      if (!currentChar.value) return;
+      const merged = (currentChar.value.aliases || []).filter(a => a !== alias);
+      currentChar.value.aliases = merged;
+      updateCurrentCharacter({ aliases: merged });
+    }
+
+    async function saveCharStages() {
+      if (!currentCharId.value) return;
+      charSaving.value = true;
+      try {
+        const data = await apiJSON('/api/characters/' + currentProjectId.value + '/characters/' + currentCharId.value + '/stages', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            stages: charStages.value.map(s => ({
+              id: s.id || null, title: s.title, note: s.note || '',
+              chapter: s.chapter || '', x: s.x, y: s.y,
+            })),
+          }),
+        });
+        const idx = characterList.value.findIndex(c => c.id === currentCharId.value);
+        if (idx >= 0 && data.character) characterList.value[idx] = data.character;
+        relayoutCharCanvas();
+        scheduleHighlightRebuild();
+      } catch (e) { showToast('阶段保存失败: ' + (e.message || e), 'error'); }
+      charSaving.value = false;
+    }
+
+    async function saveCharEvents() {
+      if (!currentCharId.value) return;
+      try {
+        const data = await apiJSON('/api/characters/' + currentProjectId.value + '/characters/' + currentCharId.value + '/events', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            events: charEvents.value.map(e => ({
+              id: e.id || null, from_id: e.from, to_id: e.to, label: e.label || '',
+            })),
+          }),
+        });
+        const idx = characterList.value.findIndex(c => c.id === currentCharId.value);
+        if (idx >= 0 && data.character) characterList.value[idx] = data.character;
+      } catch (e) { showToast('连线保存失败: ' + (e.message || e), 'error'); }
+    }
+
+    function charAddStage() {
+      if (!currentChar.value) { showToast('请先选择或新建角色', 'error'); return; }
+      const stages = charStages.value;
+      const idx = stages.length;
+      stages.push({
+        id: '',
+        title: '新阶段',
+        note: '',
+        chapter: '',
+        x: 40 + idx * 240,
+        y: 110 + (idx % 2) * 120,
+      });
+      relayoutCharCanvas();
+      saveCharStages();
+    }
+
+    function charDeleteStage(stageId) {
+      const ch = currentChar.value;
+      if (!ch) return;
+      ch.stages = charStages.value.filter(s => s.id !== stageId);
+      ch.events = charEvents.value.filter(e => e.from !== stageId && e.to !== stageId);
+      if (charSelectedStageId.value === stageId) charSelectedStageId.value = '';
+      relayoutCharCanvas();
+      saveCharStages();
+      saveCharEvents();
+    }
+
+    function charSelectStage(stageId) {
+      charSelectedStageId.value = stageId;
+      charSelectedEventId.value = '';
+      charSubView.value = 'graph';
+    }
+
+    function charSelectEdge(edgeId) {
+      charSelectedEventId.value = edgeId;
+      charSelectedStageId.value = '';
+    }
+
+    function charStartDrag(event, stage) {
+      if (charLinkMode.value) return;
+      const svg = event.currentTarget.closest('svg');
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const scroller = svg.parentElement;
+      _charDragging = {
+        stageId: stage.id,
+        offsetX: event.clientX - rect.left - Number(stage.x || 0) + scroller.scrollLeft,
+        offsetY: event.clientY - rect.top - Number(stage.y || 0) + scroller.scrollTop,
+        svg,
+      };
+
+      function onMove(e) {
+        if (!_charDragging) return;
+        const r = _charDragging.svg.getBoundingClientRect();
+        const sc = _charDragging.svg.parentElement;
+        const x = e.clientX - r.left - _charDragging.offsetX + sc.scrollLeft;
+        const y = e.clientY - r.top - _charDragging.offsetY + sc.scrollTop;
+        const s = charStages.value.find(ss => ss.id === _charDragging.stageId);
+        if (s) {
+          s.x = Math.max(0, x);
+          s.y = Math.max(0, y);
+          relayoutCharCanvas();
+        }
+      }
+
+      function onUp() {
+        if (_charDragging) {
+          document.body.style.userSelect = '';
+          saveCharStages();
+        }
+        _charDragging = null;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
+    function charToggleLinkMode() {
+      charLinkMode.value = !charLinkMode.value;
+      charLinkFrom.value = null;
+    }
+
+    function charClickStage(stage) {
+      if (!charLinkMode.value) { charSelectStage(stage.id); return; }
+      if (!charLinkFrom.value) {
+        charLinkFrom.value = { id: stage.id, x: Number(stage.x || 0) + CHAR_STAGE_W / 2, y: Number(stage.y || 0) + CHAR_STAGE_H / 2 };
+        showToast('已选起点「' + stage.title + '」，再点一个阶段作为终点', 'info');
+        return;
+      }
+      if (charLinkFrom.value.id === stage.id) { charLinkFrom.value = null; return; }
+      const fromTitle = (charStageMap.value[charLinkFrom.value.id] || {}).title || '';
+      const label = prompt('从「' + fromTitle + '」到「' + stage.title + '」经历了什么事件？', '');
+      if (label === null) { charLinkFrom.value = null; return; }
+      charEvents.value.push({
+        id: '',
+        from: charLinkFrom.value.id,
+        to: stage.id,
+        label: (label || '').trim(),
+      });
+      charLinkFrom.value = null;
+      charLinkMode.value = false;
+      saveCharEvents();
+    }
+
+    function charOnMouseMove(event) {
+      if (!charLinkMode.value || !charLinkFrom.value) return;
+      const svg = event.currentTarget;
+      const rect = svg.getBoundingClientRect();
+      charMousePos.value = {
+        x: event.clientX - rect.left + svg.parentElement.scrollLeft,
+        y: event.clientY - rect.top + svg.parentElement.scrollTop,
+      };
+    }
+
+    function charDeleteEvent(edgeId) {
+      if (!currentChar.value) return;
+      currentChar.value.events = charEvents.value.filter(e => e.id !== edgeId);
+      if (charSelectedEventId.value === edgeId) charSelectedEventId.value = '';
+      saveCharEvents();
+    }
+
+    async function analyzeCharStages() {
+      if (!currentCharId.value) return;
+      charAnalyzing.value = true;
+      try {
+        const data = await runBusyTask(
+          { task: 'characters.stages', name: '角色分阶段解析' },
+          ({ task_id }) => apiJSON(
+            '/api/characters/' + currentProjectId.value + '/characters/' + currentCharId.value + '/analyze',
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ level: charLevel.value, task_id }),
+            }
+          )
+        );
+        const idx = characterList.value.findIndex(c => c.id === currentCharId.value);
+        if (idx >= 0 && data.character) characterList.value[idx] = data.character;
+        charSelectedStageId.value = '';
+        charSelectedEventId.value = '';
+        relayoutCharCanvas();
+        scheduleHighlightRebuild();
+        showToast('已生成 ' + data.stages + ' 个阶段、' + data.events + ' 条阶段事件', 'success');
+      } catch (e) {
+        showToast('解析失败: ' + (e.message || e), 'error');
+      }
+      charAnalyzing.value = false;
+    }
+
+    async function loadCharObservations() {
+      if (!currentProjectId.value) { charObservations.value = []; charObsPending.value = 0; return; }
+      try {
+        const data = await apiJSON('/api/characters/' + currentProjectId.value + '/observations');
+        charObservations.value = data.observations || [];
+        charObsPending.value = data.pending_count || 0;
+      } catch (e) { charObservations.value = []; }
+    }
+
+    async function charAcceptObservation(obs, mode) {
+      try {
+        const body = { mode };
+        if (mode === 'note') {
+          if (!obs.matched_stage_id) { showToast('该观察没有匹配到阶段，可选择「记为新阶段」', 'info'); return; }
+          body.stage_id = obs.matched_stage_id;
+          body.note = obs.snippet;
+        } else if (mode === 'stage') {
+          const title = prompt('新阶段名称', obs.suggest_stage || '新阶段');
+          if (title === null) return;
+          if (!title.trim()) { showToast('阶段名不能为空', 'error'); return; }
+          body.title = title.trim();
+          body.note = obs.snippet;
+        } else if (mode === 'alias') {
+          const alias = prompt('要并入的别名', obs.hit_alias || '');
+          if (alias === null) return;
+          if (!alias.trim()) { showToast('别名不能为空', 'error'); return; }
+          body.title = alias.trim();
+        }
+        await apiJSON(
+          '/api/characters/' + currentProjectId.value + '/observations/' + obs.cid + '/' + obs.id + '/accept',
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+        );
+        await loadCharacters();
+        showToast('已采纳', 'success');
+      } catch (e) { showToast('采纳失败: ' + (e.message || e), 'error'); }
+    }
+
+    async function charIgnoreObservation(obs) {
+      try {
+        await apiJSON(
+          '/api/characters/' + currentProjectId.value + '/observations/' + obs.cid + '/' + obs.id + '/ignore',
+          { method: 'POST' }
+        );
+        await loadCharObservations();
+      } catch (e) { showToast('操作失败', 'error'); }
+    }
+
+    // ===== 写作页 · 条目标蓝（CSS Custom Highlight API，非侵入式，不打断输入）=====
+    const HIGHLIGHT_NAME = 'moshen-entries';
+    const highlightSupported = typeof CSS !== 'undefined' && !!CSS.highlights
+      && typeof window.Highlight === 'function';
+    const highlightEnabled = ref(readUiFlagOn('moshen.ui.hlEntries', true));
+    const hlHits = ref([]);        // [{cid, name, term, start, end}]
+    const entryCard = ref(null);   // 点击标蓝后的信息卡
+    let _hlTimer = null;
+
+    const charMentionIndex = computed(() => characterList.value.map(c => ({
+      cid: c.id,
+      name: c.name,
+      aliases: c.aliases || [],
+      terms: [c.name, ...(c.aliases || [])].filter(t => t && String(t).trim()),
+      stages: (c.stages || []).map(s => ({ id: s.id, title: s.title })),
+    })));
+
+    function _hlTextNodes(editor) {
+      const walker = document.createTreeWalker(editor, NodeFilter.SHOW_TEXT, null);
+      const nodes = [];
+      let full = '';
+      let n = walker.nextNode();
+      while (n) {
+        const len = (n.nodeValue || '').length;
+        nodes.push({ node: n, start: full.length, len });
+        full += n.nodeValue || '';
+        n = walker.nextNode();
+      }
+      return { nodes, full };
+    }
+
+    function _hlRangeFor(nodes, start, end) {
+      let sNode = null, sOff = 0;
+      for (const item of nodes) {
+        if (start >= item.start && start <= item.start + item.len) { sNode = item.node; sOff = start - item.start; break; }
+      }
+      if (!sNode) return null;
+      let eNode = null, eOff = 0;
+      for (const item of nodes) {
+        if (end >= item.start && end <= item.start + item.len) { eNode = item.node; eOff = end - item.start; break; }
+      }
+      if (!eNode) return null;
+      try {
+        const r = document.createRange();
+        r.setStart(sNode, sOff);
+        r.setEnd(eNode, eOff);
+        return r;
+      } catch (e) { return null; }
+    }
+
+    function rebuildHighlights() {
+      if (!highlightSupported) return;
+      CSS.highlights.delete(HIGHLIGHT_NAME);
+      hlHits.value = [];
+      if (!highlightEnabled.value) return;
+      const editor = writingEditor.value;
+      if (!editor) return;
+      const index = charMentionIndex.value;
+      if (!index.length) return;
+
+      // 长词优先：避免先命中「叶」导致「叶凡」匹配不上
+      const terms = [];
+      index.forEach(item => {
+        item.terms.forEach(t => terms.push({ t: String(t), cid: item.cid, name: item.name }));
+      });
+      terms.sort((a, b) => b.t.length - a.t.length);
+
+      const { nodes, full } = _hlTextNodes(editor);
+      if (!full) return;
+      const taken = new Array(full.length).fill(false);
+      const ranges = [];
+      const hits = [];
+
+      for (const term of terms) {
+        let from = 0;
+        while (from <= full.length) {
+          const idx = full.indexOf(term.t, from);
+          if (idx < 0) break;
+          let overlap = false;
+          for (let i = idx; i < idx + term.t.length; i++) {
+            if (taken[i]) { overlap = true; break; }
+          }
+          if (!overlap) {
+            const range = _hlRangeFor(nodes, idx, idx + term.t.length);
+            if (range) {
+              ranges.push(range);
+              for (let i = idx; i < idx + term.t.length; i++) taken[i] = true;
+              hits.push({ cid: term.cid, name: term.name, term: term.t, start: idx, end: idx + term.t.length });
+            }
+          }
+          from = idx + term.t.length;
+        }
+      }
+
+      hlHits.value = hits;
+      if (ranges.length) CSS.highlights.set(HIGHLIGHT_NAME, new window.Highlight(...ranges));
+    }
+
+    function scheduleHighlightRebuild() {
+      if (_hlTimer) clearTimeout(_hlTimer);
+      _hlTimer = setTimeout(() => { rebuildHighlights(); }, 250);
+    }
+
+    function toggleHighlight() {
+      highlightEnabled.value = !highlightEnabled.value;
+      writeUiFlag('moshen.ui.hlEntries', highlightEnabled.value);
+      entryCard.value = null;
+      rebuildHighlights();
+      showToast(highlightEnabled.value ? '已开启条目标蓝' : '已关闭条目标蓝', 'info');
+    }
+
+    function entryCardContent(ch) {
+      const pending = charObservations.value.filter(o => o.cid === ch.id && o.status === 'pending').length;
+      return {
+        cid: ch.id,
+        name: ch.name,
+        term: '',
+        aliases: (ch.aliases || []).join('、'),
+        profile: ch.profile || '',
+        stages: (ch.stages || []).map(s => ({ title: s.title, chapter: s.chapter })),
+        pending,
+        x: 0,
+        y: 0,
+      };
+    }
+
+    function onEditorPointer(event) {
+      if (!highlightSupported || !highlightEnabled.value || !hlHits.value.length) {
+        entryCard.value = null;
+        return;
+      }
+      const editor = writingEditor.value;
+      if (!editor) return;
+      let range = null;
+      if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(event.clientX, event.clientY);
+      } else if (document.caretPositionFromPoint) {
+        const p = document.caretPositionFromPoint(event.clientX, event.clientY);
+        if (p) {
+          range = document.createRange();
+          range.setStart(p.offsetNode, p.offset);
+          range.collapse(true);
+        }
+      }
+      if (!range || !editor.contains(range.startContainer)) { entryCard.value = null; return; }
+
+      const { nodes } = _hlTextNodes(editor);
+      const item = nodes.find(n => n.node === range.startContainer);
+      if (!item) { entryCard.value = null; return; }
+      const offset = item.start + range.startOffset;
+      const hit = hlHits.value.find(h => offset >= h.start && offset <= h.end);
+      if (!hit) { entryCard.value = null; return; }
+
+      const ch = characterList.value.find(c => c.id === hit.cid);
+      if (!ch) return;
+      const card = entryCardContent(ch);
+      card.term = hit.term;
+      const vw = window.innerWidth, vh = window.innerHeight;
+      card.x = Math.min(event.clientX + 10, Math.max(12, vw - 320));
+      card.y = Math.min(event.clientY + 12, Math.max(12, vh - 320));
+      entryCard.value = card;
+    }
+
+    function gotoCharacter(cid) {
+      entryCard.value = null;
+      activeTab.value = 'characters';
+      selectCharacter(cid);
+      loadCharObservations();
+    }
+
     // ===== 写作页函数 =====
     async function loadWritingIndex() {
       if (!currentProjectId.value) return;
@@ -6161,6 +7305,10 @@ createApp({
         if (writingEditor.value) {
           writingEditor.value.innerHTML = data.content || '';
         }
+        writingDirty.value = false;
+        syncWordCount();
+        entryCard.value = null;
+        rebuildHighlights();
         // 填充卷/章信息
         const vol = writingIndex.value.volumes.find(v => v.id === volId);
         if (vol) {
@@ -6191,9 +7339,11 @@ createApp({
 
     async function saveWritingChapter() {
       if (!currentWritingChId.value) return;
+      const volId = currentWritingVolId.value;
+      const chId = currentWritingChId.value;
       savingChapter.value = true;
       try {
-        const result = await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + currentWritingVolId.value + '/chapters/' + currentWritingChId.value, {
+        const result = await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId + '/chapters/' + chId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -6201,8 +7351,11 @@ createApp({
             title: currentChTitle.value,
           }),
         });
+        writingDirty.value = false;
+        lastSavedAt.value = formatTime(new Date().toISOString());
         await loadWritingIndex();
         showToast('已保存 · ' + (result.chapter?.words || 0) + '字', 'success');
+        runLiveScan(volId, chId);
       } catch (e) { showToast('保存失败', 'error'); }
       savingChapter.value = false;
     }
@@ -6210,9 +7363,10 @@ createApp({
     async function saveAndNewChapter() {
       if (!currentWritingChId.value) return;
       const volId = currentWritingVolId.value;
+      const chId = currentWritingChId.value;
       savingChapter.value = true;
       try {
-        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId + '/chapters/' + currentWritingChId.value, {
+        await apiJSON('/api/writing/' + currentProjectId.value + '/volumes/' + volId + '/chapters/' + chId, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -6220,6 +7374,8 @@ createApp({
             title: currentChTitle.value,
           }),
         });
+        writingDirty.value = false;
+        lastSavedAt.value = formatTime(new Date().toISOString());
         await loadWritingIndex();
       } catch (e) {
         showToast('保存失败', 'error');
@@ -6228,7 +7384,55 @@ createApp({
       }
       savingChapter.value = false;
       showToast('已保存，正在新建下一章', 'success');
+      runLiveScan(volId, chId);
       await addChapterTo(volId);
+    }
+
+    // 实时字数：必须由 @input 驱动，computed 读 DOM 的 innerText 不是响应式的
+    // 用 textContent 而非 innerText：两者在去掉空白后计数一致，但 textContent 不触发重排，
+    // 长章节里每次输入都调 innerText 会有明显卡顿
+    function syncWordCount() {
+      if (!writingEditor.value) { wordCount.value = 0; return; }
+      const text = writingEditor.value.textContent || '';
+      wordCount.value = text.replace(/\s/g, '').length;
+    }
+
+    // 保存后的自动扫描：伏笔 + 条目观察，两类信息一次调用产出（设置里开启才跑）
+    async function runLiveScan(volId, chId) {
+      if (!currentProjectId.value) return;
+      const fsOn = !!writingPrefs.value.auto_foreshadowing_detect;
+      const entriesOn = !!writingPrefs.value.live_entries_enabled;
+      if (!fsOn && !entriesOn) return;
+      liveScanState.value = 'scanning';
+      liveScanSummary.value = '';
+      try {
+        const data = await apiJSON('/api/writing/' + currentProjectId.value + '/live-scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vol_id: volId, ch_id: chId }),
+        });
+        if (!data.scanned) {
+          liveScanState.value = '';
+          return;
+        }
+        const parts = [];
+        if (data.foreshadowings && (data.foreshadowings.created || data.foreshadowings.resolved)) {
+          parts.push('新伏笔 ' + data.foreshadowings.created + '、回收 ' + data.foreshadowings.resolved);
+        }
+        if (data.observations) parts.push('观察 ' + data.observations + ' 条');
+        liveScanSummary.value = parts.join(' · ');
+        liveScanState.value = 'done';
+        if (data.new_characters && data.new_characters.length) {
+          showToast('发现疑似新角色：' + data.new_characters.join('、') + '（可在角色页添加）', 'info');
+        } else if (parts.length) {
+          showToast('已同步：' + liveScanSummary.value, 'success');
+        }
+        await loadCharObservations();
+        await loadForeshadowingList();
+      } catch (e) {
+        liveScanState.value = 'failed';
+        liveScanSummary.value = (e.message || '').slice(0, 60);
+      }
     }
 
     function openWritingReview() {
@@ -6296,7 +7500,9 @@ createApp({
     }
 
     function onWritingInput() {
-      // 实时字数统计已通过 computed 实现
+      syncWordCount();
+      writingDirty.value = true;
+      scheduleHighlightRebuild();
     }
 
     function execFormat(cmd, value = null) {
@@ -9469,6 +10675,17 @@ createApp({
       await loadImagePrefs();
       setInterval(checkHealth, 30000);
 
+      // 标蓝信息卡：点空白处 / Esc / 窗口尺寸变化时关闭
+      document.addEventListener('click', (e) => {
+        if (!entryCard.value) return;
+        if (e.target && e.target.closest && e.target.closest('.entry-card')) return;
+        entryCard.value = null;
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && entryCard.value) entryCard.value = null;
+      });
+      window.addEventListener('resize', () => { entryCard.value = null; });
+
       // ===== 全局拖拽阻止（PyWebView 修复）=====
       // PyWebView 默认会拦截文件拖拽并尝试打开文件，导致 JS drop 事件不触发
       // 需要在 document 级别阻止默认行为，仅允许 chat-input-wrapper 内的拖放
@@ -9527,7 +10744,11 @@ createApp({
       if (tab === 'outline' && currentProjectId.value) loadOutline();
       if (tab === 'inspiration') loadInspiration();
       if (tab === 'files' && currentProjectId.value) loadFiles();
-      if (tab === 'writing' && currentProjectId.value) loadWritingIndex();
+      if (tab === 'writing' && currentProjectId.value) {
+        loadWritingIndex();
+        loadCharacters();
+      }
+      if (tab === 'characters' && currentProjectId.value) loadCharacters();
       if (tab === 'foreshadowing' && currentProjectId.value) loadForeshadowingList();
       if (tab === 'relations' && currentProjectId.value) {
         relLoadOverview();
@@ -9635,13 +10856,26 @@ createApp({
       flowChapters, flowLabels, flowBusy, currentChapterStage,
       loadFlow, advanceStage, markReviewed, resetStage,
       writingEditor, savingChapter, detectingFs, checkingRecover,
-      indentEnabled, showFsDetectModal, detectedForeshadowings, currentWordCount,
+      indentEnabled, showFsDetectModal, detectedForeshadowings,
       chapterNumberingMode,
       loadWritingIndex, toggleVolume, addVolume, deleteWritingVol, deleteWritingChapter, editVolumeTitle,
       addChapterTo, openChapter, saveWritingChapter, saveAndNewChapter, onWritingInput,
       execFormat, toggleIndent, updateVolMeta, updateChMeta,
       showReviewModal, reviewScope, reviewing, reviewReport, reviewMeta,
       openWritingReview, runWritingReview, markReviewFromReport,
+      wordCount, writingDirty, lastSavedAt, liveScanState, liveScanSummary, syncWordCount, runLiveScan,
+      highlightEnabled, highlightSupported, hlHits, entryCard, toggleHighlight, onEditorPointer, gotoCharacter,
+      // 角色页
+      characterList, charLevels, currentCharId, currentChar, charSubView, charLevel, charAnalyzing, charSaving,
+      charStages, charEvents, charStageMap, charSelectedStageId, charSelectedEventId, charSelectedStage,
+      charSelectedEvent, charSelectedEventTitles, charEdgeRenderList, charLinkMode, charLinkFrom, charMousePos,
+      charHoveredStageId, charSvgWidth, charSvgHeight, CHAR_STAGE_W, CHAR_STAGE_H,
+      charObservations, charObsPending, charObsShowAll, charObsVisible, charListKeyword, filteredCharacters,
+      loadCharacters, selectCharacter, createCharacter, addCharacterByName, updateCurrentCharacter,
+      deleteCurrentCharacter, addCharAlias, removeCharAlias, saveCharStages, saveCharEvents,
+      charAddStage, charDeleteStage, charSelectStage, charSelectEdge, charStartDrag, charToggleLinkMode,
+      charClickStage, charOnMouseMove, charDeleteEvent, analyzeCharStages, loadCharObservations,
+      charAcceptObservation, charIgnoreObservation, relayoutCharCanvas, addSettingToCharacter,
       detectForeshadowing, recoverCheck, importDetectedFs,
       // Foreshadowing
       foreshadowingList, currentFsId, currentFsDetail,

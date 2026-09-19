@@ -30,8 +30,9 @@ from routes.session import router as session_router
 from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 from routes.tasks import router as tasks_router
+from routes.character import router as character_router
 
-app = FastAPI(title="墨参 MoShen", version="0.9.0", description="小说写作助手")
+app = FastAPI(title="墨参 MoShen", version="0.10.0", description="小说写作助手")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -49,6 +50,7 @@ app.include_router(session_router)
 app.include_router(flow_router)
 app.include_router(plot_points_router)
 app.include_router(tasks_router)
+app.include_router(character_router)
 
 
 # ===== 项目会话租约校验 =====
@@ -224,7 +226,7 @@ async def test_config(req: ConfigTestRequest):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.9.0"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": "0.10.0"}
 
 
 # ===== 前端静态文件 =====

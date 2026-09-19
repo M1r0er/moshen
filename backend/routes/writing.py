@@ -1,7 +1,8 @@
 """
 墨参 · 写作页路由
-卷/章管理、正文保存、伏笔检测入口、AI 编辑审稿
+卷/章管理、正文保存、AI 编辑审稿、保存后自动扫描（伏笔 + 条目观察）
 """
+import hashlib
 import json
 import re
 
@@ -442,4 +443,246 @@ async def review_writing(project_id: str, req: ReviewRequest):
         "saved_path": report_path,
         "knowledge_id": knowledge_id,
         "knowledge_title": knowledge_title if knowledge_id else "",
+    }
+
+
+# ===== 保存后自动扫描：伏笔 + 条目观察（合并为一次调用）=====
+
+class LiveScanRequest(BaseModel):
+    vol_id: str
+    ch_id: str
+
+
+def _mention_block(index: list[dict], limit: int = 60) -> str:
+    """标蓝词表：已知角色 + 别名 + 已分阶段，供模型把正文里的人对上号"""
+    lines = []
+    for item in index[:limit]:
+        aliases = "、".join(item.get("aliases") or []) or "（无）"
+        stages = "、".join(s.get("title", "") for s in (item.get("stages") or []))
+        lines.append(f"- {item.get('name', '')}（别名：{aliases}）｜已有阶段：{stages or '（尚未分阶段）'}")
+    return "\n".join(lines) if lines else "（角色页还没有条目）"
+
+
+def _live_scan_messages(chapter_label: str, text: str, want_fs: bool, want_entries: bool,
+                        fs_names: list[str], char_index: list[dict]) -> list[dict]:
+    fs_block = "、".join(fs_names[:80]) if fs_names else "（暂无）"
+    if not want_fs:
+        fs_task = "A. 伏笔：**本次不检查**，foreshadowings 一律返回空数组 []。"
+        fs_schema = '"foreshadowings": [],'
+    else:
+        fs_task = (
+            "A. 伏笔：找出本章**新埋**的伏笔（is_new=true, is_resolution=false），"
+            "以及本章对**已有伏笔**的回收/呼应（is_new=false, is_resolution=true）。"
+        )
+        fs_schema = ('"foreshadowings":[{"name":"短名","content":"引用原文关键句或概括",'
+                     '"chapter":"章节标题","is_new":true,"is_resolution":false}],')
+
+    if not want_entries:
+        entries_task = "B. 条目观察：**本次不检查**，mentions 一律返回空数组 []。"
+        entries_schema = '"mentions": []'
+    else:
+        entries_task = (
+            "B. 条目观察：找出本章提到的**已知角色**，记录其状态变化、疑似新别名、疑似所属阶段；"
+            "若出现明显是主要人物但不属于已知角色的，单独标 is_new_character=true（不要硬塞给已有角色）。"
+        )
+        entries_schema = (
+            '"mentions":[{"character":"已知角色名","alias":"本章出现的具体称呼",'
+            '"snippet":"引用原文关键句（≤120字）",'
+            '"suggest_stage":"疑似所属阶段名，没有就留空",'
+            '"is_new_alias":false,"is_new_character":false}]'
+        )
+
+    system = (
+        "你是网文编辑助理，负责在作者保存章节后快速做两件事：核对本章的伏笔，"
+        "以及记录本章对已知角色的提及与状态变化。\n"
+        "你只输出一个合法 JSON 对象，不输出任何解释、前后缀或 Markdown 围栏。\n"
+        "宁可少报也不要编造：没有把握的条目直接不输出。"
+    )
+    user = (
+        f"本章：{chapter_label}\n\n"
+        f"## 已知角色（标蓝词表）\n{_mention_block(char_index)}\n\n"
+        f"## 已知伏笔\n{fs_block}\n\n"
+        "## 本章正文\n---\n"
+        f"{text}\n---\n\n"
+        "## 任务\n"
+        f"{fs_task}\n"
+        f"{entries_task}\n\n"
+        "输出结构（两个键都必须出现）：\n"
+        "{" + fs_schema + entries_schema + "}"
+    )
+    return [
+        {"role": "system", "content": system},
+        {"role": "user", "content": user},
+    ]
+
+
+def _extract_json_obj(raw: str) -> dict:
+    text = (raw or "").strip()
+    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.S)
+    if fence:
+        text = fence.group(1)
+    else:
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            text = text[start:end + 1]
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, ValueError):
+        return {}
+
+
+def _apply_foreshadowings(kb, project_id: str, items: list, chapter_label: str) -> dict:
+    """把扫描出的伏笔写进伏笔库（新建 / 回收），按名字去重避免重复消耗"""
+    existing = {f.get("name"): f for f in kb.list_foreshadowings(project_id)}
+    created, resolved = 0, 0
+
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        name = str(it.get("name", "") or "").strip()
+        content = str(it.get("content", "") or "").strip()
+        if not name:
+            continue
+        chapter = str(it.get("chapter", "") or "").strip() or chapter_label
+
+        if it.get("is_resolution"):
+            target = existing.get(name)
+            if target is None:
+                continue
+            kb.add_entry(project_id, target["id"], content or "（回收）", chapter_id="", chapter_title=chapter)
+            if target.get("status") != "resolved":
+                kb.update_foreshadowing(project_id, target["id"], None, "resolved", chapter)
+                resolved += 1
+            continue
+
+        if name in existing:
+            continue
+        fs = kb.create_foreshadowing(project_id, name, content, "", chapter)
+        if fs:
+            existing[name] = fs
+            created += 1
+
+    return {"created": created, "resolved": resolved}
+
+
+@router.post("/{project_id}/live-scan")
+async def live_scan(project_id: str, req: LiveScanRequest):
+    """保存章节后的自动扫描（后台静默调用，失败不影响保存）
+
+    一次调用同时产出「伏笔」与「条目观察」，两类结果分开落盘：
+    - 伏笔 → 直接写入伏笔库（新埋新增、回收标记）
+    - 条目观察 → 追加到角色页的「AI 观察」收件箱，等作者采纳，绝不改动正式阶段与设定页
+
+    同一章节内容未变化时直接跳过，避免重复消耗 token。
+    """
+    from core.llm_provider import get_llm_provider
+    from knowledge.character_kb import get_character_kb
+    from routes.workspace import writing_prefs
+
+    kb = _kb()
+    if not kb.get_project(project_id):
+        raise HTTPException(404, "项目不存在")
+
+    prefs = writing_prefs()
+    want_fs = bool(prefs.get("auto_foreshadowing_detect"))
+    want_entries = bool(prefs.get("live_entries_enabled"))
+    if not want_fs and not want_entries:
+        return {"scanned": False, "skipped": "disabled"}
+
+    raw_content = kb.get_chapter_content(project_id, req.vol_id, req.ch_id)
+    if raw_content is None:
+        raise HTTPException(404, "章节不存在")
+    plain = _strip_html(raw_content).strip()
+    if not plain:
+        return {"scanned": False, "skipped": "empty"}
+
+    char_kb = get_character_kb()
+    scan_key = f"{req.vol_id}/{req.ch_id}"
+    digest = hashlib.md5(plain.encode("utf-8")).hexdigest()
+    state = char_kb.get_scan(project_id, scan_key)
+    if state.get("hash") == digest:
+        return {"scanned": False, "skipped": "unchanged"}
+
+    # 章节标题
+    index = kb.get_writing_index(project_id)
+    vol = next((v for v in (index.get("volumes") or []) if v.get("id") == req.vol_id), None)
+    ch = next((c for c in (vol or {}).get("chapters", []) if c.get("id") == req.ch_id), None)
+    chapter_label = f"第{(ch or {}).get('number', '')}章 {(ch or {}).get('title', '')}".strip()
+
+    char_index = char_kb.mention_index(project_id) if want_entries else []
+    fs_names = [f.get("name", "") for f in kb.list_foreshadowings(project_id)] if want_fs else []
+
+    messages = _live_scan_messages(
+        chapter_label, _clip(plain, 12000), want_fs, want_entries, fs_names, char_index
+    )
+    try:
+        raw = await get_llm_provider().generate(messages, role="STRUCTURE_ANALYST", max_tokens=2048)
+    except Exception as e:
+        raise HTTPException(500, f"扫描失败: {type(e).__name__}: {str(e)[:160]}")
+
+    data = _extract_json_obj(raw)
+
+    fs_result = {"created": 0, "resolved": 0}
+    if want_fs:
+        fs_result = _apply_foreshadowings(kb, project_id, data.get("foreshadowings") or [], chapter_label)
+
+    obs_added = 0
+    new_characters: list[str] = []
+    if want_entries:
+        by_term: dict[str, dict] = {}
+        for item in char_index:
+            for term in item.get("terms") or []:
+                by_term.setdefault(term, item)
+
+        grouped: dict[str, list[dict]] = {}
+        for m in (data.get("mentions") or []):
+            if not isinstance(m, dict):
+                continue
+            snippet = str(m.get("snippet", "") or "").strip()
+            if not snippet:
+                continue
+            name = str(m.get("character", "") or "").strip()
+            alias = str(m.get("alias", "") or "").strip()
+            hit = by_term.get(name) or by_term.get(alias)
+
+            if hit is None:
+                if m.get("is_new_character") and name and name not in new_characters:
+                    new_characters.append(name)
+                continue
+
+            # 观察只认已知角色；疑似新角色不自动建档（角色页条目必须由作者添加）
+            suggest = str(m.get("suggest_stage", "") or "").strip()
+            matched_stage = ""
+            matched_stage_id = ""
+            if suggest:
+                for s in (hit.get("stages") or []):
+                    if s.get("title") == suggest:
+                        matched_stage = s.get("title", "")
+                        matched_stage_id = s.get("id", "")
+                        break
+
+            grouped.setdefault(hit["cid"], []).append({
+                "chapter": chapter_label,
+                "vol_id": req.vol_id,
+                "ch_id": req.ch_id,
+                "snippet": snippet,
+                "hit_alias": alias or name,
+                "matched_stage": matched_stage,
+                "matched_stage_id": matched_stage_id,
+                "suggest_stage": suggest,
+                "is_new_alias": bool(m.get("is_new_alias")),
+            })
+
+        for cid, items in grouped.items():
+            obs_added += char_kb.add_observations(project_id, cid, items)
+
+    char_kb.set_scan(project_id, scan_key, digest)
+
+    return {
+        "scanned": True,
+        "chapter": chapter_label,
+        "foreshadowings": fs_result,
+        "observations": obs_added,
+        "new_characters": new_characters[:10],
     }
