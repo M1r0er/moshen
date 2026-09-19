@@ -37,6 +37,38 @@
 
 上表第二列的行为分别落在哪些功能上，见「功能总览」；具体怎么操作，见「各功能使用教程」。
 
+## 界面预览
+
+以下截图均来自产品原型（内置示例项目《长夜行》的静态样例数据，非真实项目）。
+
+| 对话 | 写作 |
+| --- | --- |
+| [![对话](assets/screenshots/chat.png)](assets/screenshots/chat.png) | [![写作](assets/screenshots/writing.png)](assets/screenshots/writing.png) |
+
+| 角色 · 阶段图 | 角色 · AI 观察 |
+| --- | --- |
+| [![角色阶段图](assets/screenshots/characters-stage.png)](assets/screenshots/characters-stage.png) | [![角色 AI 观察](assets/screenshots/characters-observations.png)](assets/screenshots/characters-observations.png) |
+
+| 伏笔 | 星图 · 关系图 |
+| --- | --- |
+| [![伏笔](assets/screenshots/foreshadowing.png)](assets/screenshots/foreshadowing.png) | [![星图关系图](assets/screenshots/relations-graph.png)](assets/screenshots/relations-graph.png) |
+
+| 星图 · 档案库 | 设定 |
+| --- | --- |
+| [![星图档案库](assets/screenshots/relations-archive.png)](assets/screenshots/relations-archive.png) | [![设定](assets/screenshots/settings.png)](assets/screenshots/settings.png) |
+
+| 大纲 | 爽爆点 |
+| --- | --- |
+| [![大纲](assets/screenshots/outline.png)](assets/screenshots/outline.png) | [![爽爆点](assets/screenshots/plot-points.png)](assets/screenshots/plot-points.png) |
+
+| 知识库 | 文件 |
+| --- | --- |
+| [![知识库](assets/screenshots/knowledge.png)](assets/screenshots/knowledge.png) | [![文件](assets/screenshots/files.png)](assets/screenshots/files.png) |
+
+| 灵感 | |
+| --- | --- |
+| [![灵感](assets/screenshots/inspiration.png)](assets/screenshots/inspiration.png) | |
+
 ## 项目背景
 
 让模型直接写完一章并不困难，代价却出现在后面。模型在海量平均语料上训练，输出会趋向"最平均"的表达，人物与桥段容易趋向套路；长篇小说依赖几十万字前后一致的设定与伏笔，纯生成很难长期维持；当写作被交出去之后，作者对作品的判断力与个人风格也一并交了出去。
