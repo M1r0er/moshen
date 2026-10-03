@@ -313,6 +313,27 @@ body {
   width: 40px; min-width: 40px; padding: 0; overflow: hidden;
 }
 
+/* ===== 写作页右侧「墨望 AI」面板（40px 窄轨 ↔ 360px 展开）===== */
+.writing-ai-rail {
+  width: 360px; min-width: 360px; border-left: 1px solid var(--color-border);
+  background: var(--color-surface); display: flex; flex-direction: column; overflow: hidden;
+}
+.writing-ai-rail.collapsed { width: 40px; min-width: 40px; padding: 0; overflow: hidden; }
+.writing-ai-rail-btn { height: 44px; font-size: 17px; }
+.writing-ai-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid var(--color-border);
+  font-size: 13.5px; font-weight: 700; flex-shrink: 0;
+}
+.writing-ai-header-actions { display: flex; align-items: center; gap: 4px; }
+.writing-ai-messages { padding: 14px 12px; }
+.writing-ai-messages .message { max-width: 100%; }
+.writing-ai-messages .message-avatar { width: 28px; height: 28px; font-size: 12px; }
+.writing-ai-input-area { padding: 10px 12px 12px; }
+.writing-ai-input-area .chat-input-row { max-width: none; gap: 8px; }
+.writing-ai-input-area .chat-mentions { max-width: none; }
+.writing-ai-input-area .chat-input { font-size: 13px; }
+
 /* ===== Main Area ===== */
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .tab-bar {
@@ -507,6 +528,73 @@ body {
 .send-btn:hover:not(:disabled) { background: var(--color-primary-hover); box-shadow: var(--shadow-btn-hover); }
 .send-btn:active:not(:disabled) { background: var(--color-primary-active); transform: scale(0.98); }
 .send-btn:disabled { background: var(--color-text-disabled); cursor: not-allowed; }
+
+/* ===== @ 引用（chip + 选择浮层）===== */
+.chat-mentions {
+  max-width: 920px; margin: 0 auto 10px; display: flex; flex-wrap: wrap; gap: 8px;
+}
+.mention-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+  background: var(--color-primary-light); border: 1px dashed var(--color-primary);
+  border-radius: var(--radius-md); font-size: 12px; color: var(--color-text-primary); max-width: 320px;
+}
+.mention-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-chip-count { color: var(--color-text-weak); flex-shrink: 0; font-size: 11px; }
+.mention-remove {
+  background: none; border: none; cursor: pointer; color: var(--color-text-weak);
+  font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color 0.15s;
+}
+.mention-remove:hover { color: var(--color-error); }
+.chat-mention-btn {
+  flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--color-border-strong);
+  background: var(--color-surface); color: var(--color-text-secondary); border-radius: var(--radius-md);
+  cursor: pointer; font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+}
+.chat-mention-btn:hover:not(:disabled),
+.chat-mention-btn.active { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
+.chat-mention-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-mention-popover {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 8px);
+  background: var(--color-surface); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-card); z-index: 40;
+  display: flex; flex-direction: column; max-height: 400px; overflow: hidden;
+}
+.mention-tabs { display: flex; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--color-border); flex-wrap: wrap; }
+.mention-tab {
+  padding: 4px 10px; border-radius: var(--radius-md); border: 1px solid transparent;
+  background: transparent; color: var(--color-text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.mention-tab:hover { background: var(--color-hover-bg); }
+.mention-tab.active { background: var(--color-primary-light); color: var(--color-primary); border-color: var(--color-primary); }
+.mention-list { flex: 1; overflow-y: auto; padding: 6px; min-height: 90px; }
+.mention-item {
+  display: flex; align-items: flex-start; gap: 8px; padding: 7px 8px;
+  border-radius: var(--radius-md); cursor: pointer; transition: background 0.15s;
+}
+.mention-item:hover { background: var(--color-hover-bg); }
+.mention-item.checked { background: var(--color-primary-light); }
+.mention-item-cb { flex-shrink: 0; margin-top: 2px; }
+.mention-item-main { flex: 1; min-width: 0; }
+.mention-item-title { font-size: 13px; color: var(--color-text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mention-item-sub { font-size: 11px; color: var(--color-text-weak); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+.mention-empty { padding: 22px; text-align: center; color: var(--color-text-weak); font-size: 12px; }
+.mention-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 10px; border-top: 1px solid var(--color-border);
+}
+.mention-footer-info { font-size: 12px; color: var(--color-text-weak); }
+.mention-footer-btns { display: flex; gap: 8px; }
+.mention-foot-btn {
+  padding: 5px 14px; border-radius: var(--radius-md); border: 1px solid var(--color-border-strong);
+  background: var(--color-surface); color: var(--color-text-secondary); font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.mention-foot-btn:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.mention-foot-btn.primary { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-text-inverse); }
+.mention-foot-btn.primary:hover:not(:disabled) { background: var(--color-primary-hover); border-color: var(--color-primary-hover); color: var(--color-text-inverse); }
+.mention-foot-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.msg-attachment-item.mention-tag { border-style: dashed; }
+.btn-mention-insert { margin-left: auto; white-space: nowrap; }
 
 /* ===== Settings Writer Page ===== */
 .settings-container { display: flex; height: 100%; }
@@ -1949,7 +2037,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.10.2</div>
+        <div class="sidebar-version">v0.10.3</div>
       </div>
       </template>
     </aside>
@@ -2019,6 +2107,13 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                       <span class="msg-att-icon">📎</span>
                       <span class="msg-att-name">{{ att.name }}</span>
                       <span class="msg-att-size" v-if="att.size">{{ formatFileSize(att.size) }}</span>
+                    </div>
+                  </div>
+                  <!-- @ 引用条目（仅元数据，不展示全文） -->
+                  <div class="msg-attachments" v-if="msg.mentions && msg.mentions.length > 0">
+                    <div class="msg-attachment-item mention-tag" v-for="(m, mi) in msg.mentions" :key="'mm' + mi">
+                      <span class="msg-att-icon">@</span>
+                      <span class="msg-att-name">{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
                     </div>
                   </div>
                   <div class="message-bubble" v-if="msg.content || !msg.attachments || msg.attachments.length === 0" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
@@ -2117,16 +2212,56 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <button class="attachment-remove" @click="removeAttachment(idx)" title="移除">&times;</button>
                   </div>
                 </div>
+                <!-- @ 引用 chip 区 -->
+                <div class="chat-mentions" v-if="chatMentions.length > 0">
+                  <div class="mention-chip" v-for="(m, mi) in chatMentions" :key="'cm' + mi" :title="m.title">
+                    <span class="mention-chip-label">@{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
+                    <span class="mention-chip-count" v-if="m.content">{{ m.content.length }}字</span>
+                    <button class="mention-remove" @click="removeMention(mi)" title="移除">&times;</button>
+                  </div>
+                </div>
                 <div class="chat-input-row">
                   <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
+                  <button class="chat-mention-btn" :class="{ active: mentionPopoverOpen }" @click="openMentionPopover"
+                    title="引用角色 / 设定 / 章节 / 灵感 / 伏笔" :disabled="isThinking">@</button>
                   <input type="file" ref="chatFileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload" multiple>
                   <textarea class="chat-input" v-model="inputText"
-                    :placeholder="chatAttachments.length > 0 ? '附件已添加，输入你的问题...' : '输入你的创作需求...（可拖拽文件到此处）'"
+                    :placeholder="chatPlaceholder"
                     @keydown.enter.exact.prevent="sendMessage"
                     rows="1" ref="chatInput"></textarea>
-                  <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0) || isThinking">
+                  <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0 && chatMentions.length === 0) || isThinking">
                     {{ isThinking ? '思考中' : '发送' }}
                   </button>
+                </div>
+                <!-- @ 引用选择浮层（SYNC: 与写作页右侧面板同步维护） -->
+                <div class="chat-mention-popover" v-if="mentionPopoverOpen" @click.stop>
+                  <div class="mention-tabs">
+                    <button v-for="t in mentionTypes" :key="t.key" class="mention-tab"
+                      :class="{ active: mentionActiveTab === t.key }" @click="switchMentionTab(t.key)">{{ t.label }}</button>
+                  </div>
+                  <div class="mention-list">
+                    <div v-if="mentionLoading" class="mention-empty">加载中…</div>
+                    <div v-else-if="mentionList.length === 0" class="mention-empty">暂无可引用条目</div>
+                    <template v-else>
+                      <div v-for="item in mentionList" :key="item.key" class="mention-item"
+                        :class="{ checked: !!mentionSelected[item.key] }" @click="toggleMentionSelect(item)">
+                        <input type="checkbox" class="mention-item-cb" :checked="!!mentionSelected[item.key]"
+                          @click.stop="toggleMentionSelect(item)" tabindex="-1">
+                        <div class="mention-item-main">
+                          <div class="mention-item-title" :title="item.title">{{ item.title }}</div>
+                          <div class="mention-item-sub" v-if="item.subtitle">{{ item.subtitle }}</div>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="mention-footer">
+                    <span class="mention-footer-info">已选 {{ mentionSelectedCount }} 条</span>
+                    <div class="mention-footer-btns">
+                      <button class="mention-foot-btn" @click="closeMentionPopover">取消</button>
+                      <button class="mention-foot-btn primary" @click="insertMentions"
+                        :disabled="mentionSelectedCount === 0 || mentionLoading">插入</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="drag-hint" v-if="isDragOver">松开鼠标以上传文件</div>
               </div>
@@ -2720,6 +2855,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <div class="inspiration-content-header">
                 <span style="font-size:16px;font-weight:600">{{ currentInspirationFile }}</span>
                 <span v-if="inspirationFileLoading" class="loading-spinner"></span>
+                <button class="btn btn-secondary btn-mention-insert" @click="insertInspirationToAi"
+                  :disabled="!inspirationContent || inspirationFileLoading"
+                  title="把这条灵感带入 AI，分析如何引入剧情">✨ 合理插入</button>
               </div>
               <div class="inspiration-content" v-if="inspirationContent" v-html="renderMarkdown(inspirationContent)"></div>
               <div v-else-if="!inspirationFileLoading" style="color:var(--text-muted);font-size:13px">
@@ -3025,6 +3163,160 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div class="empty-state-text">选择或创建章节开始写作</div>
                   <div class="empty-state-hint">左侧目录中点击「+ 卷」→「+」新建章节</div>
                 </div>
+              </div>
+
+              <!-- 右侧：墨望 AI 面板（SYNC: 与 chat 页共用对话状态，消息渲染需与 chat 页同步维护） -->
+              <div class="writing-ai-rail" :class="{ collapsed: writingAiCollapsed }">
+                <template v-if="writingAiCollapsed">
+                  <button class="collapsed-rail-btn writing-ai-rail-btn" @click="toggleWritingAi" title="展开墨望 AI">🤖</button>
+                </template>
+                <template v-else>
+                  <div class="writing-ai-header">
+                    <span>🤖 墨望 AI</span>
+                    <span class="writing-ai-header-actions">
+                      <button class="btn-icon-sm" @click="createConversation" title="新建对话">＋</button>
+                      <button class="sub-sidebar-toggle" @click="toggleWritingAi" title="收起面板">»</button>
+                    </span>
+                  </div>
+                  <div class="messages-area writing-ai-messages" ref="writingAiMessagesArea" style="position:relative">
+                    <div v-if="messages.length === 0" class="empty-state">
+                      <div class="empty-state-icon">✦</div>
+                      <div class="empty-state-text">写作时可随时问墨参</div>
+                      <div class="empty-state-hint">点下方 @ 引用灵感 / 设定 / 角色等条目</div>
+                    </div>
+                    <div v-for="(msg, index) in messages" :key="index" class="message"
+                      :class="[msg.role, { 'user-msg-anchor': msg.role === 'user' }]"
+                      :id="'wai-msg-' + index">
+                      <div class="message-avatar">{{ msg.role === 'user' ? '我' : '墨' }}</div>
+                      <div class="message-body">
+                        <div class="message-name">{{ msg.role === 'user' ? '我' : '墨参' }}</div>
+                        <div class="msg-attachments" v-if="msg.attachments && msg.attachments.length > 0">
+                          <div class="msg-attachment-item" v-for="(att, ai) in msg.attachments" :key="ai">
+                            <span class="msg-att-icon">📎</span>
+                            <span class="msg-att-name">{{ att.name }}</span>
+                            <span class="msg-att-size" v-if="att.size">{{ formatFileSize(att.size) }}</span>
+                          </div>
+                        </div>
+                        <div class="msg-attachments" v-if="msg.mentions && msg.mentions.length > 0">
+                          <div class="msg-attachment-item mention-tag" v-for="(m, mi) in msg.mentions" :key="'wmm' + mi">
+                            <span class="msg-att-icon">@</span>
+                            <span class="msg-att-name">{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
+                          </div>
+                        </div>
+                        <div class="message-bubble" v-if="msg.content || msg.streaming" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
+                        <div class="proposal-list" v-if="msg.proposals && msg.proposals.length">
+                          <div v-for="pr in msg.proposals" :key="pr.id" class="proposal-card" :class="{ done: pr.status }">
+                            <div class="proposal-head">
+                              <span class="proposal-target">{{ proposalTargetLabel(pr.target) }}</span>
+                              <span class="proposal-title">{{ pr.title || '（未命名）' }}</span>
+                              <span v-if="pr.segment" class="proposal-segment">{{ pr.segment }}</span>
+                              <span v-if="pr.trope" class="proposal-trope">套路：{{ pr.trope }}</span>
+                            </div>
+                            <div class="proposal-question" v-if="pr.question">{{ pr.question }}</div>
+                            <div class="proposal-content" v-if="pr.content">{{ pr.content }}</div>
+                            <div class="proposal-actions" v-if="!pr.status">
+                              <button class="btn btn-primary flow-mini" @click="applyProposal(pr)" :disabled="proposalBusy">加入</button>
+                              <button class="btn btn-secondary flow-mini" @click="pr.status = 'ignored'" :disabled="proposalBusy">忽略</button>
+                            </div>
+                            <div class="proposal-status" v-else>{{ pr.status === 'applied' ? '已加入' : '已忽略' }}</div>
+                          </div>
+                        </div>
+                        <div class="choice-list" v-if="msg.choices && msg.choices.length">
+                          <div v-for="ch in msg.choices" :key="ch.id" class="choice-card" :class="{ done: ch.pickedId }">
+                            <div class="choice-question" v-if="ch.question">{{ ch.question }}</div>
+                            <div class="choice-options">
+                              <button v-for="opt in ch.options" :key="opt.id" class="choice-btn"
+                                :class="{ picked: ch.pickedId === opt.id }"
+                                :disabled="!!ch.pickedId || isThinking"
+                                @click="pickChoice(ch, opt)">{{ opt.label }}</button>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
+                          <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库">📥 存入知识库</button>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="isThinking" class="message assistant">
+                      <div class="message-avatar">墨</div>
+                      <div class="message-body">
+                        <div class="message-name">墨参</div>
+                        <div class="message-bubble">
+                          <span class="thinking-dots"><span>●</span><span>●</span><span>●</span></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="interventionNotice" class="intervention-banner"
+                      :class="'lv-' + ((interventionNotice.level || 'L1') + '').toLowerCase()">
+                      <div class="intervention-head">
+                        <span class="intervention-level">⚠ {{ interventionNotice.level || 'L1' }} 主动干预</span>
+                        <button class="intervention-close" @click="interventionNotice = null" title="关闭">&times;</button>
+                      </div>
+                      <div class="intervention-body" v-html="renderMarkdown(interventionNotice.content || '')"></div>
+                    </div>
+                    <div class="chat-scroll-buttons" v-if="messages.length > 0">
+                      <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部">↑</button>
+                      <button class="chat-scroll-btn" @click="scrollToBottom" title="到底部">↓</button>
+                    </div>
+                  </div>
+                  <div class="chat-input-area writing-ai-input-area">
+                    <div class="chat-input-wrapper"
+                      @dragover.prevent="isDragOver = true"
+                      @dragleave.prevent="isDragOver = false"
+                      @drop.prevent="handleDrop"
+                      :class="{ 'drag-over': isDragOver }">
+                      <div class="chat-mentions" v-if="chatMentions.length > 0">
+                        <div class="mention-chip" v-for="(m, mi) in chatMentions" :key="'wcm' + mi" :title="m.title">
+                          <span class="mention-chip-label">@{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
+                          <span class="mention-chip-count" v-if="m.content">{{ m.content.length }}字</span>
+                          <button class="mention-remove" @click="removeMention(mi)" title="移除">&times;</button>
+                        </div>
+                      </div>
+                      <div class="chat-input-row">
+                        <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
+                        <button class="chat-mention-btn" :class="{ active: mentionPopoverOpen }" @click="openMentionPopover"
+                          title="引用角色 / 设定 / 章节 / 灵感 / 伏笔" :disabled="isThinking">@</button>
+                        <textarea class="chat-input" v-model="inputText"
+                          :placeholder="chatPlaceholder"
+                          @keydown.enter.exact.prevent="sendMessage"
+                          rows="1" ref="writingAiInput"></textarea>
+                        <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0 && chatMentions.length === 0) || isThinking">
+                          {{ isThinking ? '思考中' : '发送' }}
+                        </button>
+                      </div>
+                      <div class="chat-mention-popover" v-if="mentionPopoverOpen" @click.stop>
+                        <div class="mention-tabs">
+                          <button v-for="t in mentionTypes" :key="t.key" class="mention-tab"
+                            :class="{ active: mentionActiveTab === t.key }" @click="switchMentionTab(t.key)">{{ t.label }}</button>
+                        </div>
+                        <div class="mention-list">
+                          <div v-if="mentionLoading" class="mention-empty">加载中…</div>
+                          <div v-else-if="mentionList.length === 0" class="mention-empty">暂无可引用条目</div>
+                          <template v-else>
+                            <div v-for="item in mentionList" :key="item.key" class="mention-item"
+                              :class="{ checked: !!mentionSelected[item.key] }" @click="toggleMentionSelect(item)">
+                              <input type="checkbox" class="mention-item-cb" :checked="!!mentionSelected[item.key]"
+                                @click.stop="toggleMentionSelect(item)" tabindex="-1">
+                              <div class="mention-item-main">
+                                <div class="mention-item-title" :title="item.title">{{ item.title }}</div>
+                                <div class="mention-item-sub" v-if="item.subtitle">{{ item.subtitle }}</div>
+                              </div>
+                            </div>
+                          </template>
+                        </div>
+                        <div class="mention-footer">
+                          <span class="mention-footer-info">已选 {{ mentionSelectedCount }} 条</span>
+                          <div class="mention-footer-btns">
+                            <button class="mention-foot-btn" @click="closeMentionPopover">取消</button>
+                            <button class="mention-foot-btn primary" @click="insertMentions"
+                              :disabled="mentionSelectedCount === 0 || mentionLoading">插入</button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="drag-hint" v-if="isDragOver">松开鼠标以上传文件</div>
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
           </template>
@@ -4708,6 +5000,52 @@ createApp({
     const chatFileInput = ref(null);
     const chatAttachments = ref([]);
     const isDragOver = ref(false);
+    const chatInput = ref(null);              // chat 页输入框（模板 ref）
+    const writingAiMessagesArea = ref(null);  // 写作页右侧面板消息区
+    const writingAiInput = ref(null);         // 写作页右侧面板输入框
+
+    // ===== @ 引用（把灵感库 / 设定库等条目带入对话）=====
+    const chatMentions = ref([]);             // [{type, id, title, content}]
+    const mentionPopoverOpen = ref(false);
+    const mentionActiveTab = ref('character');
+    const mentionList = ref([]);              // 当前 tab 候选条目
+    const mentionSelected = ref({});          // {键: item}，跨 tab 累积，切换 tab 不清空
+    const mentionLoading = ref(false);
+    const mentionTypes = [
+      { key: 'character', label: '角色' },
+      { key: 'setting', label: '设定' },
+      { key: 'chapter', label: '章节' },
+      { key: 'inspiration', label: '灵感' },
+      { key: 'foreshadowing', label: '伏笔' },
+    ];
+    const MENTION_TYPE_LABELS = {
+      character: '角色', setting: '设定', chapter: '章节',
+      inspiration: '灵感', foreshadowing: '伏笔', project: '梗概',
+    };
+    function mentionTypeLabel(type) { return MENTION_TYPE_LABELS[type] || type; }
+    const mentionSelectedCount = computed(() => Object.keys(mentionSelected.value).length);
+    const chatPlaceholder = computed(() => {
+      if (chatMentions.value.length > 0) return '已引用条目，输入你的问题...';
+      if (chatAttachments.value.length > 0) return '附件已添加，输入你的问题...';
+      return '输入你的创作需求...（可拖拽文件到此处）';
+    });
+
+    // 写作页右侧 AI 面板折叠态（默认收起，本地记忆）
+    const writingAiCollapsed = ref(readUiFlagOn('moshen.ui.writingAi', true));
+    function toggleWritingAi() {
+      writingAiCollapsed.value = !writingAiCollapsed.value;
+      writeUiFlag('moshen.ui.writingAi', writingAiCollapsed.value);
+      if (!writingAiCollapsed.value) {
+        // 小屏联动：展开面板时若视口过窄，自动收起左侧章节目录（保护编辑区宽度）
+        if (typeof window !== 'undefined' && window.innerWidth < 1650 && !subSidebarCollapsed.value) {
+          subSidebarCollapsed.value = true;
+          writeUiFlag('moshen.ui.subSidebar', true);
+        }
+        nextTick(() => scrollMessages());
+      }
+    }
+    // 切换一级页时关闭引用浮层（避免浮层跟随到另一个对话入口）
+    watch(activeTab, () => { mentionPopoverOpen.value = false; });
 
     const currentConvInfo = computed(() => {
       if (!currentConversationId.value) return null;
@@ -5651,7 +5989,8 @@ createApp({
     async function sendMessage() {
       const hasText = inputText.value.trim();
       const hasAttachments = chatAttachments.value.length > 0;
-      if ((!hasText && !hasAttachments) || isThinking.value) return;
+      const hasMentions = chatMentions.value.length > 0;
+      if ((!hasText && !hasAttachments && !hasMentions) || isThinking.value) return;
 
       // 如果没有当前对话，自动创建一个
       if (!currentConversationId.value) {
@@ -5666,8 +6005,16 @@ createApp({
         } catch (e) { console.error('auto create conversation:', e); }
       }
 
-      // 组装消息：附件内容 + 用户输入
+      // 组装消息：@ 引用条目 + 附件内容 + 用户输入
       let userMsg = inputText.value.trim();
+      if (hasMentions) {
+        let mentionText = '';
+        for (const m of chatMentions.value) {
+          mentionText += '--- 引用: [' + mentionTypeLabel(m.type) + '] ' + m.title + ' ---\n'
+            + (m.content || '') + '\n--- 引用结束 ---\n\n';
+        }
+        userMsg = mentionText + userMsg;
+      }
       if (hasAttachments) {
         let attachmentText = '';
         for (const att of chatAttachments.value) {
@@ -5676,7 +6023,10 @@ createApp({
         userMsg = attachmentText + userMsg;
       }
 
-      // 记录附件信息用于消息展示
+      // 记录引用 / 附件信息用于消息展示（仅元数据，不把全文写进 messages，避免 history 重复膨胀）
+      const sentMentions = hasMentions
+        ? chatMentions.value.map(m => ({ type: m.type, title: m.title }))
+        : [];
       const sentAttachments = hasAttachments
         ? chatAttachments.value.map(a => ({ name: a.name, size: a.size }))
         : [];
@@ -5685,9 +6035,13 @@ createApp({
         role: 'user',
         content: hasText ? inputText.value.trim() : '',
         attachments: sentAttachments,
+        mentions: sentMentions,
       });
       inputText.value = '';
       chatAttachments.value = [];
+      chatMentions.value = [];
+      mentionPopoverOpen.value = false;
+      mentionSelected.value = {};
       isThinking.value = true;
       lastIntentInfo.value = null;
       interventionNotice.value = null;
@@ -5864,15 +6218,212 @@ createApp({
         showToast('发送失败: ' + e.message, 'error');
       }
     }
+    // 当前可见的对话滚动容器（chat 页 / 写作页右侧面板共用一套对话状态）
+    function getActiveChatScrollTarget() {
+      if (activeTab.value === 'writing' && !writingAiCollapsed.value) return writingAiMessagesArea.value;
+      return messagesArea.value;
+    }
+    function focusActiveChatInput() {
+      const el = (activeTab.value === 'writing' && !writingAiCollapsed.value) ? writingAiInput.value : chatInput.value;
+      if (el) el.focus();
+    }
     function scrollMessages() {
-      if (messagesArea.value) messagesArea.value.scrollTop = messagesArea.value.scrollHeight;
+      const el = getActiveChatScrollTarget();
+      if (el) el.scrollTop = el.scrollHeight;
     }
     function scrollToTop() {
-      if (messagesArea.value) messagesArea.value.scrollTop = 0;
+      const el = getActiveChatScrollTarget();
+      if (el) el.scrollTop = 0;
     }
     function scrollToBottom() {
       scrollMessages();
     }
+
+    // ===== @ 引用：候选列表加载 / 选择 / 插入 =====
+    function closeMentionPopover() {
+      mentionPopoverOpen.value = false;
+      mentionSelected.value = {};
+      mentionList.value = [];
+    }
+    async function openMentionPopover() {
+      mentionPopoverOpen.value = !mentionPopoverOpen.value;
+      if (mentionPopoverOpen.value) {
+        if (!currentProjectId.value) { showToast('请先选择项目', 'warn'); mentionPopoverOpen.value = false; return; }
+        await loadMentionList(mentionActiveTab.value);
+      }
+    }
+    async function switchMentionTab(key) {
+      mentionActiveTab.value = key;
+      await loadMentionList(key);
+    }
+    async function loadMentionList(key) {
+      mentionLoading.value = true;
+      mentionList.value = [];
+      try {
+        if (key === 'character') {
+          if (!characterList.value.length) await loadCharacters();
+          mentionList.value = characterList.value.map(c => ({
+            key: 'character:' + c.id, type: 'character', id: c.id,
+            title: c.name || '（未命名）',
+            subtitle: (c.aliases && c.aliases.length) ? ('别名：' + c.aliases.join('、')) : (c.profile ? String(c.profile).slice(0, 40) : ''),
+            raw: c,
+          }));
+        } else if (key === 'setting') {
+          if (!settingsTree.value.length) await loadSettings();
+          const items = [];
+          const walk = (nodes) => {
+            for (const n of nodes) {
+              items.push({ key: 'setting:' + n.id, type: 'setting', id: n.id, title: n.title,
+                subtitle: categoryLabel(n.category), raw: n });
+              if (n.children && n.children.length) walk(n.children);
+            }
+          };
+          walk(settingsTree.value);
+          mentionList.value = items;
+        } else if (key === 'chapter') {
+          if (!writingIndex.value.volumes.length) await loadWritingIndex();
+          const items = [];
+          for (const vol of writingIndex.value.volumes) {
+            for (const ch of (vol.chapters || [])) {
+              items.push({
+                key: 'chapter:' + vol.id + '/' + ch.id, type: 'chapter', id: vol.id + '/' + ch.id,
+                title: (vol.title || ('第' + vol.number + '卷')) + ' · 第' + ch.number + '章' + (ch.title ? ' ' + ch.title : ''),
+                subtitle: (ch.words || 0) + ' 字', raw: { volId: vol.id, chId: ch.id },
+              });
+            }
+          }
+          mentionList.value = items;
+        } else if (key === 'inspiration') {
+          if (!inspirationFiles.value.length) await loadInspiration();
+          mentionList.value = inspirationFiles.value
+            .filter(f => f.type !== 'dir')
+            .map(f => ({ key: 'inspiration:' + f.relative_path, type: 'inspiration', id: f.relative_path,
+              title: f.name, subtitle: formatFileSize(f.size || 0), raw: f }));
+        } else if (key === 'foreshadowing') {
+          if (!foreshadowingList.value.length) await loadForeshadowingList();
+          mentionList.value = foreshadowingList.value.map(f => ({
+            key: 'foreshadowing:' + f.id, type: 'foreshadowing', id: f.id,
+            title: f.name || '（未命名）', subtitle: f.status === 'resolved' ? '已回收' : '未回收', raw: f }));
+        }
+      } catch (e) {
+        showToast('加载引用列表失败: ' + (e.message || e), 'error');
+      } finally {
+        mentionLoading.value = false;
+      }
+    }
+    function toggleMentionSelect(item) {
+      const next = { ...mentionSelected.value };
+      if (next[item.key]) delete next[item.key];
+      else next[item.key] = item;
+      mentionSelected.value = next;
+    }
+    function removeMention(idx) { chatMentions.value.splice(idx, 1); }
+
+    // 设定节点序列化为紧凑文本（容器节点递归展平其子树）
+    function serializeSettingNode(node) {
+      if (!node) return '';
+      const parts = [];
+      const walk = (n, depth) => {
+        const pad = '  '.repeat(depth);
+        const cat = categoryLabel(n.category);
+        const content = (n.content || '').trim();
+        parts.push(content ? (pad + '[' + cat + '] ' + n.title + '：' + content)
+                           : (pad + '[' + cat + '] ' + n.title));
+        if (n.children && n.children.length) { for (const c of n.children) walk(c, depth + 1); }
+      };
+      walk(node, 0);
+      return parts.join('\n');
+    }
+    // 按需拉取某条引用的完整内容
+    async function fetchMentionContent(sel) {
+      const pid = currentProjectId.value;
+      if (sel.type === 'character') {
+        const c = sel.raw || {};
+        let text = '角色：' + (c.name || '');
+        if (c.aliases && c.aliases.length) text += '\n别名：' + c.aliases.join('、');
+        if (c.profile) text += '\n档案：' + c.profile;
+        if (c.stages && c.stages.length) {
+          text += '\n成长阶段：';
+          for (const s of c.stages) text += '\n- ' + s.title + (s.note ? '：' + s.note : '') + (s.chapter ? '（' + s.chapter + '）' : '');
+        }
+        if (c.events && c.events.length) {
+          const stageTitle = (id) => { const s = (c.stages || []).find(x => x.id === id); return s ? s.title : ''; };
+          const links = c.events.map(e => stageTitle(e.from) + ' → ' + stageTitle(e.to) + (e.label ? '：' + e.label : '')).filter(Boolean);
+          if (links.length) text += '\n阶段事件：\n- ' + links.join('\n- ');
+        }
+        return text;
+      }
+      if (sel.type === 'setting') return serializeSettingNode(sel.raw);
+      if (sel.type === 'chapter') {
+        const { volId, chId } = sel.raw;
+        const data = await apiJSON('/api/writing/' + pid + '/volumes/' + volId + '/chapters/' + chId);
+        return data.content || '';
+      }
+      if (sel.type === 'inspiration') {
+        const data = await apiJSON('/api/workspace/inspiration/read', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ relative_path: sel.raw.relative_path }),
+        });
+        return data.content || '';
+      }
+      if (sel.type === 'foreshadowing') {
+        const f = await apiJSON('/api/foreshadowings/' + pid + '/' + sel.id);
+        let text = '伏笔：' + (f.name || '');
+        if (f.status) text += '\n状态：' + (f.status === 'resolved' ? '已回收' : '未回收');
+        if (f.resolution_chapter) text += '\n回收章节：' + f.resolution_chapter;
+        if (f.content) text += '\n说明：' + f.content;
+        if (f.entries && f.entries.length) {
+          text += '\n出现记录：';
+          for (const e of f.entries) text += '\n- [' + (e.chapter_title || '') + '] ' + (e.content || '');
+        }
+        return text;
+      }
+      return '';
+    }
+    async function insertMentions() {
+      const sels = Object.values(mentionSelected.value);
+      if (!sels.length) { closeMentionPopover(); return; }
+      mentionLoading.value = true;
+      try {
+        for (const sel of sels) {
+          if (chatMentions.value.some(m => m.type === sel.type && m.id === sel.id)) continue; // 去重
+          let content = '';
+          try { content = await fetchMentionContent(sel); } catch (e) { content = ''; }
+          chatMentions.value.push({ type: sel.type, id: sel.id, title: sel.title, content: content || '（未获取到内容）' });
+        }
+      } finally {
+        mentionLoading.value = false;
+        closeMentionPopover();
+      }
+    }
+
+    // 灵感「合理插入」：带入灵感全文 + 项目梗概，跳 chat 页让 AI 分析如何引入剧情
+    async function insertInspirationToAi() {
+      const file = currentInspirationFile.value;
+      if (!file) return;
+      if (!chatMentions.value.some(m => m.type === 'inspiration' && m.id === file)) {
+        chatMentions.value.push({
+          type: 'inspiration', id: file, title: file,
+          content: inspirationContent.value || '（未获取到内容）',
+        });
+      }
+      const proj = projects.value.find(p => (p.project_id || p.id) === currentProjectId.value);
+      const desc = proj && proj.description;
+      if (desc && !chatMentions.value.some(m => m.type === 'project')) {
+        chatMentions.value.push({
+          type: 'project', id: currentProjectId.value,
+          title: (proj.name || '本项目') + '（梗概）', content: desc,
+        });
+      }
+      inputText.value = '请分析如何将这条灵感引入剧情';
+      mentionPopoverOpen.value = false;
+      activeTab.value = 'chat';
+      await nextTick();
+      scrollMessages();
+      focusActiveChatInput();
+      showToast('已把灵感带入对话，可继续补充后发送', 'success');
+    }
+
 
     // ===== 对话中的待确认提案 =====
     function proposalTargetLabel(target) {
@@ -10850,6 +11401,11 @@ createApp({
       activeTab, tabs,
       appSidebarCollapsed, subSidebarCollapsed, toggleAppSidebar, toggleSubSidebar,
       messages, inputText, isThinking, messagesArea,
+      chatInput, writingAiMessagesArea, writingAiInput, writingAiCollapsed, toggleWritingAi,
+      chatMentions, mentionPopoverOpen, mentionActiveTab, mentionList, mentionSelected,
+      mentionLoading, mentionTypes, mentionTypeLabel, mentionSelectedCount, chatPlaceholder,
+      openMentionPopover, switchMentionTab, toggleMentionSelect, insertMentions, removeMention,
+      closeMentionPopover, insertInspirationToAi,
       // Conversations
       conversations, currentConversationId, showConvRenameModal, convRenameInput, currentConvInfo,
       // Chat selectors
