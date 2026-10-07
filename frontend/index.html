@@ -389,6 +389,7 @@ body {
   margin-left: auto; margin-right: auto;
   animation: msgIn 0.28s ease both;
 }
+.message.user { flex-direction: row-reverse; }
 @keyframes msgIn {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -399,23 +400,33 @@ body {
   font-size: 14px; font-weight: 600;
   box-shadow: var(--shadow-card);
 }
-.message.user .message-avatar { background: var(--color-blue-grey); color: #fff; }
-.message.assistant .message-avatar { background: var(--color-primary); color: #fff; }
+.message.user .message-avatar { background: var(--color-primary); color: #fff; }
+.message.assistant .message-avatar { background: var(--color-background); color: var(--color-primary); border: 1px solid var(--color-border); box-shadow: none; }
 .message-body { flex: 1; min-width: 0; }
+.message.user .message-body { display: flex; flex-direction: column; align-items: flex-end; }
 .message-name { font-size: 12px; color: var(--color-text-weak); margin-bottom: 5px; font-weight: 500; letter-spacing: 0.3px; }
+.message.user .message-name { text-align: right; }
+.message.user .msg-attachments { align-items: flex-end; }
 .message-bubble {
   padding: 12px 16px; font-size: 14px; line-height: 1.7;
   word-wrap: break-word;
   transition: box-shadow 0.15s;
 }
 .message.user .message-bubble {
-  background: var(--color-primary-light); color: var(--color-text-primary);
-  border-radius: 12px 12px 4px 12px;
+  background: var(--color-primary); color: #fff;
+  border-radius: 16px 16px 4px 16px;
 }
+.message.user .message-bubble strong { color: #fff; }
+.message.user .message-bubble a { color: #DCE6F5; }
+.message.user .message-bubble code {
+  background: rgba(255, 255, 255, 0.14); border-color: rgba(255, 255, 255, 0.2); color: #fff;
+}
+.message.user .message-bubble pre { background: rgba(0, 0, 0, 0.22); border-color: rgba(255, 255, 255, 0.14); }
+.message.user .message-bubble pre code { background: none; }
 .message.assistant .message-bubble {
   background: var(--color-surface); color: var(--color-text-body);
   border: 1px solid var(--color-border);
-  border-radius: 12px 12px 12px 4px;
+  border-radius: 16px 16px 16px 4px;
 }
 .message-bubble:hover { box-shadow: var(--shadow-card); }
 .message-bubble h1, .message-bubble h2, .message-bubble h3 { margin: 12px 0 6px; font-weight: 600; color: var(--color-text-primary); }
@@ -669,17 +680,25 @@ body {
 .field-input:focus { outline: none; border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
 .btn-row { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
 .btn {
-  padding: 8px 16px; border: none; border-radius: var(--radius-md); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 34px; padding: 0 16px; border: none; border-radius: var(--radius-md); cursor: pointer;
   font-size: 14px; font-weight: 500; transition: all 0.15s ease;
-  font-family: var(--font-ui);
+  font-family: var(--font-ui); white-space: nowrap;
 }
+.btn .ms-icon { width: 16px; height: 16px; flex-shrink: 0; }
+.btn-sm { height: 28px; padding: 0 12px; font-size: 12.5px; }
+.btn-text {
+  background: transparent; color: var(--color-primary); border: none;
+  height: 28px; padding: 0 8px; font-size: 13px;
+}
+.btn-text:hover:not(:disabled) { color: var(--color-primary-hover); text-decoration: underline; }
 .btn-primary {
   background: var(--color-primary); color: var(--color-text-inverse);
 }
 .btn-primary:hover:not(:disabled) { background: var(--color-primary-hover); box-shadow: var(--shadow-btn-hover); }
 .btn-primary:active:not(:disabled) { background: var(--color-primary-active); transform: scale(0.98); }
 .btn-secondary { background: var(--color-surface); color: var(--color-primary); border: 1px solid var(--color-border-strong); }
-.btn-secondary:hover:not(:disabled) { background: var(--color-background); border-color: var(--color-text-disabled); }
+.btn-secondary:hover:not(:disabled) { background: var(--color-background); border-color: var(--color-primary); }
 .btn-secondary:active:not(:disabled) { background: var(--color-disabled-bg); }
 .btn-danger { background: var(--color-error); color: #fff; border: none; }
 .btn-danger:hover:not(:disabled) { filter: brightness(1.08); }
@@ -1382,13 +1401,15 @@ body {
 .flow-badge.stage-reviewed { background: var(--color-warning-bg); color: var(--color-warning); border-color: var(--color-warning); }
 .flow-badge.stage-revised { background: var(--color-warning-bg); color: var(--color-warning); border-color: var(--color-warning); }
 .flow-badge.stage-finalized { background: var(--color-success-bg); color: var(--color-success); border-color: var(--color-success); }
-.flow-mini { font-size: 12px; padding: 3px 10px; }
+.flow-mini { font-size: 12px; height: 28px; padding: 0 10px; }
 .flow-hint { font-size: 12px; color: var(--color-text-muted); }
 
-.editor-toolbar { display: flex; gap: 6px; padding: 7px 12px; border-bottom: 1px solid var(--color-border); margin-bottom: 12px; background: var(--color-surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; align-items: center; min-height: 44px; }
-.tool-btn { width: 34px; height: 30px; border: 1px solid var(--color-border-strong); background: var(--color-surface); color: var(--text-primary); border-radius: var(--radius-md); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
-.tool-btn:hover { border-color: var(--accent); color: var(--accent-hover); background: var(--accent-dim); }
-.tool-btn-wide { width: auto; padding: 0 12px; gap: 6px; white-space: nowrap; }
+.editor-toolbar { display: flex; gap: 6px; padding: 7px 12px; border-bottom: 1px solid var(--color-border); margin-bottom: 12px; background: var(--color-surface); border-radius: var(--radius-lg) var(--radius-lg) 0 0; align-items: center; min-height: 44px; flex-wrap: wrap; }
+.tool-btn { width: 32px; height: 32px; border: none; background: transparent; color: var(--color-text-secondary); border-radius: var(--radius-md); cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+.tool-btn .ms-icon { width: 18px; height: 18px; }
+.tool-btn:hover { color: var(--color-primary); background: var(--color-background); }
+.tool-btn-wide { width: auto; padding: 0 10px; gap: 6px; white-space: nowrap; }
+.tool-btn-wide .ms-icon { width: 16px; height: 16px; }
 .tool-divider { width: 1px; background: var(--border-color); margin: 4px 7px; }
 
 .writing-editor {
@@ -2005,8 +2026,154 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
   .busy-layer, .busy-layer__anim, .busy-layer__dock { animation: none; }
 }
 
-</style>
+/* ============================================================
+   v0.11.1 · UI 美化升级（对齐《UI界面美化升级设计文档》）
+   ============================================================ */
+svg.ms-icon { display: block; }
 
+/* ----- 顶部 Tab 栏：线条图标 + 底部指示条 ----- */
+.tab-bar { height: 48px; min-height: 48px; padding: 0 12px; gap: 0; align-items: stretch; }
+.tab-item {
+  padding: 0 16px; border: none; border-radius: 0; gap: 8px;
+  font-size: 14px; font-weight: 500; color: var(--color-text-secondary);
+  position: relative; user-select: none; transition: color 0.15s ease-out;
+}
+.tab-item .tab-ico { display: inline-flex; }
+.tab-item .ms-icon { width: 18px; height: 18px; }
+.tab-item:hover { background: none; color: var(--color-primary); }
+.tab-item.active { background: none; color: var(--color-primary); border: none; }
+.tab-item.active::after {
+  content: ""; position: absolute; left: 16px; right: 16px; bottom: 0;
+  height: 2px; background: var(--color-primary); border-radius: 1px;
+}
+.tab-status { font-size: 12.5px; color: var(--color-text-secondary); }
+
+/* ----- 主侧边栏收起：贴边大按钮（28×56）+ 箭头SVG ----- */
+.sidebar-toggle {
+  top: 50%; right: 0; left: auto; transform: translateY(-50%);
+  width: 28px; height: 56px; padding: 0;
+  border: 1px solid var(--color-border); border-left: none;
+  border-radius: 0 8px 8px 0; background: var(--color-surface);
+  color: var(--color-text-secondary);
+  box-shadow: 2px 0 6px rgba(26, 43, 69, 0.06);
+  transition: background 0.15s ease-out, color 0.15s ease-out;
+}
+.sidebar-toggle:hover { background: var(--color-background); color: var(--color-primary); border-color: var(--color-border); }
+.sidebar-toggle .ms-icon { width: 18px; height: 18px; }
+.sidebar.collapsed .sidebar-toggle { top: 50%; right: 0; left: auto; transform: translateY(-50%); }
+.sidebar.collapsed .sidebar-toggle .ms-icon { transform: rotate(180deg); }
+
+/* ----- 二级目录栏收起：贴边按钮（24×48）+ 箭头SVG ----- */
+.writing-sidebar, .char-sidebar, .inspiration-sidebar { position: relative; }
+.char-sidebar { overflow: visible; }
+.sub-sidebar-toggle.edge-tab {
+  position: absolute; right: 0; top: 50%; transform: translateY(-50%); z-index: 5;
+  width: 24px; height: 48px; padding: 0;
+  border: 1px solid var(--color-border); border-left: none;
+  border-radius: 0 6px 6px 0; background: var(--color-surface);
+  color: var(--color-text-secondary);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s ease-out, color 0.15s ease-out;
+}
+.sub-sidebar-toggle.edge-tab:hover { background: var(--color-background); color: var(--color-primary); }
+.sub-sidebar-toggle.edge-tab .ms-icon { width: 16px; height: 16px; }
+/* 自滚动面板（设定/知识库）保留头部小按钮，仅放大为图标按钮 */
+.sub-sidebar-toggle.head-btn {
+  width: 26px; height: 26px; padding: 0; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--color-border-strong); background: var(--color-surface);
+  color: var(--color-text-secondary); border-radius: var(--radius-md);
+  cursor: pointer; transition: all 0.15s ease;
+}
+.sub-sidebar-toggle.head-btn:hover { border-color: var(--color-primary); color: var(--color-primary); background: var(--color-primary-light); }
+.sub-sidebar-toggle.head-btn .ms-icon { width: 14px; height: 14px; }
+/* 收起后窄轨：36×36 图标按钮（箭头朝右，可展开） */
+.collapsed-rail-btn {
+  width: 36px; height: 36px; margin: 10px auto 0; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: none; border-radius: 8px; background: transparent;
+  color: var(--color-text-secondary); cursor: pointer; transition: all 0.15s ease;
+}
+.collapsed-rail-btn:hover { background: var(--color-background); color: var(--color-primary); }
+.collapsed-rail-btn .ms-icon { width: 18px; height: 18px; }
+
+/* ----- 写作页右侧「墨望 AI」：毛笔品牌图标 ----- */
+.writing-ai-rail.collapsed { padding-top: 10px; align-items: center; }
+.writing-ai-rail-btn {
+  width: 36px; height: 36px; margin: 0; padding: 0; border-radius: 8px;
+  color: var(--color-primary); background: transparent; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease-out;
+}
+.writing-ai-rail-btn:hover { background: var(--color-background); }
+.writing-ai-rail-btn .ms-icon { width: 24px; height: 24px; }
+.writing-ai-header { background: var(--color-surface-weak, #FDFBF7); height: 44px; padding: 0 12px; }
+.writing-ai-header .ai-title { display: inline-flex; align-items: center; gap: 8px; }
+.writing-ai-header .ai-title .ms-icon { width: 20px; height: 20px; color: var(--color-primary); }
+
+/* ----- 空状态：水墨画素材 ----- */
+.empty-state-img { width: 240px; opacity: 0.55; user-select: none; pointer-events: none; }
+
+/* ----- 对话页：用户气泡内标题反白 ----- */
+.message.user .message-bubble h1,
+.message.user .message-bubble h2,
+.message.user .message-bubble h3 { color: #fff; }
+
+/* ----- 对话页输入区：48px 胶囊 + 左侧图标按钮 ----- */
+.chat-input {
+  border-radius: 24px; background: var(--color-background);
+  padding: 12px 18px; min-height: 48px; max-height: 120px;
+}
+.chat-attach-btn, .chat-mention-btn {
+  width: 40px; height: 40px; border: none; background: transparent;
+  color: var(--color-text-secondary); border-radius: 50%;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s ease;
+}
+.chat-attach-btn .ms-icon, .chat-mention-btn .ms-icon { width: 18px; height: 18px; }
+.chat-attach-btn:hover:not(:disabled), .chat-mention-btn:hover:not(:disabled),
+.chat-mention-btn.active { background: var(--color-background); color: var(--color-primary); }
+.chat-mention-btn.active { background: var(--color-primary-light); }
+.send-btn { border-radius: 24px; display: inline-flex; align-items: center; gap: 6px; }
+.send-btn .ms-icon { width: 16px; height: 16px; }
+
+/* ----- @ 引用面板 / 章节范围面板：输入框上方悬浮 ----- */
+.chat-mention-popover {
+  left: 0; right: auto; width: 320px; max-height: 340px;
+  border-radius: 10px; border: 1px solid var(--color-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  animation: popIn 0.15s ease-out;
+}
+.scope-panel {
+  position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 40;
+  width: 260px; margin: 0; padding: 12px 14px;
+  border-radius: 10px; border: 1px solid var(--color-border);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  animation: popIn 0.15s ease-out;
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ----- 写作页底部操作栏：防溢出换行 ----- */
+.writing-bottom-bar { flex-wrap: wrap; row-gap: 8px; }
+.writing-bottom-bar .btn { height: 32px; padding: 0 12px; font-size: 13px; }
+.writing-bottom-bar .wbb-save { padding: 0 18px; }
+
+/* ----- 会话栏按钮 ----- */
+.conv-btn { display: inline-flex; align-items: center; justify-content: center; }
+.conv-btn .ms-icon { width: 14px; height: 14px; }
+.conv-btn.new { gap: 5px; }
+
+/* ----- 消息操作按钮 / 项目操作按钮图标 ----- */
+.msg-action-btn { display: inline-flex; align-items: center; gap: 5px; }
+.msg-action-btn .ms-icon { width: 14px; height: 14px; }
+.project-action-btn .ms-icon { width: 13px; height: 13px; }
+.chat-scroll-btn .ms-icon { width: 16px; height: 16px; }
+.btn-icon-sm .ms-icon { width: 14px; height: 14px; }
+
+</style>
 </head>
 <body>
 <!-- 主界面首帧遮罩：与启动页同色，首帧就绪后 0.28s 淡出（跨文档 transition 不可用）。
@@ -2018,7 +2185,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
     <aside class="sidebar" :class="{ collapsed: appSidebarCollapsed }">
       <button class="sidebar-toggle" @click="toggleAppSidebar"
               :title="appSidebarCollapsed ? '展开侧栏' : '收起侧栏'">
-        {{ appSidebarCollapsed ? '»' : '«' }}
+        <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>
       </button>
       <template v-if="!appSidebarCollapsed">
       <div class="sidebar-header">
@@ -2040,9 +2207,9 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               @click="selectProject(project.project_id)">
             <span class="dot"></span>
             <span class="project-name-text">{{ project.name }}</span>
-            <span class="project-actions" @click.stop>
-              <span class="project-action-btn" @click="startRename(project)" title="重命名">&#9998;</span>
-              <span class="project-action-btn del" @click="deleteProject(project)" title="删除">&times;</span>
+              <span class="project-actions" @click.stop>
+              <span class="project-action-btn" @click="startRename(project)" title="重命名"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17L16.5 6.5a2.12 2.12 0 0 1 3 3L9 20l-4 1 1-4z"/><path d="M14.5 8.5l3 3"/></svg></span>
+              <span class="project-action-btn del" @click="deleteProject(project)" title="删除"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
             </span>
           </li>
         </ul>
@@ -2064,7 +2231,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
       </div>
 
       <div class="sidebar-footer">
-        <button class="settings-btn" @click="openSettings">⚙ {{ t('app.settings') }}</button>
+        <button class="settings-btn" @click="openSettings"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8"/></svg> {{ t('app.settings') }}</button>
         <div class="sidebar-lang">
           <div class="sidebar-lang-row">
             <label>{{ t('lang.ui') }}</label>
@@ -2081,7 +2248,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.11.0</div>
+        <div class="sidebar-version">v0.11.1</div>
       </div>
       </template>
     </aside>
@@ -2092,7 +2259,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <div v-for="tab in tabs" :key="tab.key"
              class="tab-item" :class="{ active: activeTab === tab.key }"
              @click="activeTab = tab.key">
-          <span>{{ tab.icon }}</span>
+          <span class="tab-ico" v-html="TAB_ICONS[tab.key]"></span>
           <span>{{ t('tab.' + tab.key) }}</span>
         </div>
         <div class="tab-spacer"></div>
@@ -2106,7 +2273,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ========== Chat Page ========== -->
         <div v-if="activeTab === 'chat'" class="chat-container">
           <div v-if="!currentProjectId" class="empty-state">
-            <div class="empty-state-icon">✦</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-chat.png" alt="">
             <div class="empty-state-text">请先选择或创建项目</div>
             <div class="empty-state-hint">墨参将协助你进行小说创作</div>
           </div>
@@ -2122,11 +2289,11 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 </select>
                 <span class="conv-select-arrow">▼</span>
               </div>
-              <button class="conv-btn new" @click="createConversation" title="新对话">+ 新对话</button>
-              <button class="conv-btn" @click="startRenameConversation" title="重命名" v-if="currentConversationId">&#9998;</button>
-              <button class="conv-btn del" @click="deleteConversation" title="删除" v-if="currentConversationId">&times;</button>
-              <button class="conv-btn" @click="exportConversation" title="导出对话" v-if="currentConversationId">&#8615;</button>
-              <button class="conv-btn" @click="importConversation" title="导入对话">&#8614;</button>
+              <button class="conv-btn new" @click="createConversation" title="新对话"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新对话</button>
+              <button class="conv-btn" @click="startRenameConversation" title="重命名" v-if="currentConversationId"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17L16.5 6.5a2.12 2.12 0 0 1 3 3L9 20l-4 1 1-4z"/><path d="M14.5 8.5l3 3"/></svg></button>
+              <button class="conv-btn del" @click="deleteConversation" title="删除" v-if="currentConversationId"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              <button class="conv-btn" @click="exportConversation" title="导出对话" v-if="currentConversationId"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M4 20h16"/></svg></button>
+              <button class="conv-btn" @click="importConversation" title="导入对话"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 8l5-5 5 5M4 20h16"/></svg></button>
               <input ref="importFileInput" type="file" accept=".json" style="display:none" @change="onImportFileSelected">
             </div>
             <div class="conv-info" v-if="currentConversationId && currentConvInfo">
@@ -2135,7 +2302,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </div>
             <div class="messages-area" ref="messagesArea" style="position:relative">
               <div v-if="messages.length === 0" class="empty-state">
-                <div class="empty-state-icon">✦</div>
+                <img class="empty-state-img" src="assets/empty/bg-empty-chat.png" alt="">
                 <div class="empty-state-text">开始与墨参对话</div>
                 <div class="empty-state-hint">输入创作需求，获取灵感与建议</div>
               </div>
@@ -2202,7 +2369,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     </div>
                   </div>
                   <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
-                    <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库">📥 存入知识库</button>
+                    <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v9M8 9.5l4 4 4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>存入知识库</button>
                   </div>
                 </div>
               </div>
@@ -2226,8 +2393,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <!-- 滚动按钮 -->
               <div class="chat-scroll-buttons" v-if="messages.length > 0">
-                <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部">↑</button>
-                <button class="chat-scroll-btn" @click="scrollToBottom" title="到底部">↓</button>
+                <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.5L12 8l6.5 6.5"/></svg></button>
+                <button class="chat-scroll-btn" @click="scrollToBottom" title="到底部"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 9.5L12 16l6.5-6.5"/></svg></button>
               </div>
             </div>
             <div class="chat-input-area">
@@ -2278,17 +2445,17 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </div>
                 </div>
                 <div class="chat-input-row">
-                  <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
                   <button class="chat-mention-btn" :class="{ active: mentionPopoverOpen }" @click="openMentionPopover"
-                    title="引用角色 / 设定 / 章节 / 灵感 / 伏笔 / 爽爆点" :disabled="isThinking">@</button>
-                  <button class="chat-mention-btn" @click="openScopePanel" title="添加章节范围" :disabled="isThinking">📆</button>
+                    title="引用角色 / 设定 / 章节 / 灵感 / 伏笔 / 爽爆点" :disabled="isThinking"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/></svg></button>
+                  <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11.5l-7.5 7.5a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5"/></svg></button>
+                  <button class="chat-mention-btn" @click="openScopePanel" title="添加章节范围" :disabled="isThinking"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20"/></svg></button>
                   <input type="file" ref="chatFileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload" multiple>
                   <textarea class="chat-input" v-model="inputText"
                     :placeholder="chatPlaceholder"
                     @keydown.enter.exact.prevent="sendMessage"
                     rows="1" ref="chatInput"></textarea>
                   <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0 && chatMentions.length === 0) || isThinking">
-                    {{ isThinking ? '思考中' : '发送' }}
+                    <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10.5 13.5M21 3l-7 18-3.5-7.5L3 10l18-7z"/></svg>{{ isThinking ? '思考中' : '发送' }}
                   </button>
                 </div>
                 <div class="scope-panel" v-if="chatScopePanelOpen" @click.stop>
@@ -2352,7 +2519,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ========== Settings Writer Page ========== -->
         <div v-if="activeTab === 'settings'" class="settings-container">
           <div v-if="!currentProjectId" class="empty-state" style="width:100%">
-            <div class="empty-state-icon">📝</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-settings.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -2364,7 +2531,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <span style="font-size:11px;color:var(--text-muted)">
                   {{ settingsFilterActive ? (filteredFlatTree.length + ' / ' + settingsTreeTotal) : settingsTreeTotal }} 条
                 </span>
-                <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                <button class="sub-sidebar-toggle head-btn" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
               </div>
               <!-- 筛选：按类别 + 标题关键词 -->
               <div class="settings-filter">
@@ -2404,7 +2571,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <div class="settings-derive-row">
                 <button class="btn btn-secondary" @click="deriveCurrentSetting" :disabled="!currentSettingNode"
-                  title="让 AI 基于当前设定与情节衍生新设定">✨ 衍生设定</button>
+                  title="让 AI 基于当前设定与情节衍生新设定">衍生设定</button>
               </div>
               <div class="settings-sidebar-footer" style="position:relative">
                 <button class="btn btn-primary" @click="showNewSettingModal = true">+ 新建</button>
@@ -2418,7 +2585,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 </div>
               </div>
               </template>
-              <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
+              <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
             </div>
 
             <!-- 设定编辑区 -->
@@ -2502,7 +2669,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </button>
                   <button class="btn btn-secondary" @click="openMoveModal">移动到</button>
                   <button v-if="currentSettingNode.category === 'character'" class="btn btn-secondary"
-                    @click="addSettingToCharacter(currentSettingNode)">🎭 添加到角色页</button>
+                    @click="addSettingToCharacter(currentSettingNode)">添加到角色页</button>
                 </div>
                 <div v-if="optimizedText" class="optimized-result">
                   <div class="optimized-header">
@@ -2522,7 +2689,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ========== Outline Page ========== -->
         <div v-if="activeTab === 'outline'" class="outline-container">
           <div v-if="!currentProjectId" class="empty-state" style="width:100%">
-            <div class="empty-state-icon">🗺</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-outline.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -2540,7 +2707,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <button class="btn btn-primary" @click="addOutlineNode">+ 添加节点</button>
               <button class="btn btn-secondary" @click="outlineLinkMode = !outlineLinkMode"
                 :style="outlineLinkMode ? 'border-color:var(--accent);color:var(--accent)' : ''">
-                {{ outlineLinkMode ? '取消连线' : '🔗 连线模式' }}
+                {{ outlineLinkMode ? '取消连线' : '连线模式' }}
               </button>
               <button class="btn btn-secondary" @click="loadOutline">↻ 刷新</button>
               <span class="outline-toolbar-info">{{ outlineNodes.length }} 个节点 · {{ outlineEdges.length }} 条连线</span>
@@ -2809,7 +2976,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <template v-if="!subSidebarCollapsed">
             <div class="settings-sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
               <span>知识库</span>
-              <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+              <button class="sub-sidebar-toggle head-btn" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
             </div>
             <div v-for="k in knowledgeList" :key="k.id"
                  class="knowledge-item" :class="{ active: currentKnowledge?.id === k.id }"
@@ -2825,7 +2992,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               暂无知识条目
             </div>
             </template>
-            <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
+            <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
           </div>
           <div class="knowledge-main">
             <!-- Add Section -->
@@ -2896,8 +3063,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <div class="inspiration-sidebar-header-row">
                 <span style="font-size:14px;font-weight:600">灵感文件夹</span>
                 <span style="display:flex;align-items:center;gap:6px">
-                  <button class="workspace-btn" @click="showInspirationModal = true" title="设置文件夹">⚙ 设置</button>
-                  <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                  <button class="workspace-btn" @click="showInspirationModal = true" title="设置文件夹"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8"/></svg> 设置</button>
+                  <button class="sub-sidebar-toggle edge-tab" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
                 </span>
               </div>
               <div class="inspiration-path-box" v-if="inspirationPath" :title="inspirationPath">
@@ -2924,13 +3091,13 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
             </div>
             </template>
-            <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
+            <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
           </div>
 
           <!-- 主区域：文件内容 -->
           <div class="inspiration-main">
             <div v-if="!currentInspirationFile" class="empty-state" style="width:100%">
-              <div class="empty-state-icon">💡</div>
+              <img class="empty-state-img" src="assets/empty/bg-empty-inspiration.png" alt="">
               <div class="empty-state-text" v-if="inspirationPath">选择左侧文件查看内容</div>
               <div class="empty-state-text" v-else>请先设置灵感文件夹</div>
               <div class="empty-state-hint" v-if="!inspirationPath">点击左侧「设置」按钮，选择存放本地文件的文件夹</div>
@@ -2941,7 +3108,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <span v-if="inspirationFileLoading" class="loading-spinner"></span>
                 <button class="btn btn-secondary btn-mention-insert" @click="insertInspirationToAi"
                   :disabled="!inspirationContent || inspirationFileLoading"
-                  title="把这条灵感带入 AI，分析如何引入剧情">✨ 合理插入</button>
+                  title="把这条灵感带入 AI，分析如何引入剧情">合理插入</button>
               </div>
               <div class="inspiration-content" v-if="inspirationContent" v-html="renderMarkdown(inspirationContent)"></div>
               <div v-else-if="!inspirationFileLoading" style="color:var(--text-muted);font-size:13px">
@@ -2977,7 +3144,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ========== Files Page ========== -->
         <div v-if="activeTab === 'files'" class="files-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <div class="empty-state-icon">📁</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-files.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -2991,8 +3158,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <div class="file-card-name">{{ f.filename }}</div>
                 <div class="file-card-meta">{{ f.size }} 字节 · {{ f.modified }}</div>
                 <div class="file-card-tools">
-                  <button class="btn-icon" @click.stop="openFileDetail(f)">📄 打开</button>
-                  <button class="btn-icon" @click.stop="relAnalyzeUploadedFile(f.filename)">🌌 星图分析</button>
+                  <button class="btn-icon" @click.stop="openFileDetail(f)">打开</button>
+                  <button class="btn-icon" @click.stop="relAnalyzeUploadedFile(f.filename)">星图分析</button>
                 </div>
               </div>
             </div>
@@ -3011,10 +3178,10 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
               <div class="file-detail-actions">
                 <button class="btn btn-secondary" style="font-size:13px" @click="loadFileContent">
-                  📄 打开文件
+                  打开文件
                 </button>
                 <button class="btn btn-secondary" style="font-size:13px" @click="relAnalyzeUploadedFile(fileDetail.filename)">
-                  🌌 星图分析
+                  星图分析
                 </button>
                 <select class="field-select" v-model="fileAnalyzeType" style="width:auto">
                   <option value="full">全面诊断</option>
@@ -3023,12 +3190,12 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <option value="conflict">冲突值分布</option>
                 </select>
                 <button class="btn btn-secondary" style="font-size:13px" :disabled="fileAnalyzing" @click="runFileAnalyze">
-                  {{ fileAnalyzing ? '拆文中…' : '🔍 拆文分析' }}
+                  {{ fileAnalyzing ? '拆文中…' : '拆文分析' }}
                 </button>
                 <input class="field-input" type="number" min="0" max="500" v-model.number="fileDissectChapters"
                        style="width:86px" title="蒸馏的最大章节数，0 = 全部">
                 <button class="btn btn-secondary" style="font-size:13px" :disabled="fileDissecting" @click="runFileDissect">
-                  {{ fileDissecting ? '蒸馏中…' : '📚 蒸馏学习' }}
+                  {{ fileDissecting ? '蒸馏中…' : '蒸馏学习' }}
                 </button>
               </div>
 
@@ -3081,7 +3248,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ===== 写作页 ===== -->
         <div v-if="activeTab === 'writing'" class="writing-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <div class="empty-state-icon">✍️</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-writing.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3093,7 +3260,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <span>目录</span>
                   <span style="display:flex;align-items:center;gap:6px">
                     <button class="btn-icon" @click="addVolume" title="新建卷">+ 卷</button>
-                    <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                    <button class="sub-sidebar-toggle edge-tab" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
                   </span>
                 </div>
                 <div class="writing-tree">
@@ -3125,7 +3292,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </div>
                 </div>
                 </template>
-                <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
+                <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
               </div>
 
               <!-- 右侧：编辑区 -->
@@ -3175,14 +3342,14 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
 
                   <!-- 工具栏 -->
                   <div class="editor-toolbar">
-                    <button class="tool-btn" @click="execFormat('bold')" title="粗体"><b>B</b></button>
-                    <button class="tool-btn" @click="execFormat('italic')" title="斜体"><i>I</i></button>
-                    <button class="tool-btn" @click="execFormat('underline')" title="下划线"><u>U</u></button>
+                    <button class="tool-btn" @click="execFormat('bold')" title="粗体"><svg class="ms-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M7 4h6a3.5 3.5 0 0 1 2.4 6.1A4 4 0 0 1 13.5 20H7V4zm3 3v4h3a2 2 0 0 0 0-4h-3zm0 7v3h3.5a1.5 1.5 0 0 0 0-3H10z"/></svg></button>
+                    <button class="tool-btn" @click="execFormat('italic')" title="斜体"><svg class="ms-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M10 4h9v2.5h-3.2l-3.3 11H16V20H7v-2.5h3.2l3.3-11H10V4z"/></svg></button>
+                    <button class="tool-btn" @click="execFormat('underline')" title="下划线"><svg class="ms-icon" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M6 3h2.6v8a3.4 3.4 0 0 0 6.8 0V3H18v8a6 6 0 0 1-12 0V3zM5 20h14v2H5v-2z"/></svg></button>
                     <span class="tool-divider"></span>
                     <button class="tool-btn tool-btn-wide" @click="toggleIndent"
-                            :class="{ 'is-on': indentEnabled }" title="首行缩进（默认开启）">⇥ 缩进</button>
+                            :class="{ 'is-on': indentEnabled }" title="首行缩进（默认开启）"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M11 11h9M4 16h16"/><path d="M4.5 9.2l3 2.8-3 2.8"/></svg>缩进</button>
                     <button class="tool-btn tool-btn-wide" @click="toggleHighlight"
-                            :class="{ 'is-on': highlightEnabled }" title="正文中提到角色页条目时标蓝，点击可看实时信息">🔖 标蓝</button>
+                            :class="{ 'is-on': highlightEnabled }" title="正文中提到角色页条目时标蓝，点击可看实时信息"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17L16.5 6.5a2.12 2.12 0 0 1 3 3L9 20l-4 1 1-4z"/><path d="M14.5 8.5l3 3"/><path d="M4 22h9"/></svg>标蓝</button>
                     <span class="toolbar-spacer"></span>
                     <span class="toolbar-hint" v-if="highlightEnabled && hlHits.length">已标出 {{ hlHits.length }} 处</span>
                     <span class="toolbar-hint" v-else-if="!highlightSupported">当前环境不支持标蓝</span>
@@ -3217,7 +3384,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div class="writing-bottom-bar">
                     <div class="wbb-group">
                       <button class="btn btn-primary wbb-save" @click="saveWritingChapter" :disabled="savingChapter">
-                        {{ savingChapter ? '保存中…' : '💾 保存' }}
+                        <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v5h7V3"/><path d="M8 21v-7h8v7"/></svg>{{ savingChapter ? '保存中…' : '保存' }}
                       </button>
                       <button class="btn btn-secondary" @click="saveAndNewChapter" :disabled="savingChapter">
                         保存并新建下一章
@@ -3227,23 +3394,23 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <div class="wbb-group wbb-tools">
                       <span class="wbb-tools-label">AI 工具</span>
                       <button class="btn btn-secondary" @click="openWritingReview" :disabled="reviewing">
-                        {{ reviewing ? '审稿中…' : '🧐 审稿' }}
+                        <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21"/><path d="M7.8 10.5l1.8 1.8 3.4-3.4"/></svg>{{ reviewing ? '审稿中…' : '审稿' }}
                       </button>
                       <span class="wbb-divider"></span>
                       <button class="btn btn-secondary" @click="detectForeshadowing('single')" :disabled="detectingFs">
-                        {{ detectingFs ? '检测中…' : '🔍 伏笔（单章）' }}
+                        <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4" r="1.8"/><path d="M14 5.8V13a4.5 4.5 0 1 1-9 0v-.8"/><path d="M9.5 12.4l-2-.6"/></svg>{{ detectingFs ? '检测中…' : '伏笔（单章）' }}
                       </button>
                       <button class="btn btn-secondary" @click="detectForeshadowing('full')" :disabled="detectingFs">
-                        {{ detectingFs ? '检测中…' : '🔍 伏笔（全文）' }}
+                        <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.8"/><path d="M13 5.8V13a4.5 4.5 0 1 1-9 0v-.8"/><path d="M8.5 12.4l-2-.6"/><path d="M18.5 12h3M18.5 16h3"/></svg>{{ detectingFs ? '检测中…' : '伏笔（全文）' }}
                       </button>
                       <button class="btn btn-secondary" @click="recoverCheck" :disabled="checkingRecover">
-                        {{ checkingRecover ? '检测中…' : '♻️ 回收检测' }}
+                        <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.6-5.7L20 8.5"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-13.6 5.7L4 15.5"/><path d="M4 20v-5h5"/></svg>{{ checkingRecover ? '检测中…' : '回收检测' }}
                       </button>
                     </div>
                   </div>
                 </template>
                 <div v-else class="writing-empty-editor">
-                  <div class="empty-state-icon">✍️</div>
+                  <img class="empty-state-img" src="assets/empty/bg-empty-writing.png" alt="">
                   <div class="empty-state-text">选择或创建章节开始写作</div>
                   <div class="empty-state-hint">左侧目录中点击「+ 卷」→「+」新建章节</div>
                 </div>
@@ -3252,19 +3419,19 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <!-- 右侧：墨望 AI 面板（SYNC: 与 chat 页共用对话状态，消息渲染需与 chat 页同步维护） -->
               <div class="writing-ai-rail" :class="{ collapsed: writingAiCollapsed }">
                 <template v-if="writingAiCollapsed">
-                  <button class="collapsed-rail-btn writing-ai-rail-btn" @click="toggleWritingAi" title="展开墨望 AI">🤖</button>
+                  <button class="collapsed-rail-btn writing-ai-rail-btn" @click="toggleWritingAi" title="展开墨望 AI"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(30 12 12)"><circle cx="12" cy="1.8" r="0.9"/><path d="M12 2.7v1"/><path d="M10.8 4h2.4v9.6h-2.4z"/><path d="M10.4 13.6h3.2v1.6h-3.2z"/><path d="M10.4 15.2c0 2.6.7 4.4 1.6 5.4.9-1 1.6-2.8 1.6-5.4"/></g></svg></button>
                 </template>
                 <template v-else>
                   <div class="writing-ai-header">
-                    <span>🤖 墨望 AI</span>
+                    <span class="ai-title"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(30 12 12)"><circle cx="12" cy="1.8" r="0.9"/><path d="M12 2.7v1"/><path d="M10.8 4h2.4v9.6h-2.4z"/><path d="M10.4 13.6h3.2v1.6h-3.2z"/><path d="M10.4 15.2c0 2.6.7 4.4 1.6 5.4.9-1 1.6-2.8 1.6-5.4"/></g></svg>墨望 AI</span>
                     <span class="writing-ai-header-actions">
-                      <button class="btn-icon-sm" @click="createConversation" title="新建对话">＋</button>
-                      <button class="sub-sidebar-toggle" @click="toggleWritingAi" title="收起面板">»</button>
+                      <button class="btn-icon-sm" @click="createConversation" title="新建对话"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+                      <button class="sub-sidebar-toggle head-btn" @click="toggleWritingAi" title="收起面板"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
                     </span>
                   </div>
                   <div class="messages-area writing-ai-messages" ref="writingAiMessagesArea" style="position:relative">
                     <div v-if="messages.length === 0" class="empty-state">
-                      <div class="empty-state-icon">✦</div>
+                      <img class="empty-state-img" src="assets/empty/bg-empty-ai-chat.png" alt="">
                       <div class="empty-state-text">写作时可随时问墨参</div>
                       <div class="empty-state-hint">点下方 @ 引用灵感 / 设定 / 角色等条目</div>
                     </div>
@@ -3327,7 +3494,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                           </div>
                         </div>
                         <div class="message-actions" v-if="msg.role === 'assistant' && !msg.streaming && msg.content">
-                          <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库">📥 存入知识库</button>
+                          <button class="msg-action-btn" @click="openSaveToKnowledgeModal(msg.content)" title="将此回复存入知识库"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v9M8 9.5l4 4 4-4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>存入知识库</button>
                         </div>
                       </div>
                     </div>
@@ -3349,8 +3516,8 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                       <div class="intervention-body" v-html="renderMarkdown(interventionNotice.content || '')"></div>
                     </div>
                     <div class="chat-scroll-buttons" v-if="messages.length > 0">
-                      <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部">↑</button>
-                      <button class="chat-scroll-btn" @click="scrollToBottom" title="到底部">↓</button>
+                      <button class="chat-scroll-btn" @click="scrollToTop" title="到顶部"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 14.5L12 8l6.5 6.5"/></svg></button>
+                      <button class="chat-scroll-btn" @click="scrollToBottom" title="到底部"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 9.5L12 16l6.5-6.5"/></svg></button>
                     </div>
                   </div>
                   <div class="chat-input-area writing-ai-input-area">
@@ -3370,16 +3537,16 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                         </div>
                       </div>
                       <div class="chat-input-row">
-                        <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
                         <button class="chat-mention-btn" :class="{ active: mentionPopoverOpen }" @click="openMentionPopover"
-                          title="引用角色 / 设定 / 章节 / 灵感 / 伏笔 / 爽爆点" :disabled="isThinking">@</button>
-                        <button class="chat-mention-btn" @click="openScopePanel" title="添加章节范围" :disabled="isThinking">📆</button>
+                          title="引用角色 / 设定 / 章节 / 灵感 / 伏笔 / 爽爆点" :disabled="isThinking"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1"/></svg></button>
+                        <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 11.5l-7.5 7.5a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5"/></svg></button>
+                        <button class="chat-mention-btn" @click="openScopePanel" title="添加章节范围" :disabled="isThinking"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5v-15z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20"/></svg></button>
                         <textarea class="chat-input" v-model="inputText"
                           :placeholder="chatPlaceholder"
                           @keydown.enter.exact.prevent="sendMessage"
                           rows="1" ref="writingAiInput"></textarea>
                         <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0 && chatMentions.length === 0) || isThinking">
-                          {{ isThinking ? '思考中' : '发送' }}
+                          <svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10.5 13.5M21 3l-7 18-3.5-7.5L3 10l18-7z"/></svg>{{ isThinking ? '思考中' : '发送' }}
                         </button>
                       </div>
                       <div class="scope-panel" v-if="chatScopePanelOpen" @click.stop>
@@ -3537,7 +3704,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ===== 角色页 ===== -->
         <div v-if="activeTab === 'characters'" class="char-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <div class="empty-state-icon">🎭</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-character.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3548,7 +3715,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <span>角色</span>
                 <span style="display:flex;align-items:center;gap:6px">
                   <button class="btn-icon" @click="createCharacter" title="新建角色">+ 角色</button>
-                  <button class="sub-sidebar-toggle" @click="toggleSubSidebar" title="收起目录">«</button>
+                  <button class="sub-sidebar-toggle edge-tab" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
                 </span>
               </div>
               <div class="char-search">
@@ -3572,17 +3739,17 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <div class="char-sidebar-foot" v-if="charObsPending">
                 <button class="char-obs-entry" @click="charSubView = 'observations'">
-                  🎐 AI 观察 {{ charObsPending }} 条待处理
+                  AI 观察 {{ charObsPending }} 条待处理
                 </button>
               </div>
               </template>
-              <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录">»</button>
+              <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
             </div>
 
             <!-- 右侧：主区 -->
             <div class="char-main">
               <div v-if="!currentChar" class="empty-state" style="height:100%">
-                <div class="empty-state-icon">🎭</div>
+                <img class="empty-state-img" src="assets/empty/bg-empty-character.png" alt="">
                 <div class="empty-state-text">选择或新建角色</div>
                 <div class="empty-state-hint">角色页分阶段呈现人物成长轨迹；正文里出现角色名或别名时会标蓝</div>
               </div>
@@ -3598,7 +3765,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     <option v-for="l in charLevels" :key="l.value" :value="l.value">{{ l.label }}</option>
                   </select>
                   <button class="btn btn-primary" :disabled="charAnalyzing" @click="analyzeCharStages">
-                    {{ charAnalyzing ? '解析中…' : '✨ AI 分阶段解析' }}
+                    {{ charAnalyzing ? '解析中…' : 'AI 分阶段解析' }}
                   </button>
                 </div>
 
@@ -3607,7 +3774,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div class="char-toolbar">
                     <button class="btn btn-secondary" @click="charAddStage">+ 添加阶段</button>
                     <button class="btn" :class="charLinkMode ? 'btn-primary' : 'btn-secondary'" @click="charToggleLinkMode">
-                      {{ charLinkMode ? '取消连线' : '🔗 连线模式' }}
+                      {{ charLinkMode ? '取消连线' : '连线模式' }}
                     </button>
                     <button class="btn btn-secondary" @click="relayoutCharCanvas">↻ 重排画布</button>
                     <span class="char-toolbar-info">
@@ -3617,7 +3784,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <div class="char-canvas-area">
                     <div v-if="charStages.length === 0" class="outline-empty-hint">
                       暂无阶段
-                      <span>点「✨ AI 分阶段解析」按正文自动切分，或「+ 添加阶段」手动创建</span>
+                      <span>点「AI 分阶段解析」按正文自动切分，或「+ 添加阶段」手动创建</span>
                     </div>
                     <svg class="char-svg" :width="charSvgWidth" :height="charSvgHeight"
                          @click.self="charSelectedStageId = ''; charSelectedEventId = ''"
@@ -3778,7 +3945,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ===== 伏笔页 ===== -->
         <div v-if="activeTab === 'foreshadowing'" class="fs-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <div class="empty-state-icon">🪝</div>
+            <img class="empty-state-img" src="assets/empty/bg-empty-foreshadow.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3845,7 +4012,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </div>
                 </template>
                 <div v-else class="writing-empty-editor">
-                  <div class="empty-state-icon">🪝</div>
+                  <img class="empty-state-img" src="assets/empty/bg-empty-foreshadow.png" alt="">
                   <div class="empty-state-text">选择或创建伏笔</div>
                   <div class="empty-state-hint">左侧列表中点击「+ 新增」添加伏笔</div>
                 </div>
@@ -3887,14 +4054,14 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
         <!-- ========== Relations (星图) Page ========== -->
         <div v-if="activeTab === 'relations'" class="rel-container">
           <div class="rel-tabs">
-            <button :class="{ active: relSubView === 'analyze' }" @click="relSubView = 'analyze'">🔍 分析</button>
-            <button :class="{ active: relSubView === 'graph' }" @click="relSubView = 'graph'; relLoadGraphData(relCurrentType)">🌌 关系图</button>
-            <button :class="{ active: relSubView === 'archive' }" @click="relSubView = 'archive'; relLoadArchive(relArchiveType)">📖 档案库</button>
+            <button :class="{ active: relSubView === 'analyze' }" @click="relSubView = 'analyze'">分析</button>
+            <button :class="{ active: relSubView === 'graph' }" @click="relSubView = 'graph'; relLoadGraphData(relCurrentType)">关系图</button>
+            <button :class="{ active: relSubView === 'archive' }" @click="relSubView = 'archive'; relLoadArchive(relArchiveType)">档案库</button>
           </div>
 
           <!-- 分析子页 -->
           <div v-if="relSubView === 'analyze'" class="rel-subview">
-            <div v-if="!currentProjectId" class="empty-state"><div class="empty-state-icon">🌌</div><p>请先选择项目</p></div>
+            <div v-if="!currentProjectId" class="empty-state"><img class="empty-state-img" src="assets/empty/bg-empty-starmap.png" alt=""><p>请先选择项目</p></div>
             <div v-else class="rel-analyze-form">
               <div class="form-row">
                 <label>分析档位</label>
@@ -3916,7 +4083,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <div class="rel-upload-head">
                   <span>选择文件（共 {{ relUploadFiles.length }} 个，已选 {{ relSelectedFiles.length }} 个）</span>
                   <div class="rel-upload-actions">
-                    <button type="button" class="btn-icon" @click="relLoadUploads">🔄 刷新</button>
+                    <button type="button" class="btn-icon" @click="relLoadUploads">刷新</button>
                     <button type="button" class="btn-icon" @click="relToggleAllUploads">
                       {{ relAllUploadsSelected ? '全不选' : '全选' }}
                     </button>
@@ -3999,7 +4166,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               <!-- 肖像批量生成（只要有项目就显示按钮；暂无角色数据时点击会就地提示原因） -->
               <div v-if="currentProjectId" style="margin-top:12px">
                 <button class="btn btn-secondary" :disabled="relGeneratingPortraits" @click="relGenerateAllPortraits" style="font-size:13px">
-                  {{ relGeneratingPortraits ? '肖像生成中…' : '🎨 生成角色肖像' }}
+                  {{ relGeneratingPortraits ? '肖像生成中…' : '生成角色肖像' }}
                 </button>
                 <span v-if="relPortraitResult" style="margin-left:12px;font-size:12px;color:var(--text-muted)">
                   新增 {{ relPortraitResult.drawn }} 张，跳过 {{ relPortraitResult.skipped }} 张，失败 {{ relPortraitResult.failed }} 张
@@ -4082,7 +4249,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </div>
               <button class="btn btn-secondary" style="font-size:13px" @click="relOpenCreateEntity(relCurrentType)">＋ 新建条目</button>
               <button class="btn" :class="relLinkMode ? 'btn-primary' : 'btn-secondary'" style="font-size:13px"
-                      @click="relToggleLinkMode">{{ relLinkMode ? '🔗 连线中…' : '🔗 连关系' }}</button>
+                      @click="relToggleLinkMode">{{ relLinkMode ? '连线中…' : '连关系' }}</button>
               <span v-if="relCurrentType === '角色' && !relPortraitNames.length" class="rel-avatar-hint">
                 生成角色肖像后，节点会显示为头像
               </span>
@@ -4098,13 +4265,13 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             <div class="rel-canvas-wrap" @contextmenu.prevent="relOnCanvasContextMenu">
               <div id="rel-3d-canvas" class="rel-3d-canvas" v-show="!relGraphEmpty"></div>
               <div v-if="relGraphEmpty" class="rel-graph-empty" @click="relNodeMenu = null">
-                <div class="rel-graph-empty-icon">🌌</div>
+                <img class="empty-state-img" src="assets/empty/bg-empty-starmap.png" alt="">
                 <h3>「{{ relCurrentType }}」还没有条目</h3>
                 <p>两种方式开始梳理：</p>
                 <div class="rel-graph-empty-actions">
                   <button class="btn btn-primary" @click="relOpenCreateEntity(relCurrentType)">＋ 手动新建条目</button>
-                  <button class="btn btn-secondary" @click="relSubView = 'analyze'">🔍 去 AI 分析</button>
-                  <button class="btn btn-secondary" @click="relMenuRefresh">🔄 刷新</button>
+                  <button class="btn btn-secondary" @click="relSubView = 'analyze'">去 AI 分析</button>
+                  <button class="btn btn-secondary" @click="relMenuRefresh">刷新</button>
                 </div>
                 <p class="rel-graph-empty-hint">
                   也可以在画布上右键新建条目；分析完成后，节点可拖拽调整位置、右键可编辑、点选可查看档案。
@@ -4114,25 +4281,25 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                    :style="{ left: relNodeMenu.x + 'px', top: relNodeMenu.y + 'px' }">
                 <template v-if="relNodeMenu.kind === 'relation'">
                   <div class="rel-menu-title">{{ relNodeMenu.from }} → {{ relNodeMenu.to }}</div>
-                  <button @click="relMenuEditRelation">✏️ 编辑关系</button>
-                  <button class="danger" @click="relMenuDeleteRelation">🗑 删除关系</button>
+                  <button @click="relMenuEditRelation">编辑关系</button>
+                  <button class="danger" @click="relMenuDeleteRelation">删除关系</button>
                 </template>
                 <template v-else-if="relNodeMenu.kind === 'blank'">
                   <div class="rel-menu-title">画布操作 · {{ relCurrentType }}</div>
                   <button @click="relMenuCreateEntity">＋ 新建条目</button>
-                  <button @click="relMenuRefresh">🔄 刷新数据</button>
-                  <button v-if="!relGraphEmpty" @click="relMenuRelayout">✨ 重新布局</button>
-                  <button v-if="!relGraphEmpty" @click="relMenuResetView">🎯 重置视角</button>
-                  <button @click="relMenuBackground">🖼 更换背景图</button>
-                  <button @click="relMenuGoAnalyze">🔍 去 AI 分析</button>
+                  <button @click="relMenuRefresh">刷新数据</button>
+                  <button v-if="!relGraphEmpty" @click="relMenuRelayout">重新布局</button>
+                  <button v-if="!relGraphEmpty" @click="relMenuResetView">重置视角</button>
+                  <button @click="relMenuBackground">更换背景图</button>
+                  <button @click="relMenuGoAnalyze">去 AI 分析</button>
                 </template>
                 <template v-else>
                   <div class="rel-menu-title">{{ relNodeMenu.name }}</div>
-                  <button @click="relMenuCreateRelation">🔗 新增关系</button>
-                  <button @click="relMenuEditEntity">✏️ 编辑条目</button>
-                  <button @click="relMenuViewEntity">📖 查看档案</button>
-                  <button v-if="relCurrentType === '角色'" @click="relMenuPortrait">🎨 更新肖像图</button>
-                  <button class="danger" @click="relMenuDeleteEntity">🗑 删除条目</button>
+                  <button @click="relMenuCreateRelation">新增关系</button>
+                  <button @click="relMenuEditEntity">编辑条目</button>
+                  <button @click="relMenuViewEntity">查看档案</button>
+                  <button v-if="relCurrentType === '角色'" @click="relMenuPortrait">更新肖像图</button>
+                  <button class="danger" @click="relMenuDeleteEntity">删除条目</button>
                 </template>
               </div>
               <!-- 悬停预览：纵向矩形卡片，大图 + 简介 -->
@@ -4165,15 +4332,15 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <strong>{{ relSelectedEntity }}</strong>
                 <span v-if="relSelectedIsManual" class="rel-badge-manual">手动维护</span>
                 <span v-else class="rel-badge-ai">AI 生成</span>
-                <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">✏️ 编辑条目</button>
-                <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">🔗 加关系</button>
+                <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">编辑条目</button>
+                <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">加关系</button>
               </div>
               <div class="rel-entity-body">
                 <div v-if="relEntityOwnerType === '角色'" class="rel-portrait-slot">
                   <img v-if="relPortraitUrl" :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
                   <div v-else class="rel-portrait-placeholder"><span>🖼</span><em>暂无肖像</em></div>
                   <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
-                    {{ relPortraitLoading ? '生成中…' : (relPortraitUrl ? '🔄 重绘肖像' : '🎨 生成肖像') }}
+                    {{ relPortraitLoading ? '生成中…' : (relPortraitUrl ? '重绘肖像' : '生成肖像') }}
                   </button>
                   <div v-if="relPortraitError" class="rel-portrait-error">{{ relPortraitError }}</div>
                 </div>
@@ -4208,7 +4375,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
               </button>
             </div>
             <div v-if="!relArchiveEntities.length" class="empty-state">
-              <div class="empty-state-icon">📖</div>
+              <img class="empty-state-img" src="assets/empty/bg-empty-starmap.png" alt="">
               <p>该分类还没有条目：点「＋ 新增条目」手动创建，或先执行 AI 分析</p>
             </div>
             <div v-if="relEntityContent" class="rel-entity-detail">
@@ -4216,16 +4383,16 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <strong>{{ relSelectedEntity }}</strong>
                 <span v-if="relSelectedIsManual" class="rel-badge-manual">手动维护</span>
                 <span v-else class="rel-badge-ai">AI 生成</span>
-                <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">✏️ 编辑条目</button>
-                <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">🔗 加关系</button>
-                <button class="btn btn-secondary" style="font-size:12px" @click="relDeleteEntity(relSelectedEntity)">🗑 删除</button>
+                <button class="btn btn-secondary" style="font-size:12px;margin-left:auto" @click="relOpenEditEntity">编辑条目</button>
+                <button class="btn btn-secondary" style="font-size:12px" @click="relOpenCreateRelationFrom(relSelectedEntity)">加关系</button>
+                <button class="btn btn-secondary" style="font-size:12px" @click="relDeleteEntity(relSelectedEntity)">删除</button>
               </div>
               <div class="rel-entity-body">
                 <div v-if="relEntityOwnerType === '角色'" class="rel-portrait-slot">
                   <img v-if="relPortraitUrl" :src="relPortraitUrl" alt="肖像" class="rel-portrait-img">
                   <div v-else class="rel-portrait-placeholder"><span>🖼</span><em>暂无肖像</em></div>
                   <button class="btn btn-secondary" :disabled="relPortraitLoading" @click="relRedrawPortrait(relSelectedEntity)" style="font-size:12px;padding:4px 12px">
-                    {{ relPortraitLoading ? '生成中…' : (relPortraitUrl ? '🔄 重绘肖像' : '🎨 生成肖像') }}
+                    {{ relPortraitLoading ? '生成中…' : (relPortraitUrl ? '重绘肖像' : '生成肖像') }}
                   </button>
                   <div v-if="relPortraitError" class="rel-portrait-error">{{ relPortraitError }}</div>
                 </div>
@@ -4414,7 +4581,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                accept="image/png,image/jpeg,image/webp,image/gif" @change="relBgOnFile">
       </div>
       <div class="modal-footer" style="flex-wrap:wrap;gap:10px;justify-content:flex-start">
-        <button class="btn btn-secondary" :disabled="relBgBusy" @click="relBgOpenPicker">🖼 选择图片…</button>
+        <button class="btn btn-secondary" :disabled="relBgBusy" @click="relBgOpenPicker">选择图片…</button>
         <button class="btn btn-primary" :disabled="relBgBusy || !relBgPickUrl" @click="relBgUpload('current')">
           应用到本页
         </button>
@@ -5021,17 +5188,31 @@ createApp({
     const saveToKbContent = ref('');
     const activeTab = ref('chat');
     const tabs = [
-      { key: 'chat', icon: '💬' },
-      { key: 'writing', icon: '✍️' },
-      { key: 'characters', icon: '🎭' },
-      { key: 'foreshadowing', icon: '🪝' },
-      { key: 'relations', icon: '🌌' },
-      { key: 'settings', icon: '📝' },
-      { key: 'outline', icon: '🗺' },
-      { key: 'knowledge', icon: '📚' },
-      { key: 'inspiration', icon: '💡' },
-      { key: 'files', icon: '📁' },
+      { key: 'chat' },
+      { key: 'writing' },
+      { key: 'characters' },
+      { key: 'foreshadowing' },
+      { key: 'relations' },
+      { key: 'settings' },
+      { key: 'outline' },
+      { key: 'knowledge' },
+      { key: 'inspiration' },
+      { key: 'files' },
     ];
+    // v0.11.1：顶部 Tab 栏线条图标（24×24，stroke=currentColor，风格对齐设计文档 3.3 节）
+    const _ICON_OPEN = '<svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+    const TAB_ICONS = {
+      chat: _ICON_OPEN + '<path d="M17 8h1.5A2.5 2.5 0 0 1 21 10.5v6a2.5 2.5 0 0 1-2.5 2.5H17v2.5l-3.5-2.5"/><path d="M3 5.5A2.5 2.5 0 0 1 5.5 3h8A2.5 2.5 0 0 1 16 5.5v5a2.5 2.5 0 0 1-2.5 2.5H9L5.5 15.5V13A2.5 2.5 0 0 1 3 10.5v-5z"/></svg>',
+      writing: _ICON_OPEN + '<path d="M20.5 3.5c-5 .5-9.5 3-11.5 7L5 19l1.5 1.5L15 16c4-2 6.5-6.5 7-11.5l-1.5-1z"/><path d="M9 10.5l4.5 4.5"/><path d="M5 19l-1.8 1.8"/></svg>',
+      characters: _ICON_OPEN + '<circle cx="12" cy="7.5" r="4"/><path d="M4.5 20.5c1-4 4-6 7.5-6s6.5 2 7.5 6"/></svg>',
+      foreshadowing: _ICON_OPEN + '<circle cx="14" cy="4" r="1.8"/><path d="M14 5.8V13a4.5 4.5 0 1 1-9 0v-.8"/><path d="M9.5 12.4l-2-.6"/></svg>',
+      relations: _ICON_OPEN + '<circle cx="12" cy="5" r="2.2" fill="currentColor" stroke="none"/><circle cx="5" cy="18" r="2.2"/><circle cx="19" cy="18" r="2.2"/><path d="M10.6 6.8L6.2 16.2M13.4 6.8l4.4 9.4M7.2 18h9.6"/></svg>',
+      settings: _ICON_OPEN + '<path d="M6 3h7l4 4v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M13 3v4h4"/><path d="M8.5 9.5h4"/><circle cx="16.5" cy="16.5" r="2.4"/><path d="M16.5 13.2v1.2M16.5 18.6v1.2M13.6 15.2l1 .6M18.4 17.2l1 .6M19.4 15.2l-1 .6M14.6 17.2l-1 .6"/></svg>',
+      outline: _ICON_OPEN + '<rect x="3" y="4.5" width="3" height="3" rx="0.8"/><rect x="8.5" y="10.5" width="3" height="3" rx="0.8"/><rect x="14" y="16.5" width="3" height="3" rx="0.8"/><path d="M8 6h13M13.5 12H21M19 18h2"/></svg>',
+      knowledge: _ICON_OPEN + '<rect x="3.5" y="4" width="4.5" height="16" rx="1"/><rect x="9.75" y="4" width="4.5" height="16" rx="1"/><rect x="16" y="4" width="4.5" height="16" rx="1"/><path d="M5 7h1.5M11.25 7h1.5M17.5 7H19"/></svg>',
+      inspiration: _ICON_OPEN + '<path d="M9.5 14.8c-2-1.5-3-3.3-3-5.3A5.5 5.5 0 0 1 12 4a5.5 5.5 0 0 1 5.5 5.5c0 2-1 3.8-3 5.3v1.7h-5v-1.7z"/><path d="M10 20h4M10.2 16.5h3.6"/></svg>',
+      files: _ICON_OPEN + '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>',
+    };
 
     // ===== 页边栏收起（一级侧栏与各页二级目录）=====
     // 纯界面状态，存 localStorage（与后端偏好无关，不占用工作区配置）
@@ -11643,6 +11824,21 @@ createApp({
       });
       window.addEventListener('resize', () => { entryCard.value = null; });
 
+      // v0.11.1：@ 引用面板 / 章节范围面板 —— 点面板外或按 Esc 关闭
+      document.addEventListener('click', (e) => {
+        const t = e.target;
+        const inPanel = t && t.closest && t.closest('.chat-mention-popover, .scope-panel, .chat-mention-btn');
+        if (!inPanel) {
+          if (mentionPopoverOpen.value) mentionPopoverOpen.value = false;
+          if (chatScopePanelOpen.value) chatScopePanelOpen.value = false;
+        }
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (mentionPopoverOpen.value) mentionPopoverOpen.value = false;
+        if (chatScopePanelOpen.value) chatScopePanelOpen.value = false;
+      });
+
       // ===== 全局拖拽阻止（PyWebView 修复）=====
       // PyWebView 默认会拦截文件拖拽并尝试打开文件，导致 JS drop 事件不触发
       // 需要在 document 级别阻止默认行为，仅允许 chat-input-wrapper 内的拖放
@@ -11744,7 +11940,7 @@ createApp({
       showRenameModal, renameInput, renamingProjectId,
       projectWorkspacePath, showProjectWsModal, projectWsInput,
       showSaveToKbModal, saveToKbTitle, saveToKbType, saveToKbContent,
-      activeTab, tabs,
+      activeTab, tabs, TAB_ICONS,
       appSidebarCollapsed, subSidebarCollapsed, toggleAppSidebar, toggleSubSidebar,
       messages, inputText, isThinking, messagesArea,
       chatInput, writingAiMessagesArea, writingAiInput, writingAiCollapsed, toggleWritingAi,
