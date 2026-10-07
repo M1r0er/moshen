@@ -2108,11 +2108,21 @@ svg.ms-icon { display: block; }
 .writing-ai-rail-btn:hover { background: var(--color-background); }
 .writing-ai-rail-btn .ms-icon { width: 24px; height: 24px; }
 .writing-ai-header { background: var(--color-surface-weak, #FDFBF7); height: 44px; padding: 0 12px; }
-.writing-ai-header .ai-title { display: inline-flex; align-items: center; gap: 8px; }
-.writing-ai-header .ai-title .ms-icon { width: 20px; height: 20px; color: var(--color-primary); }
+.writing-ai-header .ai-title { display: inline-flex; align-items: center; gap: 8px; }.writing-ai-header .ai-title .ms-icon { width: 20px; height: 20px; color: var(--color-primary); }
 
 /* ----- 空状态：水墨画素材 ----- */
 .empty-state-img { width: 240px; opacity: 0.55; user-select: none; pointer-events: none; }
+
+/* v0.11.1 修补：设置类按钮内的 SVG 图标尺寸约束 */
+.settings-btn { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.settings-btn .ms-icon { width: 16px; height: 16px; }
+.workspace-btn { display: inline-flex; align-items: center; gap: 5px; }
+.workspace-btn .ms-icon { width: 14px; height: 14px; }
+
+/* v0.11.1 修补：设定/知识库二级栏改为「栏不滚动 + 内层滚动」，统一 24×48 贴边大拉手 */
+.settings-sidebar { overflow: hidden; position: relative; }
+.knowledge-sidebar { display: flex; flex-direction: column; overflow: hidden; position: relative; }
+.sub-panel-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 
 /* ----- 对话页：用户气泡内标题反白 ----- */
 .message.user .message-bubble h1,
@@ -2248,7 +2258,7 @@ svg.ms-icon { display: block; }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.11.1</div>
+        <div class="sidebar-version">v0.11.2</div>
       </div>
       </template>
     </aside>
@@ -2531,7 +2541,6 @@ svg.ms-icon { display: block; }
                 <span style="font-size:11px;color:var(--text-muted)">
                   {{ settingsFilterActive ? (filteredFlatTree.length + ' / ' + settingsTreeTotal) : settingsTreeTotal }} 条
                 </span>
-                <button class="sub-sidebar-toggle head-btn" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
               </div>
               <!-- 筛选：按类别 + 标题关键词 -->
               <div class="settings-filter">
@@ -2584,6 +2593,7 @@ svg.ms-icon { display: block; }
                   <div class="export-menu-item" @click="exportSettings('docx')">📄 Word 文档</div>
                 </div>
               </div>
+              <button class="sub-sidebar-toggle edge-tab" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
               </template>
               <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
             </div>
@@ -2974,10 +2984,8 @@ svg.ms-icon { display: block; }
         <div v-if="activeTab === 'knowledge'" class="knowledge-container">
           <div class="knowledge-sidebar" :class="{ collapsed: subSidebarCollapsed }">
             <template v-if="!subSidebarCollapsed">
-            <div class="settings-sidebar-header" style="display:flex;align-items:center;justify-content:space-between">
-              <span>知识库</span>
-              <button class="sub-sidebar-toggle head-btn" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
-            </div>
+            <div class="settings-sidebar-header">知识库</div>
+            <div class="sub-panel-scroll">
             <div v-for="k in knowledgeList" :key="k.id"
                  class="knowledge-item" :class="{ active: currentKnowledge?.id === k.id }"
                  @click="viewKnowledge(k.id)">
@@ -2991,6 +2999,8 @@ svg.ms-icon { display: block; }
             <div v-if="knowledgeList.length === 0" style="padding:8px 4px;font-size:12px;color:var(--text-muted)">
               暂无知识条目
             </div>
+            </div>
+            <button class="sub-sidebar-toggle edge-tab" @click="toggleSubSidebar" title="收起目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg></button>
             </template>
             <button v-else class="collapsed-rail-btn" @click="toggleSubSidebar" title="展开目录"><svg class="ms-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 5.5L16 12l-6.5 6.5"/></svg></button>
           </div>
