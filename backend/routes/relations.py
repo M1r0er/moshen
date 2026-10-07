@@ -760,7 +760,8 @@ async def get_data(project_id: str, type: str = "角色"):
     data = _read_master_data(project_dir / "星图" / "关系" / type)
     if data is None:
         return {"empty": True, "data": None}
-    # 兼容旧数据：为历史关系补上稳定 rid，便于后续编辑/删除定位
+    # 兼容旧数据：为历史关系补上稳定 rid，便于后续编辑/删除定位。
+    # 仅当确实存在缺 rid 的关系时才写盘（一次性迁移），之后读请求不再写盘。
     if any(not r.get("rid") for r in data.get("relations", []) or []):
         ensure_rids(data)
         persist_type_data(project_dir, type, data)

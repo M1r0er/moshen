@@ -60,6 +60,18 @@ class ThresholdRequest(BaseModel):
     fatigue_threshold: int
 
 
+class ValueAnalysisRequest(BaseModel):
+    chapter_scope: dict | None = None
+    chapter_ids: list[dict] = []
+    narrative_value: str = ""
+    emotional_mechanism: str = ""
+    rhythm_pattern: str = ""
+    reuse_conditions: list[str] = []
+    fatigue_risks: list[str] = []
+    evidence: list[dict] = []
+    summary: str = ""
+
+
 def _require_project(project_id: str) -> None:
     if not get_project_kb_manager().get_project(project_id):
         raise HTTPException(404, "项目不存在")
@@ -131,6 +143,27 @@ async def record_usage(project_id: str, pp_id: str, req: UsageRequest):
     if not point:
         raise HTTPException(404, "爽爆点不存在")
     return {"success": True, "point": point}
+
+
+@router.get("/{project_id}/{pp_id}/value-analyses")
+async def list_value_analyses(project_id: str, pp_id: str):
+    """读取爽爆点的价值分析快照（追加式，不覆盖历史）"""
+    _require_project(project_id)
+    mgr = get_plot_point_manager()
+    if not mgr.get_point(project_id, pp_id):
+        raise HTTPException(404, "爽爆点不存在")
+    analyses = mgr.list_value_analyses(project_id, pp_id)
+    return {"analyses": analyses, "latest": analyses[-1] if analyses else None}
+
+
+@router.post("/{project_id}/{pp_id}/value-analyses")
+async def add_value_analysis(project_id: str, pp_id: str, req: ValueAnalysisRequest):
+    """保存一条价值分析快照（作者确认后调用）"""
+    _require_project(project_id)
+    entry = get_plot_point_manager().add_value_analysis(project_id, pp_id, req.model_dump())
+    if not entry:
+        raise HTTPException(404, "爽爆点不存在")
+    return {"success": True, "analysis": entry}
 
 
 def _build_chapters_digest(project_id: str) -> tuple[str, int, bool]:

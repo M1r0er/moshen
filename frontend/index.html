@@ -540,6 +540,37 @@ body {
 }
 .mention-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mention-chip-count { color: var(--color-text-weak); flex-shrink: 0; font-size: 11px; }
+/* v0.11.0：章节范围芯片与参数面板 */
+.mention-chip.scope-chip {
+  cursor: pointer; background: var(--color-input-bg);
+  border-style: solid; border-color: var(--color-border-strong);
+}
+.scope-panel {
+  position: relative; max-width: 920px; margin: 6px auto 10px; padding: 12px 14px;
+  background: var(--color-surface); border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-card);
+}
+.scope-panel-title { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); margin-bottom: 8px; }
+.scope-opt { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-primary); margin-bottom: 8px; }
+.scope-num {
+  width: 64px; padding: 4px 8px; border: 1px solid var(--color-border-strong);
+  background: var(--color-input-bg); color: var(--text-primary); border-radius: var(--radius-sm); font-size: 13px;
+}
+.scope-num:disabled { opacity: 0.45; }
+.scope-panel-btns { display: flex; justify-content: flex-end; gap: 8px; }
+/* v0.11.0：材料覆盖提示 */
+.ref-coverage {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 6px; font-size: 11.5px; color: var(--color-text-weak);
+}
+.ref-coverage-title { font-weight: 600; color: var(--color-text-secondary); }
+.ref-coverage-chip {
+  padding: 1px 6px; border-radius: var(--radius-sm);
+  background: var(--color-input-bg); border: 1px solid var(--color-border);
+}
+.ref-coverage-warn { color: var(--color-warning); }
+.settings-derive-row { padding: 8px 0 0; }
+.settings-derive-row .btn { width: 100%; }
 .mention-remove {
   background: none; border: none; cursor: pointer; color: var(--color-text-weak);
   font-size: 16px; padding: 0 2px; line-height: 1; flex-shrink: 0; transition: color 0.15s;
@@ -1320,7 +1351,19 @@ body {
 .ch-del:hover { background: var(--color-error-bg); color: var(--color-error); }
 .writing-empty-hint { padding: 22px 14px; text-align: center; color: var(--text-muted); font-size: 12.5px; }
 
-.writing-editor-area { flex: 1; display: flex; flex-direction: column; padding: 18px 28px; min-width: 0; }
+.writing-editor-area { flex: 1; display: flex; flex-direction: column; padding: 18px 28px; min-width: 0; --writing-col: 1020px; }
+/* v0.11.0：写作页 6 个块统一列宽与轴心，修正侧栏全收起时正文框窄于其他框的左右错位 */
+.chapter-head,
+.writing-row.flow-row,
+.editor-toolbar,
+.writing-editor,
+.writing-status-bar,
+.writing-bottom-bar {
+  width: 100%;
+  max-width: var(--writing-col);
+  margin-left: auto;
+  margin-right: auto;
+}
 .writing-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .writing-input { border: 1px solid var(--color-border-strong); background: var(--color-input-bg); color: var(--text-primary); padding: 9px 13px; border-radius: var(--radius-md); font-size: 14px; outline: none; transition: all 0.2s ease; }
 .writing-input:focus { border-color: var(--color-primary); background: var(--color-surface); box-shadow: var(--shadow-focus); }
@@ -1351,8 +1394,9 @@ body {
 .writing-editor {
   flex: 1;
   width: 100%;
-  max-width: 1020px;
-  margin: 0 auto;
+  max-width: var(--writing-col);
+  margin-left: auto;
+  margin-right: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 28px 40px;
@@ -2037,7 +2081,7 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.10.3</div>
+        <div class="sidebar-version">v0.11.0</div>
       </div>
       </template>
     </aside>
@@ -2110,13 +2154,23 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     </div>
                   </div>
                   <!-- @ 引用条目（仅元数据，不展示全文） -->
-                  <div class="msg-attachments" v-if="msg.mentions && msg.mentions.length > 0">
+                  <div class="msg-attachments" v-if="(msg.mentions && msg.mentions.length > 0) || msg.scope">
                     <div class="msg-attachment-item mention-tag" v-for="(m, mi) in msg.mentions" :key="'mm' + mi">
                       <span class="msg-att-icon">@</span>
-                      <span class="msg-att-name">{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
+                      <span class="msg-att-name">{{ mentionChipText(m) }}</span>
+                    </div>
+                    <div class="msg-attachment-item mention-tag" v-if="msg.scope">
+                      <span class="msg-att-icon">@</span>
+                      <span class="msg-att-name">章节 · {{ msg.scope }}</span>
                     </div>
                   </div>
                   <div class="message-bubble" v-if="msg.content || !msg.attachments || msg.attachments.length === 0" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
+                  <div class="ref-coverage" v-if="msg.coverage">
+                    <span class="ref-coverage-title">本次材料</span>
+                    <span v-for="c in msg.coverage.resolved_chapters" :key="'rc' + c.ch_id" class="ref-coverage-chip">第{{ c.sequence }}章</span>
+                    <span v-if="msg.coverage.missing && msg.coverage.missing.length" class="ref-coverage-warn">缺失：{{ msg.coverage.missing.join('、') }}</span>
+                    <span v-if="msg.coverage.warnings && msg.coverage.warnings.length" class="ref-coverage-warn">{{ msg.coverage.warnings[0] }}</span>
+                  </div>
                   <!-- 待确认提案：由作者点「加入」后才写入对应位置 -->
                   <div class="proposal-list" v-if="msg.proposals && msg.proposals.length">
                     <div v-for="pr in msg.proposals" :key="pr.id" class="proposal-card" :class="{ done: pr.status }">
@@ -2213,17 +2267,21 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   </div>
                 </div>
                 <!-- @ 引用 chip 区 -->
-                <div class="chat-mentions" v-if="chatMentions.length > 0">
-                  <div class="mention-chip" v-for="(m, mi) in chatMentions" :key="'cm' + mi" :title="m.title">
-                    <span class="mention-chip-label">@{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
-                    <span class="mention-chip-count" v-if="m.content">{{ m.content.length }}字</span>
+                <div class="chat-mentions" v-if="chatMentions.length > 0 || chatScope">
+                  <div class="mention-chip" v-for="(m, mi) in chatMentions" :key="'cm' + mi" :title="mentionChipText(m)">
+                    <span class="mention-chip-label">{{ mentionChipText(m) }}</span>
                     <button class="mention-remove" @click="removeMention(mi)" title="移除">&times;</button>
+                  </div>
+                  <div class="mention-chip scope-chip" v-if="chatScope" :title="chatScopeText" @click="openScopePanel">
+                    <span class="mention-chip-label">@章节 · {{ chatScopeText }}</span>
+                    <button class="mention-remove" @click.stop="clearScope" title="移除">&times;</button>
                   </div>
                 </div>
                 <div class="chat-input-row">
                   <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
                   <button class="chat-mention-btn" :class="{ active: mentionPopoverOpen }" @click="openMentionPopover"
-                    title="引用角色 / 设定 / 章节 / 灵感 / 伏笔" :disabled="isThinking">@</button>
+                    title="引用角色 / 设定 / 章节 / 灵感 / 伏笔 / 爽爆点" :disabled="isThinking">@</button>
+                  <button class="chat-mention-btn" @click="openScopePanel" title="添加章节范围" :disabled="isThinking">📆</button>
                   <input type="file" ref="chatFileInput" style="display:none" accept=".txt,.md,.docx,.doc" @change="handleFileUpload" multiple>
                   <textarea class="chat-input" v-model="inputText"
                     :placeholder="chatPlaceholder"
@@ -2232,6 +2290,18 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                   <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0 && chatMentions.length === 0) || isThinking">
                     {{ isThinking ? '思考中' : '发送' }}
                   </button>
+                </div>
+                <div class="scope-panel" v-if="chatScopePanelOpen" @click.stop>
+                  <div class="scope-panel-title">分析章节范围</div>
+                  <label class="scope-opt"><input type="radio" value="latest" v-model="scopeDraft.mode"> 最新
+                    <input type="number" min="1" max="20" v-model.number="scopeDraft.n" class="scope-num" :disabled="scopeDraft.mode !== 'latest'"> 章</label>
+                  <label class="scope-opt"><input type="radio" value="range" v-model="scopeDraft.mode"> 指定
+                    <input type="number" min="1" v-model.number="scopeDraft.from" class="scope-num" :disabled="scopeDraft.mode !== 'range'"> –
+                    <input type="number" min="1" v-model.number="scopeDraft.to" class="scope-num" :disabled="scopeDraft.mode !== 'range'"> 章</label>
+                  <div class="scope-panel-btns">
+                    <button class="mention-foot-btn" @click="clearScope">清除</button>
+                    <button class="mention-foot-btn primary" @click="applyScopePanel">确定</button>
+                  </div>
                 </div>
                 <!-- @ 引用选择浮层（SYNC: 与写作页右侧面板同步维护） -->
                 <div class="chat-mention-popover" v-if="mentionPopoverOpen" @click.stop>
@@ -2255,12 +2325,22 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                     </template>
                   </div>
                   <div class="mention-footer">
-                    <span class="mention-footer-info">已选 {{ mentionSelectedCount }} 条</span>
-                    <div class="mention-footer-btns">
-                      <button class="mention-foot-btn" @click="closeMentionPopover">取消</button>
-                      <button class="mention-foot-btn primary" @click="insertMentions"
-                        :disabled="mentionSelectedCount === 0 || mentionLoading">插入</button>
-                    </div>
+                    <template v-if="mentionTaskTarget">
+                      <span class="mention-footer-info">{{ mentionTaskTarget.title }} ▸ 选择任务</span>
+                      <div class="mention-footer-btns">
+                        <button class="mention-foot-btn" @click="insertMentionWithTask(mentionTaskTarget, null)">仅引用</button>
+                        <button class="mention-foot-btn primary" v-for="t in taskListFor(mentionTaskTarget.type)" :key="t.key"
+                          @click="insertMentionWithTask(mentionTaskTarget, t)">{{ t.label }}</button>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <span class="mention-footer-info">已选 {{ mentionSelectedCount }} 条</span>
+                      <div class="mention-footer-btns">
+                        <button class="mention-foot-btn" @click="closeMentionPopover">取消</button>
+                        <button class="mention-foot-btn primary" @click="insertMentions"
+                          :disabled="mentionSelectedCount === 0 || mentionLoading">插入</button>
+                      </div>
+                    </template>
                   </div>
                 </div>
                 <div class="drag-hint" v-if="isDragOver">松开鼠标以上传文件</div>
@@ -2321,6 +2401,10 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                 <div v-if="filteredFlatTree.length === 0" style="padding:12px 4px;font-size:12px;color:var(--text-muted)">
                   {{ settingsFilterActive ? '没有符合筛选条件的设定' : '暂无设定，点击下方「新建」按钮添加' }}
                 </div>
+              </div>
+              <div class="settings-derive-row">
+                <button class="btn btn-secondary" @click="deriveCurrentSetting" :disabled="!currentSettingNode"
+                  title="让 AI 基于当前设定与情节衍生新设定">✨ 衍生设定</button>
               </div>
               <div class="settings-sidebar-footer" style="position:relative">
                 <button class="btn btn-primary" @click="showNewSettingModal = true">+ 新建</button>
@@ -3197,13 +3281,23 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                             <span class="msg-att-size" v-if="att.size">{{ formatFileSize(att.size) }}</span>
                           </div>
                         </div>
-                        <div class="msg-attachments" v-if="msg.mentions && msg.mentions.length > 0">
+                        <div class="msg-attachments" v-if="(msg.mentions && msg.mentions.length > 0) || msg.scope">
                           <div class="msg-attachment-item mention-tag" v-for="(m, mi) in msg.mentions" :key="'wmm' + mi">
                             <span class="msg-att-icon">@</span>
-                            <span class="msg-att-name">{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
+                            <span class="msg-att-name">{{ mentionChipText(m) }}</span>
+                          </div>
+                          <div class="msg-attachment-item mention-tag" v-if="msg.scope">
+                            <span class="msg-att-icon">@</span>
+                            <span class="msg-att-name">章节 · {{ msg.scope }}</span>
                           </div>
                         </div>
                         <div class="message-bubble" v-if="msg.content || msg.streaming" v-html="renderMarkdown(msg.content) + (msg.streaming ? '<span class=&quot;cursor-blink&quot;></span>' : '')"></div>
+                        <div class="ref-coverage" v-if="msg.coverage">
+                          <span class="ref-coverage-title">本次材料</span>
+                          <span v-for="c in msg.coverage.resolved_chapters" :key="'wrc' + c.ch_id" class="ref-coverage-chip">第{{ c.sequence }}章</span>
+                          <span v-if="msg.coverage.missing && msg.coverage.missing.length" class="ref-coverage-warn">缺失：{{ msg.coverage.missing.join('、') }}</span>
+                          <span v-if="msg.coverage.warnings && msg.coverage.warnings.length" class="ref-coverage-warn">{{ msg.coverage.warnings[0] }}</span>
+                        </div>
                         <div class="proposal-list" v-if="msg.proposals && msg.proposals.length">
                           <div v-for="pr in msg.proposals" :key="pr.id" class="proposal-card" :class="{ done: pr.status }">
                             <div class="proposal-head">
@@ -3265,17 +3359,21 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                       @dragleave.prevent="isDragOver = false"
                       @drop.prevent="handleDrop"
                       :class="{ 'drag-over': isDragOver }">
-                      <div class="chat-mentions" v-if="chatMentions.length > 0">
-                        <div class="mention-chip" v-for="(m, mi) in chatMentions" :key="'wcm' + mi" :title="m.title">
-                          <span class="mention-chip-label">@{{ mentionTypeLabel(m.type) }}:{{ m.title }}</span>
-                          <span class="mention-chip-count" v-if="m.content">{{ m.content.length }}字</span>
+                      <div class="chat-mentions" v-if="chatMentions.length > 0 || chatScope">
+                        <div class="mention-chip" v-for="(m, mi) in chatMentions" :key="'wcm' + mi" :title="mentionChipText(m)">
+                          <span class="mention-chip-label">{{ mentionChipText(m) }}</span>
                           <button class="mention-remove" @click="removeMention(mi)" title="移除">&times;</button>
+                        </div>
+                        <div class="mention-chip scope-chip" v-if="chatScope" :title="chatScopeText" @click="openScopePanel">
+                          <span class="mention-chip-label">@章节 · {{ chatScopeText }}</span>
+                          <button class="mention-remove" @click.stop="clearScope" title="移除">&times;</button>
                         </div>
                       </div>
                       <div class="chat-input-row">
                         <button class="chat-attach-btn" @click="triggerFileInput" title="上传文件" :disabled="isThinking">📎</button>
                         <button class="chat-mention-btn" :class="{ active: mentionPopoverOpen }" @click="openMentionPopover"
-                          title="引用角色 / 设定 / 章节 / 灵感 / 伏笔" :disabled="isThinking">@</button>
+                          title="引用角色 / 设定 / 章节 / 灵感 / 伏笔 / 爽爆点" :disabled="isThinking">@</button>
+                        <button class="chat-mention-btn" @click="openScopePanel" title="添加章节范围" :disabled="isThinking">📆</button>
                         <textarea class="chat-input" v-model="inputText"
                           :placeholder="chatPlaceholder"
                           @keydown.enter.exact.prevent="sendMessage"
@@ -3283,6 +3381,18 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                         <button class="send-btn" @click="sendMessage" :disabled="(!inputText.trim() && chatAttachments.length === 0 && chatMentions.length === 0) || isThinking">
                           {{ isThinking ? '思考中' : '发送' }}
                         </button>
+                      </div>
+                      <div class="scope-panel" v-if="chatScopePanelOpen" @click.stop>
+                        <div class="scope-panel-title">分析章节范围</div>
+                        <label class="scope-opt"><input type="radio" value="latest" v-model="scopeDraft.mode"> 最新
+                          <input type="number" min="1" max="20" v-model.number="scopeDraft.n" class="scope-num" :disabled="scopeDraft.mode !== 'latest'"> 章</label>
+                        <label class="scope-opt"><input type="radio" value="range" v-model="scopeDraft.mode"> 指定
+                          <input type="number" min="1" v-model.number="scopeDraft.from" class="scope-num" :disabled="scopeDraft.mode !== 'range'"> –
+                          <input type="number" min="1" v-model.number="scopeDraft.to" class="scope-num" :disabled="scopeDraft.mode !== 'range'"> 章</label>
+                        <div class="scope-panel-btns">
+                          <button class="mention-foot-btn" @click="clearScope">清除</button>
+                          <button class="mention-foot-btn primary" @click="applyScopePanel">确定</button>
+                        </div>
                       </div>
                       <div class="chat-mention-popover" v-if="mentionPopoverOpen" @click.stop>
                         <div class="mention-tabs">
@@ -3305,12 +3415,22 @@ select option { background: var(--bg-primary); color: var(--text-primary); }
                           </template>
                         </div>
                         <div class="mention-footer">
-                          <span class="mention-footer-info">已选 {{ mentionSelectedCount }} 条</span>
-                          <div class="mention-footer-btns">
-                            <button class="mention-foot-btn" @click="closeMentionPopover">取消</button>
-                            <button class="mention-foot-btn primary" @click="insertMentions"
-                              :disabled="mentionSelectedCount === 0 || mentionLoading">插入</button>
-                          </div>
+                          <template v-if="mentionTaskTarget">
+                            <span class="mention-footer-info">{{ mentionTaskTarget.title }} ▸ 选择任务</span>
+                            <div class="mention-footer-btns">
+                              <button class="mention-foot-btn" @click="insertMentionWithTask(mentionTaskTarget, null)">仅引用</button>
+                              <button class="mention-foot-btn primary" v-for="t in taskListFor(mentionTaskTarget.type)" :key="t.key"
+                                @click="insertMentionWithTask(mentionTaskTarget, t)">{{ t.label }}</button>
+                            </div>
+                          </template>
+                          <template v-else>
+                            <span class="mention-footer-info">已选 {{ mentionSelectedCount }} 条</span>
+                            <div class="mention-footer-btns">
+                              <button class="mention-foot-btn" @click="closeMentionPopover">取消</button>
+                              <button class="mention-foot-btn primary" @click="insertMentions"
+                                :disabled="mentionSelectedCount === 0 || mentionLoading">插入</button>
+                            </div>
+                          </template>
                         </div>
                       </div>
                       <div class="drag-hint" v-if="isDragOver">松开鼠标以上传文件</div>
@@ -5017,13 +5137,84 @@ createApp({
       { key: 'chapter', label: '章节' },
       { key: 'inspiration', label: '灵感' },
       { key: 'foreshadowing', label: '伏笔' },
+      { key: 'plot_point', label: '爽爆点' },
     ];
     const MENTION_TYPE_LABELS = {
       character: '角色', setting: '设定', chapter: '章节',
-      inspiration: '灵感', foreshadowing: '伏笔', project: '梗概',
+      inspiration: '灵感', foreshadowing: '伏笔', project: '梗概', plot_point: '爽爆点',
     };
     function mentionTypeLabel(type) { return MENTION_TYPE_LABELS[type] || type; }
     const mentionSelectedCount = computed(() => Object.keys(mentionSelected.value).length);
+
+    // ===== v0.11.0 @ 任务化：条目类型 -> 可用任务 =====
+    const MENTION_TASKS = {
+      setting: [
+        { key: 'setting_logic_check', label: '逻辑检查', scope: { mode: 'latest', n: 5 } },
+        { key: 'setting_derive', label: '设定衍生', scope: { mode: 'latest', n: 5 } },
+      ],
+      inspiration: [
+        { key: 'inspiration_introduce', label: '引入剧情', scope: null },
+      ],
+      plot_point: [
+        { key: 'plot_point_reuse', label: '节奏复用', scope: { mode: 'latest', n: 5 } },
+      ],
+    };
+    const MENTION_TASK_LABELS = {
+      setting_logic_check: '逻辑检查',
+      setting_derive: '设定衍生',
+      inspiration_introduce: '引入剧情',
+      plot_point_reuse: '节奏复用',
+    };
+    function taskListFor(type) { return MENTION_TASKS[type] || []; }
+    function mentionChipText(m) {
+      let t = '@' + mentionTypeLabel(m.type) + ' · ' + (m.title || '');
+      if (m.task) t += ' ▸ ' + (MENTION_TASK_LABELS[m.task] || m.task);
+      return t;
+    }
+    // 只选中一个「有关联任务」的条目时，浮层底部给出任务快捷按钮
+    const mentionTaskSelected = computed(() =>
+      Object.values(mentionSelected.value).filter(s => taskListFor(s.type).length));
+    const mentionTaskTarget = computed(() => {
+      const total = Object.keys(mentionSelected.value).length;
+      return (total === 1 && mentionTaskSelected.value.length === 1) ? mentionTaskSelected.value[0] : null;
+    });
+
+    // 章节范围：作为独立参数芯片，与引用分离（章节不是引用对象，是任务的参数）
+    const chatScope = ref(null);           // null | {mode:'latest', n} | {mode:'range', start, end}
+    const chatScopePanelOpen = ref(false);
+    const scopeDraft = reactive({ mode: 'latest', n: 5, from: null, to: null });
+    function scopeText(s) {
+      if (!s) return '';
+      if (s.mode === 'latest') return '最新' + (s.n || 5) + '章';
+      if (s.mode === 'range') return (s.start === s.end) ? ('第' + s.start + '章') : (s.start + '-' + s.end + '章');
+      return '';
+    }
+    const chatScopeText = computed(() => scopeText(chatScope.value));
+    function openScopePanel() {
+      const s = chatScope.value;
+      if (s && s.mode === 'latest') { scopeDraft.mode = 'latest'; scopeDraft.n = s.n || 5; }
+      else if (s && s.mode === 'range') { scopeDraft.mode = 'range'; scopeDraft.from = s.start; scopeDraft.to = s.end; }
+      else { scopeDraft.mode = 'latest'; scopeDraft.n = 5; scopeDraft.from = null; scopeDraft.to = null; }
+      chatScopePanelOpen.value = true;
+    }
+    function applyScopePanel() {
+      if (scopeDraft.mode === 'latest') {
+        const n = Math.max(1, Math.min(parseInt(scopeDraft.n) || 5, 20));
+        chatScope.value = { mode: 'latest', n };
+      } else {
+        const start = parseInt(scopeDraft.from), end = parseInt(scopeDraft.to);
+        if (!start || !end || start < 1 || end < start) { showToast('请填写有效的章节范围', 'warn'); return; }
+        if (end - start + 1 > 20) { showToast('章节范围最多 20 章', 'warn'); return; }
+        chatScope.value = { mode: 'range', start, end };
+      }
+      chatScopePanelOpen.value = false;
+    }
+    function clearScope() { chatScope.value = null; chatScopePanelOpen.value = false; }
+
+    // ===== 跨页一次性信箱：任何「交给 AI」入口都写入它，由写作页 AI 侧栏消费 =====
+    const pendingAiTask = ref(null);
+    let lastAiRefs = [];    // 上一次显式附带引用的回合（供追问继承）
+    let lastAiScope = null;
     const chatPlaceholder = computed(() => {
       if (chatMentions.value.length > 0) return '已引用条目，输入你的问题...';
       if (chatAttachments.value.length > 0) return '附件已添加，输入你的问题...';
@@ -6005,16 +6196,27 @@ createApp({
         } catch (e) { console.error('auto create conversation:', e); }
       }
 
-      // 组装消息：@ 引用条目 + 附件内容 + 用户输入
-      let userMsg = inputText.value.trim();
-      if (hasMentions) {
-        let mentionText = '';
-        for (const m of chatMentions.value) {
-          mentionText += '--- 引用: [' + mentionTypeLabel(m.type) + '] ' + m.title + ' ---\n'
-            + (m.content || '') + '\n--- 引用结束 ---\n\n';
-        }
-        userMsg = mentionText + userMsg;
+      // v0.11.0：引用与任务结构化提交；message 只放用户原话（附件仍按原有方式拼接）
+      const rawText = inputText.value.trim();
+      const explicitRefs = chatMentions.value.map(m => ({
+        type: m.type, id: m.id, title: m.title, task: m.task || null,
+      }));
+      let effectiveRefs = explicitRefs;
+      let inherited = false;
+      if (!effectiveRefs.length && lastAiRefs.length) {
+        // 追问默认继承上一轮引用的条目，但不重复执行主任务（避免每轮都注入长任务指令）
+        effectiveRefs = lastAiRefs.map(r => ({ ...r, task: null }));
+        inherited = true;
       }
+      let scope = chatScope.value ? { ...chatScope.value } : null;
+      if (!scope && inherited && lastAiScope) scope = { ...lastAiScope };
+      if (explicitRefs.length) { lastAiRefs = explicitRefs; lastAiScope = scope; }
+
+      const taskEntry = effectiveRefs.find(r => r.task);
+      const taskPayload = taskEntry ? { key: taskEntry.task, target_ids: [taskEntry.id] } : null;
+      const refsPayload = effectiveRefs.map(r => ({ type: r.type, id: r.id, title: r.title }));
+
+      let userMsg = rawText;
       if (hasAttachments) {
         let attachmentText = '';
         for (const att of chatAttachments.value) {
@@ -6024,24 +6226,24 @@ createApp({
       }
 
       // 记录引用 / 附件信息用于消息展示（仅元数据，不把全文写进 messages，避免 history 重复膨胀）
-      const sentMentions = hasMentions
-        ? chatMentions.value.map(m => ({ type: m.type, title: m.title }))
-        : [];
+      const sentMentions = effectiveRefs.map(r => ({ type: r.type, title: r.title, task: r.task || null }));
       const sentAttachments = hasAttachments
         ? chatAttachments.value.map(a => ({ name: a.name, size: a.size }))
         : [];
 
       messages.value.push({
         role: 'user',
-        content: hasText ? inputText.value.trim() : '',
+        content: hasText ? rawText : '',
         attachments: sentAttachments,
         mentions: sentMentions,
+        scope: scope ? scopeText(scope) : '',
       });
       inputText.value = '';
       chatAttachments.value = [];
       chatMentions.value = [];
       mentionPopoverOpen.value = false;
       mentionSelected.value = {};
+      chatScope.value = null;
       isThinking.value = true;
       lastIntentInfo.value = null;
       interventionNotice.value = null;
@@ -6062,6 +6264,9 @@ createApp({
             history: history.slice(0, -1),
             model: selectedModel.value,
             role: selectedRole.value,
+            references: refsPayload,
+            task: taskPayload,
+            chapter_scope: scope,
           }),
         });
         const reader = res.body.getReader();
@@ -6102,6 +6307,13 @@ createApp({
                   interventionNotice.value = data;
                   const lv = data.level || 'L1';
                   showToast('墨参主动干预（' + lv + '）', 'warn');
+                } else if (currentEvent === 'reference_coverage') {
+                  assistantMsg.coverage = data;
+                  if (data && data.warnings && data.warnings.length) {
+                    showToast('材料提示：' + data.warnings[0], 'warn');
+                  }
+                  await nextTick();
+                  scrollMessages();
                 } else if (currentEvent === 'kb_saved' && data.entries) {
                   kbSavedReceived = true;
                   for (const entry of data.entries) {
@@ -6304,6 +6516,13 @@ createApp({
           mentionList.value = foreshadowingList.value.map(f => ({
             key: 'foreshadowing:' + f.id, type: 'foreshadowing', id: f.id,
             title: f.name || '（未命名）', subtitle: f.status === 'resolved' ? '已回收' : '未回收', raw: f }));
+        } else if (key === 'plot_point') {
+          if (!plotPoints.value.length) await loadPlotPoints();
+          mentionList.value = plotPoints.value.map(p => ({
+            key: 'plot_point:' + p.id, type: 'plot_point', id: p.id,
+            title: p.title || '（未命名）',
+            subtitle: (p.type || '') + (p.trope ? (' · ' + p.trope) : '') + ' · 已用 ' + (p.used_count || 0) + ' 次',
+            raw: p }));
         }
       } catch (e) {
         showToast('加载引用列表失败: ' + (e.message || e), 'error');
@@ -6380,48 +6599,103 @@ createApp({
       }
       return '';
     }
+    // v0.11.0：引用不再在本地拉全文，改为把结构化引用交给后端按 id 解析
     async function insertMentions() {
       const sels = Object.values(mentionSelected.value);
       if (!sels.length) { closeMentionPopover(); return; }
-      mentionLoading.value = true;
-      try {
-        for (const sel of sels) {
-          if (chatMentions.value.some(m => m.type === sel.type && m.id === sel.id)) continue; // 去重
-          let content = '';
-          try { content = await fetchMentionContent(sel); } catch (e) { content = ''; }
-          chatMentions.value.push({ type: sel.type, id: sel.id, title: sel.title, content: content || '（未获取到内容）' });
-        }
-      } finally {
-        mentionLoading.value = false;
-        closeMentionPopover();
+      for (const sel of sels) {
+        if (chatMentions.value.some(m => m.type === sel.type && m.id === sel.id)) continue; // 去重
+        chatMentions.value.push({ type: sel.type, id: sel.id, title: sel.title, task: null });
       }
+      closeMentionPopover();
     }
 
-    // 灵感「合理插入」：带入灵感全文 + 项目梗概，跳 chat 页让 AI 分析如何引入剧情
+    // 保证一条待发送消息只有一个主任务
+    function enforceSingleTask(keepType, keepId) {
+      chatMentions.value.forEach(m => {
+        if (m.task && !(m.type === keepType && m.id === keepId)) m.task = null;
+      });
+    }
+
+    // 选中任务条目后，插入引用芯片 + 任务标记（taskDef 为 null 时等同「仅引用」）
+    function insertMentionWithTask(item, taskDef) {
+      const sels = Object.values(mentionSelected.value);
+      const list = sels.length ? sels : [item];
+      for (const sel of list) {
+        const ex = chatMentions.value.find(m => m.type === sel.type && m.id === sel.id);
+        if (ex) {
+          if (sel === item && taskDef) { ex.task = taskDef.key; enforceSingleTask(sel.type, sel.id); }
+          continue;
+        }
+        chatMentions.value.push({
+          type: sel.type, id: sel.id, title: sel.title,
+          task: (sel === item && taskDef) ? taskDef.key : null,
+        });
+      }
+      if (taskDef && taskDef.scope) chatScope.value = { ...taskDef.scope };
+      closeMentionPopover();
+    }
+
+    function focusWritingAiInput() {
+      nextTick(() => {
+        const el = writingAiInput.value;
+        if (!el) return;
+        el.focus();
+        try { const n = el.value.length; el.setSelectionRange(n, n); } catch (e) { /* ignore */ }
+      });
+    }
+
+    // 统一入口：任何「交给 AI」都只落到写作页右侧 AI 侧栏，不跳聊天页
+    async function openAiTask(payload) {
+      if (!currentProjectId.value) { showToast('请先选择项目', 'warn'); return; }
+      pendingAiTask.value = { ...payload, projectId: currentProjectId.value };
+      if (activeTab.value !== 'writing') activeTab.value = 'writing';
+      await nextTick();
+      await nextTick();
+      consumePendingAiTask();
+    }
+    function consumePendingAiTask() {
+      const t = pendingAiTask.value;
+      if (!t) return;
+      if (t.projectId !== currentProjectId.value) { pendingAiTask.value = null; return; }
+      if (writingAiCollapsed.value) { writingAiCollapsed.value = false; writeUiFlag('moshen.ui.writingAi', false); }
+      for (const r of (t.references || [])) {
+        const ex = chatMentions.value.find(m => m.type === r.type && m.id === r.id);
+        if (ex) { if (r.task) ex.task = r.task; continue; }
+        chatMentions.value.push({ type: r.type, id: r.id, title: r.title || r.id, task: r.task || null });
+      }
+      if ('scope' in t) chatScope.value = t.scope ? { ...t.scope } : null;
+      if (t.prefill) {
+        inputText.value = inputText.value.trim() ? (inputText.value.replace(/\s+$/, '') + '\n' + t.prefill) : t.prefill;
+      }
+      pendingAiTask.value = null;
+      focusWritingAiInput();
+    }
+
+    // 灵感「合理插入」：进入写作页 AI 侧栏，预置「引入剧情」任务（不再跳聊天页）
     async function insertInspirationToAi() {
       const file = currentInspirationFile.value;
       if (!file) return;
-      if (!chatMentions.value.some(m => m.type === 'inspiration' && m.id === file)) {
-        chatMentions.value.push({
-          type: 'inspiration', id: file, title: file,
-          content: inspirationContent.value || '（未获取到内容）',
-        });
-      }
-      const proj = projects.value.find(p => (p.project_id || p.id) === currentProjectId.value);
-      const desc = proj && proj.description;
-      if (desc && !chatMentions.value.some(m => m.type === 'project')) {
-        chatMentions.value.push({
-          type: 'project', id: currentProjectId.value,
-          title: (proj.name || '本项目') + '（梗概）', content: desc,
-        });
-      }
-      inputText.value = '请分析如何将这条灵感引入剧情';
-      mentionPopoverOpen.value = false;
-      activeTab.value = 'chat';
-      await nextTick();
-      scrollMessages();
-      focusActiveChatInput();
-      showToast('已把灵感带入对话，可继续补充后发送', 'success');
+      await openAiTask({
+        references: [{ type: 'inspiration', id: file, title: file, task: 'inspiration_introduce' }],
+        scope: null,
+        prefill: '请分析如何将这条灵感引入剧情',
+        source: 'inspiration',
+      });
+      showToast('已带入写作页 AI 侧栏，可补充后发送', 'success');
+    }
+
+    // 设定页「衍生设定」：进入写作页 AI 侧栏，预置「设定衍生」任务
+    async function deriveCurrentSetting() {
+      const node = currentSettingNode.value;
+      if (!node) { showToast('请先选择一个设定', 'warn'); return; }
+      await openAiTask({
+        references: [{ type: 'setting', id: node.id, title: node.title, task: 'setting_derive' }],
+        scope: { mode: 'latest', n: 5 },
+        prefill: '请基于该设定与当前情节，衍生出合理的新设定（势力、物品、功法、组织等）',
+        source: 'setting-derive',
+      });
+      showToast('已带入写作页 AI 侧栏，可补充后发送', 'success');
     }
 
 
@@ -8709,8 +8983,10 @@ createApp({
     async function relLoadGraphData(type) {
       relCurrentType.value = type;
       relNodeMenu.value = null;
+      const token = ++relLoadToken;
       try {
         const data = await apiJSON('/api/relations/' + currentProjectId.value + '/data?type=' + encodeURIComponent(type));
+        if (token !== relLoadToken) return;   // 快速切分类时丢弃过期结果
         relGraphData.value = data.data || { entities: [], relations: [], timeline: [] };
         // 提示悬空关系（引用了本分类中不存在的条目）
         const ids = new Set((relGraphData.value.entities || []).map(e => e.id));
@@ -8719,12 +8995,17 @@ createApp({
         relGraphHint.value = dangling
           ? `有 ${dangling} 条关系的端点不在「${type}」中（跨分类关系暂不在图中显示，可到对应分类查看）`
           : '';
-        // 角色分类：先拿到「哪些角色已有肖像图」，节点才会画成头像
-        if (type === '角色') await relLoadPortraitNames();
-        else relPortraitNames.value = [];
-        await relLoadBackground();   // 读取该页的自定义背景图（本页优先，其次全部页面）
-        // 触发 3D 图重绘
-        setTimeout(() => relRender3D(), 50);
+        // v0.11.0：关键关系数据一到就立即出图（圆面 + 标签），不等肖像名与背景图
+        relRender3D();
+        // 装饰资源异步补齐，不阻塞首帧
+        if (type === '角色') {
+          relLoadPortraitNames().then(() => {
+            if (token === relLoadToken && relSubView.value === 'graph') relStartProgressiveAvatars();
+          });
+        } else {
+          relPortraitNames.value = [];
+        }
+        relLoadBackground();
       } catch (e) { showToast('加载关系图失败', 'error'); }
     }
 
@@ -9097,11 +9378,12 @@ createApp({
 
     function relMenuRelayout() {
       relNodeMenu.value = null;
-      // 清除本分类的手动位置，让力导向重新排布
+      // 清除本分类的手动位置与布局坐标缓存，让力导向重新排布
       const prefix = relCurrentType.value + '::';
       Object.keys(relPinnedPositions).forEach(k => {
         if (k.indexOf(prefix) === 0) delete relPinnedPositions[k];
       });
+      try { localStorage.removeItem('moshen.relLayout.' + currentProjectId.value + '.' + relCurrentType.value); } catch (_) {}
       relRender3D();
       relSyncLinkHighlight();
       showToast('已重新布局', 'success');
@@ -9543,10 +9825,11 @@ createApp({
       }
     }
 
-    // 角色头像贴图：把肖像图裁成圆形并描一圈同类色边框；图未就绪时先显示占位圆环
-    // 用 1024 贴图（与 1024² 肖像图 1:1），放大到全屏也不糊
-    function relAvatarTexture(name, color) {
-      const S = 1024;
+    // 角色头像贴图：把肖像图裁成圆形并描一圈同类色边框；图未就绪时先显示占位圆环。
+    // v0.11.0：贴图降到 256²（按显示尺寸 × DPR 估算），并把加载改成渐进式，避免阻塞首帧。
+    function relPaintAvatarTexture(sprite, name, color, token) {
+      if (!sprite || !sprite.material) return;
+      const S = 256;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -9576,17 +9859,49 @@ createApp({
         ctx.stroke();
       };
       paint(null);
-      const tex = new THREE.CanvasTexture(canvas);
+      const tex = relSharpenTexture(new THREE.CanvasTexture(canvas));
+      sprite.material.map = tex;
+      sprite.material.needsUpdate = true;
+      sprite.__avatarDone = true;
       const img = new Image();
-      img.onload = () => { paint(img); tex.needsUpdate = true; };
+      img.onload = () => {
+        if (token !== relAvatarToken) { tex.dispose(); return; }
+        paint(img);
+        tex.needsUpdate = true;
+      };
       img.src = '/api/relations/' + currentProjectId.value + '/portraits/'
         + encodeURIComponent(name) + '?v=' + relPortraitVer;
-      return relSharpenTexture(tex);
+    }
+
+    // 首帧之后，按批次把「有肖像图」的角色节点从圆面替换为头像（空闲时段执行，不阻塞交互）
+    function relStartProgressiveAvatars() {
+      if (relCurrentType.value !== '角色' || relSubView.value !== 'graph') return;
+      const names = new Set(relPortraitNames.value || []);
+      if (!names.size) return;
+      const color = REL_TYPE_COLORS[relCurrentType.value] || 0x5A7D9A;
+      const targets = relNodeViews.filter(v => v.avatar && names.has(v.name) && !v.avatar.__avatarDone);
+      if (!targets.length) return;
+      const token = relAvatarToken;
+      let i = 0;
+      const step = () => {
+        if (token !== relAvatarToken) return;
+        const end = Math.min(i + 6, targets.length);
+        for (; i < end; i++) relPaintAvatarTexture(targets[i].avatar, targets[i].name, color, token);
+        if (i < targets.length) {
+          if (window.requestIdleCallback) requestIdleCallback(step, { timeout: 250 });
+          else setTimeout(step, 16);
+        }
+      };
+      step();
     }
 
     // 普通节点：同色实心圆 + 白色描边 + 首字（无肖像图时的统一圆形外观）
+    // v0.11.0：贴图降到 128²，并按「颜色 + 首字」缓存复用
     function relCircleTexture(name, color) {
-      const S = 512;
+      const ch = (name || '?').slice(0, 1);
+      const key = color + '|' + ch;
+      if (relCircleTextureCache[key]) return relCircleTextureCache[key];
+      const S = 128;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -9603,13 +9918,18 @@ createApp({
       ctx.textBaseline = 'middle';
       ctx.shadowColor = 'rgba(0,0,0,0.45)';
       ctx.shadowBlur = 5;
-      ctx.fillText((name || '?').slice(0, 1), S / 2, S / 2 + S * 0.02);
-      return relSharpenTexture(new THREE.CanvasTexture(canvas));
+      ctx.fillText(ch, S / 2, S / 2 + S * 0.02);
+      const tex = relSharpenTexture(new THREE.CanvasTexture(canvas));
+      tex.userData.__shared = true;
+      relCircleTextureCache[key] = tex;
+      return tex;
     }
 
-    // 高亮圆环：透明底 + 同色描边，做成 Sprite 贴图以便在 3D 旋转时始终正对镜头
+    // 高亮圆环：透明底 + 同色描边；v0.11.0：降到 256²，按「颜色 + 线宽」全局缓存复用
     function relRingTexture(color, width = 0.07) {
-      const S = 1024;
+      const key = color + ':' + width;
+      if (relRingTextureCache[key]) return relRingTextureCache[key];
+      const S = 256;
       const canvas = document.createElement('canvas');
       canvas.width = S; canvas.height = S;
       const ctx = canvas.getContext('2d');
@@ -9618,7 +9938,10 @@ createApp({
       ctx.lineWidth = S * width;
       ctx.strokeStyle = '#' + color.toString(16).padStart(6, '0');
       ctx.stroke();
-      return relSharpenTexture(new THREE.CanvasTexture(canvas));
+      const tex = relSharpenTexture(new THREE.CanvasTexture(canvas));
+      tex.userData.__shared = true;
+      relRingTextureCache[key] = tex;
+      return tex;
     }
 
     async function relCheckPortrait(name) {
@@ -9830,10 +10153,15 @@ createApp({
     let relLineViews = [];        // [{ line, fromIdx, toIdx, rel }]
     let relLineObjects = [];      // 关系线 Mesh 列表（供射线拾取）
     const relPinnedPositions = {}; // "type::name" -> {x,y,z}，会话内记住用户拖动后的位置
+    // v0.11.0 性能：跨渲染复用的贴图缓存（圆环 / 圆面），以及令牌与加载序号
+    let relAvatarToken = 0;        // 头像渐进加载令牌
+    let relLoadToken = 0;          // 数据加载序号：快速切分类时丢弃过期结果
+    let relRingTextureCache = {};  // "color:width" -> CanvasTexture（共享）
+    let relCircleTextureCache = {}; // "color:char" -> CanvasTexture（共享）
 
-    // 目标像素比：跟随设备像素比（页面缩放会一起变化），上限 3，兼容 4K/高缩放屏
+    // 目标像素比：跟随设备像素比（页面缩放会一起变化），上限 2，避免高分屏下像素填充量过大
     function relDesiredPixelRatio() {
-      return Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+      return Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
     }
 
     // 贴图清晰化：各向异性过滤 + sRGB 色彩空间，斜视与缩小时都更锐利、颜色更准
@@ -9857,7 +10185,8 @@ createApp({
           if (obj.material) {
             const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
             mats.forEach(m => {
-              if (m.map && m.map.dispose) m.map.dispose();
+              // 共享贴图（圆环 / 圆面缓存）跨渲染复用，不能在这里释放
+              if (m.map && m.map.dispose && !(m.map.userData && m.map.userData.__shared)) m.map.dispose();
               if (m.dispose) m.dispose();
             });
           }
@@ -9885,6 +10214,8 @@ createApp({
       // 场景背景贴图不在 traverse 里，需要单独释放；同时让在途的异步加载失效
       relBgToken++;
       if (relBgTexture) { relBgTexture.dispose(); relBgTexture = null; }
+      // 头像渐进加载的令牌：让上一轮在途的头像图片不再回写到新场景
+      relAvatarToken++;
     }
 
     // 全局鼠标监听只绑定一次，避免每次渲染重复注册导致监听器泄漏
@@ -10271,8 +10602,9 @@ createApp({
 
       // 关系图为平面圆形节点，不再需要光照（Sprite 不受灯光影响）
 
-      // 力导向布局作为初始位置（保留用户拖动过的节点位置）；保留 z 轴，维持 3D 空间感
-      const positions = relLayoutForceDirected(entities, relations);
+      // 力导向布局作为初始位置（保留用户拖动过的节点位置）；优先复用上次保存的坐标
+      // v0.11.0：布局坐标按「项目 + 分类」缓存，再次进入直接落位，跳过整轮力导向迭代
+      const positions = relComputePositions(entities, relations);
       entities.forEach((entity, i) => {
         const pin = relPinnedPositions[relCurrentType.value + '::' + entity.id];
         if (pin) positions[i] = { x: pin.x, y: pin.y, z: pin.z || 0 };
@@ -10299,8 +10631,6 @@ createApp({
 
       entities.forEach((entity, i) => {
         const size = 2.0 + Math.min((entity.weight || 1) * 0.9, 4.5);
-        const hasAvatar = relCurrentType.value === '角色'
-          && relPortraitNames.value.indexOf(entity.id) >= 0;
         const dia = size * 2.4;
 
         // 位置锚点：不参与渲染，仅用于拖拽 / 连线 / 高亮环定位
@@ -10331,11 +10661,9 @@ createApp({
         linkRing.renderOrder = 4;
         relScene.add(linkRing);
 
-        // 节点本体：平面圆形 / 角色头像（Sprite 始终面向镜头）
+        // 节点本体：先统一用圆面（首帧立即出图），角色头像在首帧后渐进替换
         const avatar = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: hasAvatar
-            ? relAvatarTexture(entity.id, baseColor)
-            : relCircleTexture(entity.id, baseColor),
+          map: relCircleTexture(entity.id, baseColor),
           transparent: true,
           depthTest: false,
         }));
@@ -10346,17 +10674,17 @@ createApp({
         relScene.add(avatar);
         relGraphObjects.push(avatar);   // 圆形/头像即射线拾取目标
 
-        // 标签（Sprite，放在节点下方）；贴图用 1024×256，缩放后文字依然锐利
+        // 标签（Sprite，放在节点下方）；v0.11.0：贴图降到 512×128，缩放后文字依然锐利
         const labelCanvas = document.createElement('canvas');
-        labelCanvas.width = 1024; labelCanvas.height = 256;
+        labelCanvas.width = 512; labelCanvas.height = 128;
         const lctx = labelCanvas.getContext('2d');
         lctx.fillStyle = 'rgba(255,255,255,0.97)';
-        lctx.font = '600 112px "Microsoft YaHei", sans-serif';
+        lctx.font = '600 56px "Microsoft YaHei", sans-serif';
         lctx.textAlign = 'center';
         lctx.textBaseline = 'middle';
         lctx.shadowColor = 'rgba(0,0,0,0.65)';
-        lctx.shadowBlur = 16;
-        lctx.fillText(entity.id, 512, 132);
+        lctx.shadowBlur = 8;
+        lctx.fillText(entity.id, 256, 66);
         const labelTex = relSharpenTexture(new THREE.CanvasTexture(labelCanvas));
         const labelMat = new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false });
         const label = new THREE.Sprite(labelMat);
@@ -10415,7 +10743,25 @@ createApp({
       relRenderer.domElement.addEventListener('click', relOnCanvasClick);
       relSyncLinkHighlight();
 
+      // 首帧已用圆面 + 标签出图；若肖像名已就绪，则在空闲时段渐进替换为头像
+      relStartProgressiveAvatars();
+
       relAnimate();
+    }
+
+    // 布局坐标：优先复用上次保存的结果（按「项目 + 分类 + 条目顺序」做指纹），命中则跳过力导向迭代
+    function relComputePositions(entities, relations) {
+      const key = 'moshen.relLayout.' + currentProjectId.value + '.' + relCurrentType.value;
+      const sig = entities.map(e => e.id).join('|');
+      try {
+        const saved = JSON.parse(localStorage.getItem(key) || 'null');
+        if (saved && saved.sig === sig && Array.isArray(saved.pos) && saved.pos.length === entities.length) {
+          return saved.pos;
+        }
+      } catch (_) { /* 缓存不可用时忽略 */ }
+      const positions = relLayoutForceDirected(entities, relations);
+      try { localStorage.setItem(key, JSON.stringify({ sig, pos: positions })); } catch (_) { /* 配额不足忽略 */ }
+      return positions;
     }
 
     function relLayoutForceDirected(entities, relations) {
@@ -11406,6 +11752,9 @@ createApp({
       mentionLoading, mentionTypes, mentionTypeLabel, mentionSelectedCount, chatPlaceholder,
       openMentionPopover, switchMentionTab, toggleMentionSelect, insertMentions, removeMention,
       closeMentionPopover, insertInspirationToAi,
+      chatScope, chatScopeText, chatScopePanelOpen, scopeDraft, openScopePanel, applyScopePanel, clearScope,
+      mentionChipText, mentionTaskTarget, taskListFor, insertMentionWithTask,
+      openAiTask, deriveCurrentSetting,
       // Conversations
       conversations, currentConversationId, showConvRenameModal, convRenameInput, currentConvInfo,
       // Chat selectors

@@ -247,6 +247,49 @@ class PlotPointManager:
         atomic_write_json(path, data)
         return True
 
+    # ===== 价值分析快照（v0.11.0，additive）=====
+
+    def list_value_analyses(self, project_id: str, pp_id: str) -> list[dict]:
+        p = self.get_point(project_id, pp_id)
+        if not p:
+            return []
+        return list(p.get("value_analyses") or [])
+
+    def latest_value_analysis(self, project_id: str, pp_id: str) -> dict | None:
+        arr = self.list_value_analyses(project_id, pp_id)
+        return arr[-1] if arr else None
+
+    @locked_write
+    def add_value_analysis(self, project_id: str, pp_id: str, payload: dict) -> dict | None:
+        """新增一条价值分析快照（不覆盖历史，只追加）"""
+        path = self._path(project_id)
+        if not path:
+            return None
+        data = self._load(project_id)
+        for p in data.get("points", []):
+            if p.get("id") != pp_id:
+                continue
+            entry = {
+                "analysis_id": gen_id("pva_"),
+                "analyzed_at": now_str(),
+                "task_version": str(payload.get("task_version") or "").strip(),
+                "chapter_scope": payload.get("chapter_scope") or None,
+                "chapter_ids": payload.get("chapter_ids") or [],
+                "narrative_value": str(payload.get("narrative_value") or "").strip(),
+                "emotional_mechanism": str(payload.get("emotional_mechanism") or "").strip(),
+                "rhythm_pattern": str(payload.get("rhythm_pattern") or "").strip(),
+                "reuse_conditions": payload.get("reuse_conditions") or [],
+                "fatigue_risks": payload.get("fatigue_risks") or [],
+                "evidence": payload.get("evidence") or [],
+                "summary": str(payload.get("summary") or "").strip(),
+                "source": "ai_confirmed",
+            }
+            p.setdefault("value_analyses", []).append(entry)
+            p["updated_at"] = now_str()
+            atomic_write_json(path, data)
+            return entry
+        return None
+
     @locked_write
     def set_fatigue_threshold(self, project_id: str, threshold: int) -> int:
         path = self._path(project_id)

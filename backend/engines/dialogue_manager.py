@@ -216,15 +216,19 @@ class DialogueManager:
         project_id: str | None = None,
         model_override: str | None = None,
         role_override: str | None = None,
+        context_material: str = "",
+        coverage: dict | None = None,
     ) -> AsyncGenerator[dict, None]:
         """流式对话
 
         Args:
-            user_input: 用户输入
+            user_input: 用户输入（@ 任务场景下只含用户原话，不含引用全文）
             history: 对话历史 [{role, content}, ...]
             project_id: 项目ID
             model_override: 指定模型名称。None/"auto" 为自动选择
             role_override: 指定职能角色。None/"auto" 为自动选择（通过意图识别）
+            context_material: @ 任务材料（引用条目 + 章节 + 任务指令），作为独立上下文层注入
+            coverage: 材料覆盖报告，作为 reference_coverage 事件先于正文发送
 
         Yields:
             SSE 事件字典 {"event": ..., "data": ...}（由 EventSourceResponse 序列化）
@@ -266,14 +270,20 @@ class DialogueManager:
                 "auto_selected": (not model_override or model_override == "auto"),
             })
 
+        # 材料覆盖报告先于正文发送：让前端在生成前就能展示本次材料范围与缺口
+        if coverage:
+            yield self._sse("reference_coverage", coverage)
+
         # 按本次请求构建独立上下文，不写入任何跨请求共享的状态，
         # 这样并发请求 / 多项目切换不会互相覆盖上下文。
         memory_layer = self._build_memory_layer(project_id) if project_id else ""
         focus = f"用户正在讨论：{user_input[:200]}"
+        # @ 任务材料作为独立上下文层，置于用户原话之前；意图识别与记忆焦点仍只看原话
+        working_layer = (context_material + "\n\n## 当前讨论焦点\n" + focus) if context_material else focus
         ctx = create_context(
             core_layer=core_layer,
             memory_layer=memory_layer,
-            working_layer=focus,
+            working_layer=working_layer,
         )
         messages = ctx.build_messages_with_history(history or [], user_input)
 
