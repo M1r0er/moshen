@@ -2112,6 +2112,8 @@ svg.ms-icon { display: block; }
 
 /* ----- 空状态：水墨画素材 ----- */
 .empty-state-img { width: 240px; opacity: 0.55; user-select: none; pointer-events: none; }
+/* 空状态自适应填满父容器（修复角色页等横向 flex 容器内偏左的问题） */
+.empty-state { width: 100%; box-sizing: border-box; flex: 1 1 auto; min-height: 100%; }
 
 /* v0.11.1 修补：设置类按钮内的 SVG 图标尺寸约束 */
 .settings-btn { display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -2258,7 +2260,7 @@ svg.ms-icon { display: block; }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.11.3</div>
+        <div class="sidebar-version">v0.11.4</div>
       </div>
       </template>
     </aside>
