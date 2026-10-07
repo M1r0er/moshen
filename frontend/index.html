@@ -2258,7 +2258,7 @@ svg.ms-icon { display: block; }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.11.2</div>
+        <div class="sidebar-version">v0.11.3</div>
       </div>
       </template>
     </aside>
@@ -2283,7 +2283,7 @@ svg.ms-icon { display: block; }
         <!-- ========== Chat Page ========== -->
         <div v-if="activeTab === 'chat'" class="chat-container">
           <div v-if="!currentProjectId" class="empty-state">
-            <img class="empty-state-img" src="assets/empty/bg-empty-chat.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-chat.png" alt="">
             <div class="empty-state-text">请先选择或创建项目</div>
             <div class="empty-state-hint">墨参将协助你进行小说创作</div>
           </div>
@@ -2312,7 +2312,7 @@ svg.ms-icon { display: block; }
             </div>
             <div class="messages-area" ref="messagesArea" style="position:relative">
               <div v-if="messages.length === 0" class="empty-state">
-                <img class="empty-state-img" src="assets/empty/bg-empty-chat.png" alt="">
+                <img class="empty-state-img" src="/static/assets/empty/bg-empty-chat.png" alt="">
                 <div class="empty-state-text">开始与墨参对话</div>
                 <div class="empty-state-hint">输入创作需求，获取灵感与建议</div>
               </div>
@@ -2529,7 +2529,7 @@ svg.ms-icon { display: block; }
         <!-- ========== Settings Writer Page ========== -->
         <div v-if="activeTab === 'settings'" class="settings-container">
           <div v-if="!currentProjectId" class="empty-state" style="width:100%">
-            <img class="empty-state-img" src="assets/empty/bg-empty-settings.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-settings.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -2699,7 +2699,7 @@ svg.ms-icon { display: block; }
         <!-- ========== Outline Page ========== -->
         <div v-if="activeTab === 'outline'" class="outline-container">
           <div v-if="!currentProjectId" class="empty-state" style="width:100%">
-            <img class="empty-state-img" src="assets/empty/bg-empty-outline.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-outline.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3107,7 +3107,7 @@ svg.ms-icon { display: block; }
           <!-- 主区域：文件内容 -->
           <div class="inspiration-main">
             <div v-if="!currentInspirationFile" class="empty-state" style="width:100%">
-              <img class="empty-state-img" src="assets/empty/bg-empty-inspiration.png" alt="">
+              <img class="empty-state-img" src="/static/assets/empty/bg-empty-inspiration.png" alt="">
               <div class="empty-state-text" v-if="inspirationPath">选择左侧文件查看内容</div>
               <div class="empty-state-text" v-else>请先设置灵感文件夹</div>
               <div class="empty-state-hint" v-if="!inspirationPath">点击左侧「设置」按钮，选择存放本地文件的文件夹</div>
@@ -3154,7 +3154,7 @@ svg.ms-icon { display: block; }
         <!-- ========== Files Page ========== -->
         <div v-if="activeTab === 'files'" class="files-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <img class="empty-state-img" src="assets/empty/bg-empty-files.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-files.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3258,7 +3258,7 @@ svg.ms-icon { display: block; }
         <!-- ===== 写作页 ===== -->
         <div v-if="activeTab === 'writing'" class="writing-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <img class="empty-state-img" src="assets/empty/bg-empty-writing.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-writing.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3420,7 +3420,7 @@ svg.ms-icon { display: block; }
                   </div>
                 </template>
                 <div v-else class="writing-empty-editor">
-                  <img class="empty-state-img" src="assets/empty/bg-empty-writing.png" alt="">
+                  <img class="empty-state-img" src="/static/assets/empty/bg-empty-writing.png" alt="">
                   <div class="empty-state-text">选择或创建章节开始写作</div>
                   <div class="empty-state-hint">左侧目录中点击「+ 卷」→「+」新建章节</div>
                 </div>
@@ -3441,7 +3441,7 @@ svg.ms-icon { display: block; }
                   </div>
                   <div class="messages-area writing-ai-messages" ref="writingAiMessagesArea" style="position:relative">
                     <div v-if="messages.length === 0" class="empty-state">
-                      <img class="empty-state-img" src="assets/empty/bg-empty-ai-chat.png" alt="">
+                      <img class="empty-state-img" src="/static/assets/empty/bg-empty-ai-chat.png" alt="">
                       <div class="empty-state-text">写作时可随时问墨参</div>
                       <div class="empty-state-hint">点下方 @ 引用灵感 / 设定 / 角色等条目</div>
                     </div>
@@ -3714,7 +3714,7 @@ svg.ms-icon { display: block; }
         <!-- ===== 角色页 ===== -->
         <div v-if="activeTab === 'characters'" class="char-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <img class="empty-state-img" src="assets/empty/bg-empty-character.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-character.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -3759,7 +3759,7 @@ svg.ms-icon { display: block; }
             <!-- 右侧：主区 -->
             <div class="char-main">
               <div v-if="!currentChar" class="empty-state" style="height:100%">
-                <img class="empty-state-img" src="assets/empty/bg-empty-character.png" alt="">
+                <img class="empty-state-img" src="/static/assets/empty/bg-empty-character.png" alt="">
                 <div class="empty-state-text">选择或新建角色</div>
                 <div class="empty-state-hint">角色页分阶段呈现人物成长轨迹；正文里出现角色名或别名时会标蓝</div>
               </div>
@@ -3955,7 +3955,7 @@ svg.ms-icon { display: block; }
         <!-- ===== 伏笔页 ===== -->
         <div v-if="activeTab === 'foreshadowing'" class="fs-container">
           <div v-if="!currentProjectId" class="empty-state" style="height:100%">
-            <img class="empty-state-img" src="assets/empty/bg-empty-foreshadow.png" alt="">
+            <img class="empty-state-img" src="/static/assets/empty/bg-empty-foreshadow.png" alt="">
             <div class="empty-state-text">请先选择项目</div>
           </div>
           <template v-else>
@@ -4022,7 +4022,7 @@ svg.ms-icon { display: block; }
                   </div>
                 </template>
                 <div v-else class="writing-empty-editor">
-                  <img class="empty-state-img" src="assets/empty/bg-empty-foreshadow.png" alt="">
+                  <img class="empty-state-img" src="/static/assets/empty/bg-empty-foreshadow.png" alt="">
                   <div class="empty-state-text">选择或创建伏笔</div>
                   <div class="empty-state-hint">左侧列表中点击「+ 新增」添加伏笔</div>
                 </div>
@@ -4071,7 +4071,7 @@ svg.ms-icon { display: block; }
 
           <!-- 分析子页 -->
           <div v-if="relSubView === 'analyze'" class="rel-subview">
-            <div v-if="!currentProjectId" class="empty-state"><img class="empty-state-img" src="assets/empty/bg-empty-starmap.png" alt=""><p>请先选择项目</p></div>
+            <div v-if="!currentProjectId" class="empty-state"><img class="empty-state-img" src="/static/assets/empty/bg-empty-starmap.png" alt=""><p>请先选择项目</p></div>
             <div v-else class="rel-analyze-form">
               <div class="form-row">
                 <label>分析档位</label>
@@ -4275,7 +4275,7 @@ svg.ms-icon { display: block; }
             <div class="rel-canvas-wrap" @contextmenu.prevent="relOnCanvasContextMenu">
               <div id="rel-3d-canvas" class="rel-3d-canvas" v-show="!relGraphEmpty"></div>
               <div v-if="relGraphEmpty" class="rel-graph-empty" @click="relNodeMenu = null">
-                <img class="empty-state-img" src="assets/empty/bg-empty-starmap.png" alt="">
+                <img class="empty-state-img" src="/static/assets/empty/bg-empty-starmap.png" alt="">
                 <h3>「{{ relCurrentType }}」还没有条目</h3>
                 <p>两种方式开始梳理：</p>
                 <div class="rel-graph-empty-actions">
@@ -4385,7 +4385,7 @@ svg.ms-icon { display: block; }
               </button>
             </div>
             <div v-if="!relArchiveEntities.length" class="empty-state">
-              <img class="empty-state-img" src="assets/empty/bg-empty-starmap.png" alt="">
+              <img class="empty-state-img" src="/static/assets/empty/bg-empty-starmap.png" alt="">
               <p>该分类还没有条目：点「＋ 新增条目」手动创建，或先执行 AI 分析</p>
             </div>
             <div v-if="relEntityContent" class="rel-entity-detail">
