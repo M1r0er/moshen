@@ -59,3 +59,7 @@ config.json
 
 # Local docs (not for version control)
 docs/
+# 内部设计与需求文档（仅本地阅读，不入版本库）
+/*设计文档*.md
+/*需求文档*.md
+/*学习文档*.md
