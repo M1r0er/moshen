@@ -31,8 +31,10 @@ from routes.flow import router as flow_router
 from routes.plot_points import router as plot_points_router
 from routes.tasks import router as tasks_router
 from routes.character import router as character_router
+from routes.about import router as about_router
+from core.version import APP_VERSION
 
-app = FastAPI(title="墨参 MoShen", version="0.11.4", description="个人写作 Agent")
+app = FastAPI(title="墨参 MoShen", version=APP_VERSION, description="个人写作 Agent")
 
 # 挂载路由
 app.include_router(chat_router)
@@ -51,6 +53,7 @@ app.include_router(flow_router)
 app.include_router(plot_points_router)
 app.include_router(tasks_router)
 app.include_router(character_router)
+app.include_router(about_router)
 
 
 # ===== 项目会话租约校验 =====
@@ -58,7 +61,7 @@ app.include_router(character_router)
 # （项目被重新打开后旧窗口仍在发请求），则拒绝其写操作，避免旧窗口污染新会话。
 # 未携带租约的请求保持放行，以兼容尚未接入租约的调用路径。
 _SESSION_EXEMPT_PREFIXES = (
-    "/api/session", "/api/config", "/api/workspace", "/api/health",
+    "/api/session", "/api/config", "/api/workspace", "/api/health", "/api/about",
     "/api/projects", "/api/chat/intents", "/api/chat/models", "/docs", "/openapi.json",
 )
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
@@ -226,7 +229,7 @@ async def test_config(req: ConfigTestRequest):
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "墨参 MoShen", "version": "0.11.4"}
+    return {"status": "ok", "service": "墨参 MoShen", "version": APP_VERSION}
 
 
 # ===== 前端静态文件 =====

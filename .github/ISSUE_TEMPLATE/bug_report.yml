@@ -1,0 +1,58 @@
+name: Bug 反馈
+description: 报告使用中遇到的问题
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。如果不方便使用 GitHub，也可以直接把问题发到邮箱 **3191639408@qq.com**。
+
+        提示：应用内「设置 → 关于与反馈」可以一键复制诊断信息、导出诊断包，把内容附在下面能帮我更快定位问题。
+  - type: input
+    id: version
+    attributes:
+      label: 墨参版本
+      description: 见应用内「设置 → 关于与反馈」，形如 v0.11.5
+      placeholder: v0.11.5
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统
+      placeholder: Windows 11 23H2 (x64)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 问题描述
+      description: 发生了什么？你期望发生什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 诊断信息 / 日志
+      description: 粘贴「关于与反馈」里复制的诊断信息，或日志文件中的相关片段
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 隐私确认
+      options:
+        - label: 我已确认粘贴的内容中不包含我的小说正文或 API Key
+          required: true

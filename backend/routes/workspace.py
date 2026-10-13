@@ -329,6 +329,44 @@ async def set_image_prefs(req: ImagePrefsRequest):
     return {"success": True, "prefs": prefs}
 
 
+# ===== 界面偏好 =====
+# last_shown_version：「本次更新」悬浮窗已展示到哪个版本，用于保证每个版本只弹一次。
+# check_update：是否在启动时查询 GitHub 最新发布版本（默认开启；查询只发送匿名请求）。
+
+class UiPrefsRequest(BaseModel):
+    last_shown_version: str | None = None
+    check_update: bool | None = None
+
+
+def ui_prefs() -> dict:
+    """读取界面偏好（供更新说明弹窗与关于面板调用）"""
+    prefs = _read_config().get("ui_prefs", {})
+    return {
+        "last_shown_version": str(prefs.get("last_shown_version", "") or ""),
+        "check_update": bool(prefs.get("check_update", True)),
+    }
+
+
+@router.get("/prefs/ui")
+async def get_ui_prefs_route():
+    """获取界面偏好设置"""
+    return ui_prefs()
+
+
+@router.put("/prefs/ui")
+async def set_ui_prefs(req: UiPrefsRequest):
+    """更新界面偏好设置"""
+    data = _read_config()
+    prefs = data.get("ui_prefs", {})
+    if req.last_shown_version is not None:
+        prefs["last_shown_version"] = req.last_shown_version
+    if req.check_update is not None:
+        prefs["check_update"] = bool(req.check_update)
+    data["ui_prefs"] = prefs
+    _save_config(data)
+    return {"success": True, "prefs": ui_prefs()}
+
+
 # ===== 界面语言 / 项目写作语言 =====
 # 两者相互独立：界面语言只影响 UI 文案；项目写作语言决定模型用什么语言创作。
 # 作者原文与引用资料在任何语言下都保持原样。

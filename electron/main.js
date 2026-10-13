@@ -224,6 +224,18 @@ ipcMain.handle('dialog:selectDirectory', async () => {
 });
 
 /**
+ * IPC：用系统默认程序打开路径（文件夹或文件）
+ * 供「关于与反馈」打开日志目录、定位诊断包使用
+ */
+ipcMain.handle('shell:openPath', async (_event, targetPath) => {
+  if (typeof targetPath !== 'string' || !targetPath) {
+    return { success: false, error: 'invalid path' };
+  }
+  const error = await shell.openPath(targetPath);
+  return { success: !error, error: error || '' };
+});
+
+/**
  * 创建主窗口
  */
 async function createWindow() {

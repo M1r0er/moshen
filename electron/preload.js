@@ -6,4 +6,5 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
+  openPath: (targetPath) => ipcRenderer.invoke('shell:openPath', targetPath),
 });

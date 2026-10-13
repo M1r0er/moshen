@@ -23,6 +23,8 @@ a = Analysis(
         ('frontend', 'frontend'),
         # .env.example
         (str(backend_dir / '.env.example'), '.'),
+        # 更新日志（「本次更新」悬浮窗在运行时读取）
+        ('CHANGELOG.md', '.'),
     ],
     hiddenimports=[
         'uvicorn',
@@ -51,6 +53,7 @@ a = Analysis(
         'core',
         'core.config',
         'core.resource_path',
+        'core.version',
         'core.llm_provider',
         'core.prompt_loader',
         'core.context_manager',
@@ -88,6 +91,7 @@ a = Analysis(
         'routes.writing',
         'routes.foreshadowing',
         'routes.relations',
+        'routes.about',
         # main
         'main',
     ],

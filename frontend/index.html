@@ -2185,6 +2185,51 @@ svg.ms-icon { display: block; }
 .chat-scroll-btn .ms-icon { width: 16px; height: 16px; }
 .btn-icon-sm .ms-icon { width: 14px; height: 14px; }
 
+/* ===== v0.11.5：本次更新悬浮窗 / 关于与反馈 / 模型预设 ===== */
+.notes-overlay { position: fixed; inset: 0; z-index: 320; display: flex; align-items: center; justify-content: center;
+  background: var(--color-mask); animation: notesFade .16s ease-out; }
+@keyframes notesFade { from { opacity: 0 } to { opacity: 1 } }
+@keyframes notesRise { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+.notes-card { width: 520px; max-width: calc(100vw - 64px); max-height: 76vh; display: flex; flex-direction: column;
+  background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 14px;
+  box-shadow: 0 20px 56px rgba(26,43,69,.22); animation: notesRise .2s ease-out; overflow: hidden; }
+.notes-head { padding: 22px 28px 14px; border-bottom: 1px solid var(--color-border); }
+.notes-ver { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; color: var(--color-text-primary); }
+.notes-ver .notes-badge { font-size: 11px; font-weight: 600; color: var(--color-primary);
+  background: var(--color-primary-light); border-radius: 999px; padding: 2px 9px; }
+.notes-sub { margin-top: 6px; font-size: 12.5px; color: var(--color-text-secondary); }
+.notes-body { padding: 16px 28px 6px; overflow-y: auto; }
+.notes-group { margin-bottom: 16px; }
+.notes-group-title { font-size: 12px; font-weight: 600; color: var(--color-primary); letter-spacing: .06em;
+  padding-bottom: 6px; margin-bottom: 9px; border-bottom: 1px dashed var(--color-border); }
+.notes-item { display: flex; gap: 9px; font-size: 13.5px; line-height: 1.7; color: var(--color-text-body); }
+.notes-item + .notes-item { margin-top: 6px; }
+.notes-item::before { content: ""; flex: none; width: 5px; height: 5px; margin-top: 9px; border-radius: 50%;
+  background: var(--color-border-strong); }
+.notes-item code { font-size: 12px; background: var(--color-hover-bg); border-radius: 3px; padding: 0 4px; }
+.notes-foot { padding: 14px 28px 20px; border-top: 1px solid var(--color-border); background: var(--color-background);
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.notes-mail { font-size: 12.5px; color: var(--color-text-secondary); line-height: 1.6; }
+.notes-mail strong { color: var(--color-primary); user-select: text; }
+.update-pill { display: flex; align-items: center; gap: 6px; margin: 8px auto 0; padding: 4px 10px; width: fit-content;
+  background: var(--color-primary-light); border: 1px solid var(--color-primary); border-radius: 999px;
+  font-size: 11.5px; color: var(--color-primary); cursor: pointer; }
+.update-pill:hover { background: var(--color-primary); color: #fff; }
+.update-pill-x { opacity: .6; padding: 0 2px; }
+.update-pill-x:hover { opacity: 1; }
+.about-kv { display: grid; grid-template-columns: 76px 1fr; gap: 7px 12px; font-size: 12.5px; margin: 0; }
+.about-kv dt { color: var(--color-text-weak); }
+.about-kv dd { color: var(--color-text-body); margin: 0; word-break: break-all; user-select: text; }
+.about-mail { font-size: 12.5px; color: var(--color-text-secondary); }
+.about-mail strong { color: var(--color-primary); user-select: text; }
+.about-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
+.about-actions .btn { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.about-hint { font-size: 11.5px; color: var(--color-text-weak); margin-top: 9px; line-height: 1.7; }
+.about-diag { margin-top: 10px; font-size: 12px; color: var(--color-text-secondary); word-break: break-all;
+  background: var(--color-hover-bg); border: 1px solid var(--color-border); border-radius: 6px; padding: 8px 10px; }
+.preset-select { font-size: 12px; padding: 4px 8px; border: 1px solid var(--color-border-strong);
+  border-radius: 6px; background: var(--color-surface); color: var(--color-text-body); max-width: 200px; }
+
 </style>
 </head>
 <body>
@@ -2260,7 +2305,12 @@ svg.ms-icon { display: block; }
             </select>
           </div>
         </div>
-        <div class="sidebar-version">v0.11.4</div>
+        <div v-if="updateNotice" class="update-pill"
+             @click="openReleasePage" :title="'发现新版本 v' + updateNotice.version + '，点击查看发布页'">
+          <span>发现新版本 v{{ updateNotice.version }}</span>
+          <span class="update-pill-x" @click.stop="dismissUpdateNotice" title="忽略此提示">&times;</span>
+        </div>
+        <div class="sidebar-version">v0.11.5</div>
       </div>
       </template>
     </aside>
@@ -4876,7 +4926,13 @@ svg.ms-icon { display: block; }
         <div class="config-group">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <div class="config-group-title" style="margin:0">已保存的 API</div>
-            <button class="model-add-btn" @click="addApiChannel" style="margin:0">+ 添加 API</button>
+            <div style="display:flex;align-items:center;gap:8px">
+              <select class="preset-select" @change="addApiChannelFromPreset($event)" title="从主流大模型预设一键添加">
+                <option value="">从预设添加…</option>
+                <option v-for="p in modelPresets" :key="p.key" :value="p.key">{{ p.label }}</option>
+              </select>
+              <button class="model-add-btn" @click="addApiChannel" style="margin:0">+ 手动添加</button>
+            </div>
           </div>
           <div v-if="!configData.api_channels.length" style="font-size:12px;color:var(--text-muted);padding:8px 0">
             暂无。添加 API 后，在对话界面切换模型即自动切换到对应 API。可标记一个渠道为「默认」用于 auto 模式。
@@ -4887,6 +4943,13 @@ svg.ms-icon { display: block; }
               <span v-if="ch.is_default" style="font-size:12px;color:var(--accent-hover);font-weight:600;white-space:nowrap">⭐ 默认</span>
               <div style="flex:1"></div>
               <button class="model-del-btn" @click="configData.api_channels.splice(idx, 1)" title="删除此 API">&times;</button>
+            </div>
+            <div class="api-field">
+              <label class="api-field-label">套用预设</label>
+              <select class="preset-select" @change="applyPresetToChannel(ch, $event)" title="用预设覆盖下方的名称、Base URL 与模型">
+                <option value="">选择预设自动填充…</option>
+                <option v-for="p in modelPresets" :key="p.key" :value="p.key">{{ p.label }}</option>
+              </select>
             </div>
             <div class="api-field">
               <label class="api-field-label">API 名称</label>
@@ -5099,6 +5162,44 @@ svg.ms-icon { display: block; }
             </div>
           </div>
         </div>
+        <div class="divider"></div>
+        <!-- 关于与反馈 -->
+        <div class="config-group">
+          <div class="config-group-title">关于与反馈</div>
+          <dl class="about-kv">
+            <dt>版本</dt><dd>v{{ aboutInfo.version || '—' }}</dd>
+            <dt>运行方式</dt><dd>{{ aboutInfo.packaged ? '打包版' : '源码运行' }}</dd>
+            <dt>系统</dt><dd>{{ aboutInfo.os || '—' }}</dd>
+            <dt>工作区</dt><dd>{{ aboutInfo.workspace || '—' }}</dd>
+          </dl>
+          <div class="about-mail" style="margin-top:12px">
+            使用中遇到问题，或希望增加某个功能，欢迎邮件告诉我：<strong>{{ feedbackEmail }}</strong><br>
+            也可以到 <a href="#" @click.prevent="openIssuesPage">GitHub 提 Issue</a>，或查看
+            <a href="#" @click.prevent="openReleasePage">全部发布版本</a>。
+          </div>
+          <div class="about-actions">
+            <button class="btn btn-secondary" @click="copyDiagnostics">复制诊断信息</button>
+            <button class="btn btn-secondary" @click="openLogDir">打开日志目录</button>
+            <button class="btn btn-secondary" @click="exportDiagnostics" :disabled="diagnosticsBusy">
+              {{ diagnosticsBusy ? '导出中…' : '导出诊断包' }}
+            </button>
+            <button class="btn btn-secondary" @click="copyText(feedbackEmail, '邮箱已复制')">复制邮箱</button>
+          </div>
+          <div v-if="diagnosticsPath" class="about-diag">
+            已导出：{{ diagnosticsPath }}
+            <button class="btn btn-secondary" style="height:24px;padding:0 9px;font-size:11.5px;margin-left:6px"
+              @click="openPath(diagnosticsDir)">打开所在文件夹</button>
+          </div>
+          <div class="about-hint">
+            诊断信息只包含版本、系统、日志尾部与工作区文件清单（仅文件名与大小），<b>不含正文内容与 API Key</b>；
+            导出后请自行发送给我。墨参不会自动上报任何数据。
+          </div>
+          <label style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer">
+            <input type="checkbox" v-model="checkUpdate" @change="toggleCheckUpdate">
+            <span>启动时检查新版本<span style="color:var(--text-muted)">
+              （仅向 GitHub 发送匿名请求，不上报任何本地信息；失败时静默忽略）</span></span>
+          </label>
+        </div>
       </div>
 
       <div class="modal-footer">
@@ -5107,6 +5208,33 @@ svg.ms-icon { display: block; }
         </button>
         <button class="btn btn-secondary" @click="showConfigModal = false">取消</button>
         <button class="btn btn-primary" @click="saveConfig">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 本次更新（每个版本首次启动时展示一次，可直接关闭） ========== -->
+  <div v-if="showUpdateNotes" class="notes-overlay" @click.self="closeUpdateNotes">
+    <div class="notes-card">
+      <div class="notes-head">
+        <div class="notes-ver">本次更新 <span class="notes-badge">v{{ notesVersion }}</span></div>
+        <div class="notes-sub">感谢继续使用墨参。以下是你从上一个版本升级后带来的变化。</div>
+      </div>
+      <div class="notes-body">
+        <div v-if="!updateNotes.length" class="notes-sub">本次更新暂无详细说明。</div>
+        <div v-for="(block, bi) in updateNotes" :key="bi" class="notes-group">
+          <div v-if="block.group" class="notes-group-title">{{ block.group }}</div>
+          <div v-for="(item, ii) in block.items" :key="ii" class="notes-item">
+            <span v-html="formatNotesInline(item)"></span>
+          </div>
+        </div>
+      </div>
+      <div class="notes-foot">
+        <div class="notes-mail">
+          使用中遇到问题，或想要某个功能，欢迎邮件告诉我：<strong>{{ feedbackEmail }}</strong>
+        </div>
+        <div style="flex:1"></div>
+        <button class="btn btn-secondary" @click="copyText(feedbackEmail, '邮箱已复制')">复制邮箱</button>
+        <button class="btn btn-primary" @click="closeUpdateNotes">开始写作</button>
       </div>
     </div>
   </div>
@@ -5726,6 +5854,219 @@ createApp({
     async function apiJSON(url, options = {}) {
       const res = await api(url, options);
       return res.json();
+    }
+
+    // ===== v0.11.5：模型预设 =====
+    // 后端 LLM 走 OpenAI 兼容协议，故 base_url 一律填到 /v1 端点。
+    // 预设只含公开的接口地址与常用模型名，不含任何密钥；密钥仍需用户自行填写。
+    const modelPresets = [
+      { key: 'deepseek', label: 'DeepSeek', name: 'DeepSeek', base_url: 'https://api.deepseek.com/v1', models: ['deepseek-chat', 'deepseek-reasoner'] },
+      { key: 'claude', label: 'Claude（Anthropic）', name: 'Claude', base_url: 'https://api.anthropic.com/v1', models: ['claude-sonnet-4-5', 'claude-opus-4-1'] },
+      { key: 'gpt', label: 'OpenAI GPT', name: 'OpenAI', base_url: 'https://api.openai.com/v1', models: ['gpt-4o', 'gpt-4o-mini'] },
+      { key: 'grok', label: 'Grok（xAI）', name: 'Grok', base_url: 'https://api.x.ai/v1', models: ['grok-4', 'grok-3-mini'] },
+      { key: 'kimi', label: 'Kimi（月之暗面）', name: 'Kimi', base_url: 'https://api.moonshot.cn/v1', models: ['kimi-k2-0905-preview', 'moonshot-v1-32k'] },
+      { key: 'qwen', label: '通义千问（阿里云）', name: '通义千问', base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1', models: ['qwen-max', 'qwen-plus'] },
+      { key: 'minimax', label: 'MiniMax', name: 'MiniMax', base_url: 'https://api.minimax.chat/v1', models: ['MiniMax-M2', 'abab6.5s-chat'] },
+      { key: 'glm', label: '智谱 GLM', name: '智谱 GLM', base_url: 'https://open.bigmodel.cn/api/paas/v4', models: ['glm-4.6', 'glm-4-air'] },
+      { key: 'doubao', label: '豆包（火山方舟）', name: '豆包', base_url: 'https://ark.cn-beijing.volces.com/api/v3', models: ['doubao-seed-1-6-250615'] },
+      { key: 'siliconflow', label: '硅基流动 SiliconFlow', name: '硅基流动', base_url: 'https://api.siliconflow.cn/v1', models: ['deepseek-ai/DeepSeek-V3'] },
+      { key: 'openrouter', label: 'OpenRouter（聚合）', name: 'OpenRouter', base_url: 'https://openrouter.ai/api/v1', models: ['anthropic/claude-sonnet-4.5', 'openai/gpt-4o'] },
+      { key: 'ollama', label: '本地 Ollama', name: 'Ollama', base_url: 'http://127.0.0.1:11434/v1', models: ['qwen3:8b'] },
+    ];
+    function findPreset(key) {
+      return modelPresets.find(p => p.key === key) || null;
+    }
+    // 「从预设添加」：新建渠道并填入预设，随后手动补 API Key
+    function addApiChannelFromPreset(event) {
+      const key = event && event.target ? event.target.value : '';
+      if (event && event.target) event.target.value = '';
+      const p = findPreset(key);
+      if (!p) return;
+      configData.value.api_channels.push({
+        id: 'ch_' + Date.now(),
+        name: p.name,
+        base_url: p.base_url,
+        models: [...p.models],
+        api_key: '',
+        temperature: 0.7,
+        max_tokens: 8192,
+      });
+      showToast('已添加「' + p.label + '」，请填写 API Key', 'success');
+    }
+    // 「套用预设」：用预设覆盖当前渠道的名称 / Base URL / 模型列表
+    function applyPresetToChannel(ch, event) {
+      const key = event && event.target ? event.target.value : '';
+      if (event && event.target) event.target.value = '';
+      const p = findPreset(key);
+      if (!p || !ch) return;
+      ch.name = p.name;
+      ch.base_url = p.base_url;
+      ch.models = [...p.models];
+      showToast('已套用「' + p.label + '」预设，请确认 API Key', 'success');
+    }
+
+    // ===== v0.11.5：关于与反馈 / 本次更新 =====
+    const aboutInfo = ref({});
+    const feedbackEmail = ref('3191639408@qq.com');
+    const checkUpdate = ref(true);
+    const diagnosticsBusy = ref(false);
+    const diagnosticsPath = ref('');
+    const diagnosticsDir = ref('');
+    const showUpdateNotes = ref(false);
+    const notesVersion = ref('');
+    const updateNotes = ref([]);
+    const updateNotice = ref(null);        // { version, url }：侧栏「发现新版本」提示
+    const dismissedUpdate = ref('');       // 本次运行内已忽略的版本
+
+    async function initAbout() {
+      try {
+        const info = await apiJSON('/api/about');
+        aboutInfo.value = info || {};
+        if (info && info.email) feedbackEmail.value = info.email;
+        if (info && info.prefs) checkUpdate.value = info.prefs.check_update !== false;
+      } catch (_) {
+        return; // 后端不可用时静默跳过，不影响主流程
+      }
+      await maybeShowUpdateNotes();
+      await checkNewVersion();
+    }
+
+    // 每个版本只在首次启动时展示一次「本次更新」
+    async function maybeShowUpdateNotes() {
+      try {
+        const ver = String(aboutInfo.value.version || '').trim();
+        if (!ver) return;
+        const prefs = aboutInfo.value.prefs || {};
+        if (prefs.last_shown_version === ver) return;
+        const data = await apiJSON('/api/about/changelog');
+        if (!data || !data.found || !(data.blocks || []).length) return;
+        notesVersion.value = data.version || ver;
+        updateNotes.value = data.blocks;
+        showUpdateNotes.value = true;
+      } catch (_) {}
+    }
+
+    async function closeUpdateNotes() {
+      showUpdateNotes.value = false;
+      const ver = notesVersion.value || aboutInfo.value.version || '';
+      if (!ver) return;
+      try {
+        await apiJSON('/api/workspace/prefs/ui', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ last_shown_version: ver }),
+        });
+        if (aboutInfo.value.prefs) aboutInfo.value.prefs.last_shown_version = ver;
+      } catch (_) {}
+    }
+
+    // 更新说明里的 **加粗** 与 `代码` 转成 HTML（先整体转义，避免注入）
+    function formatNotesInline(text) {
+      const esc = String(text == null ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return esc
+        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+    }
+
+    async function checkNewVersion() {
+      if (!checkUpdate.value) return;
+      try {
+        const data = await apiJSON('/api/about/update-check');
+        if (!data || !data.has_update || !data.latest) return;
+        if (dismissedUpdate.value === data.latest) return;
+        updateNotice.value = { version: data.latest, url: data.url || '' };
+      } catch (_) { /* 网络不可用时静默 */ }
+    }
+
+    function dismissUpdateNotice() {
+      if (updateNotice.value) dismissedUpdate.value = updateNotice.value.version;
+      updateNotice.value = null;
+    }
+
+    async function toggleCheckUpdate() {
+      try {
+        await apiJSON('/api/workspace/prefs/ui', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ check_update: checkUpdate.value }),
+        });
+        if (aboutInfo.value.prefs) aboutInfo.value.prefs.check_update = checkUpdate.value;
+      } catch (_) { showToast('设置失败', 'error'); }
+    }
+
+    async function copyDiagnostics() {
+      try {
+        const data = await apiJSON('/api/about/diagnostics/text');
+        await copyText(data && data.text ? data.text : '', '诊断信息已复制，可直接粘贴给我');
+      } catch (_) { showToast('读取诊断信息失败', 'error'); }
+    }
+
+    async function exportDiagnostics() {
+      if (diagnosticsBusy.value) return;
+      diagnosticsBusy.value = true;
+      try {
+        const data = await apiJSON('/api/about/diagnostics/export', { method: 'POST' });
+        diagnosticsPath.value = (data && data.path) || '';
+        diagnosticsDir.value = (data && data.dir) || '';
+        showToast('诊断包已导出', 'success');
+      } catch (e) {
+        showToast('导出失败: ' + (e.message || e), 'error');
+      } finally {
+        diagnosticsBusy.value = false;
+      }
+    }
+
+    // 用系统默认程序打开本地路径（文件夹或文件）——走 Electron 的 shell.openPath
+    async function openPath(target) {
+      if (!target) return;
+      if (window.electronAPI && window.electronAPI.openPath) {
+        const res = await window.electronAPI.openPath(target);
+        if (res && res.success === false) showToast('打开失败', 'error');
+        return;
+      }
+      showToast('当前环境不支持打开文件夹', 'error');
+    }
+
+    function openLogDir() {
+      openPath(aboutInfo.value.log_dir || '');
+    }
+
+    // 复制文本：优先 Clipboard API，失败时回退到临时 textarea
+    async function copyText(text, okMsg) {
+      const val = String(text == null ? '' : text);
+      if (!val) return;
+      let ok = false;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(val);
+          ok = true;
+        }
+      } catch (_) { ok = false; }
+      if (!ok) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = val;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (_) { ok = false; }
+      }
+      showToast(ok ? (okMsg || '已复制') : '复制失败，请手动选择复制', ok ? 'success' : 'error');
+    }
+
+    function openExternal(url) {
+      if (!url) return;
+      window.open(url, '_blank');
+    }
+    function openReleasePage() {
+      openExternal((updateNotice.value && updateNotice.value.url) || aboutInfo.value.releases_url || '');
+    }
+    function openIssuesPage() {
+      openExternal(aboutInfo.value.issues_url || '');
     }
 
     // ===== 写作页 =====
@@ -11825,6 +12166,9 @@ createApp({
       await loadImagePrefs();
       setInterval(checkHealth, 30000);
 
+      // v0.11.5：关于信息、「本次更新」悬浮窗（每个版本首次启动展示一次）、新版本检查
+      await initAbout();
+
       // 标蓝信息卡：点空白处 / Esc / 窗口尺寸变化时关闭
       document.addEventListener('click', (e) => {
         if (!entryCard.value) return;
@@ -11849,6 +12193,7 @@ createApp({
         if (e.key !== 'Escape') return;
         if (mentionPopoverOpen.value) mentionPopoverOpen.value = false;
         if (chatScopePanelOpen.value) chatScopePanelOpen.value = false;
+        if (showUpdateNotes.value) closeUpdateNotes();
       });
 
       // ===== 全局拖拽阻止（PyWebView 修复）=====
@@ -11990,6 +12335,12 @@ createApp({
       fileAnalyzeType, fileAnalyzing, fileDissectChapters, fileDissecting, fileDissectResults,
       openFileDetail, closeFileDetail, loadFileContent, runFileAnalyze, runFileDissect,
       showConfigModal, configData, writingPrefs, modelRoles, testingConfig,
+      modelPresets, addApiChannelFromPreset, applyPresetToChannel,
+      aboutInfo, feedbackEmail, checkUpdate, diagnosticsBusy, diagnosticsPath, diagnosticsDir,
+      showUpdateNotes, notesVersion, updateNotes, updateNotice,
+      dismissUpdateNotice, closeUpdateNotes, formatNotesInline, toggleCheckUpdate,
+      copyDiagnostics, exportDiagnostics, openLogDir, openPath, copyText,
+      openReleasePage, openIssuesPage, initAbout,
       connResults, connRows, connTestedCount, connState, connDetail, runConnectivityCheck,
       toastMsg, toastType,
       showToast, selectWorkspace, browseWorkspace, loadProjects, selectProject, createProject,

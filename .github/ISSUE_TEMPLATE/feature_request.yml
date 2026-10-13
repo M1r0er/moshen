@@ -1,0 +1,30 @@
+name: 功能建议
+description: 想要的新功能或改进想法
+title: "[建议] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        欢迎提建议。也欢迎直接发邮件到 **3191639408@qq.com** 聊聊你的写作流程——我更需要知道你在什么环节觉得别扭，而不只是一个功能名。
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 你在什么场景下需要它
+      description: 描述你实际写作时遇到的困扰，比只写一个功能名有用得多
+      placeholder: 我在……的时候，需要……，现在只能……
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望它怎么工作
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: 墨参版本
+      placeholder: v0.11.5
+    validations:
+      required: false
