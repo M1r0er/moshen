@@ -1,22 +1,25 @@
 /**
  * 墨参 MoShen · 界面截图生成器
  * ----------------------------------------------------------------------------
- * 用 Electron 打开单文件产品原型（docs/产品原型.html，内置示例项目《长夜行》的
- * 离线样例数据），逐页截取界面截图，输出到 assets/screenshots/，供 README 引用。
+ * 连接本地运行的后端服务（演示沙盒），在 Electron 中以 1600×1000 打开界面，
+ * 逐页截取界面截图，输出到 assets/screenshots/，供 README 引用。
  *
- * 说明：截图只使用原型里的示例数据，不读取任何本地工作区 / 用户小说项目。
+ * 演示数据准备（独立沙盒，不触碰真实工作区与真实配置）：
+ *   1. USERPROFILE=C:\Users\Administrator\moshen-demo\home 启动后端：
+ *      release\win-unpacked\resources\moshen-server\moshen-server.exe --port 8790
+ *   2. 演示项目《长夜行》的数据位于 C:\Users\Administrator\moshen-demo\workspace
  *
  * 用法：
- *   node docs/build-prototype.js                          # 先构建原型（如尚未构建）
  *   npx electron tools/capture-screenshots.js             # 生成全部截图
  *   npx electron tools/capture-screenshots.js --probe     # 只探测各页 DOM，不截图
+ *   环境变量 SHOT_URL 可覆盖默认地址（默认 http://127.0.0.1:8790/）
  */
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 const ROOT = path.resolve(__dirname, '..');
-const PROTOTYPE = path.join(ROOT, 'docs', '产品原型.html');
+const TARGET_URL = process.env.SHOT_URL || 'http://127.0.0.1:8790/';
 const OUT_DIR = path.join(ROOT, 'assets', 'screenshots');
 const PROBE = process.argv.includes('--probe');
 
@@ -57,7 +60,17 @@ async function clickText(win, selector, text) {
 }
 
 async function selectTab(win, label) {
-  return clickText(win, '.tab-item', label);
+  await clickText(win, '.tab-item', label);
+  await sleep(400);
+}
+
+// 确保演示项目处于展开状态（无激活项时点击第一个项目）
+async function ensureProject(win) {
+  const ok = await waitFor(win, `document.querySelector('.project-list .project-item.active')`, 15000);
+  if (ok) return true;
+  const clicked = await clickSel(win, '.project-item', 0);
+  if (!clicked) return false;
+  return waitFor(win, `document.querySelector('.project-list .project-item.active')`, 20000);
 }
 
 const SCENES = [
@@ -218,22 +231,19 @@ async function createWin() {
       backgroundThrottling: false,
     },
   });
-  await win.loadFile(PROTOTYPE);
+  await win.loadURL(TARGET_URL);
   return win;
 }
 
 async function main() {
-  if (!fs.existsSync(PROTOTYPE)) {
-    throw new Error('未找到产品原型：' + PROTOTYPE + '\n请先运行 node docs/build-prototype.js');
-  }
-
   const win = await createWin();
   win.webContents.on('console-message', (_e, level, message) => {
     if (level >= 2) console.error('[renderer]', message);
   });
   const ready = await waitFor(win, `document.querySelectorAll('.tab-item').length >= 10`);
-  if (!ready) throw new Error('原型界面未挂载：未找到一级页签');
-  await waitFor(win, `document.querySelector('.project-list .project-item.active')`, 20000);
+  if (!ready) throw new Error('界面未挂载：未找到一级页签，请确认后端已在 ' + TARGET_URL + ' 运行');
+  const projOk = await ensureProject(win);
+  if (!projOk) throw new Error('未找到可用项目：请确认演示工作区已灌入《长夜行》数据');
   await sleep(1200);
 
   if (PROBE) {
